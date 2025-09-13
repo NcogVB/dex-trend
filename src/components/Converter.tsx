@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import TradingDashboard from './TradingDashboard'
 import { useSwap } from '../contexts/SwapContext'
+import { useWallet } from '../contexts/WalletContext'
 
 interface Token {
     symbol: string
@@ -15,26 +16,25 @@ interface Token {
 
 const Converter = () => {
     const {
-        account,
-        connect,
         getQuote,
-        swapExactInputSingle,
+        executeSwap,
         getTokenBalance,
     } = useSwap()
+    const { account } = useWallet();
     console.log('Connection Status:', {
         account,
     })
     const [tokens, setTokens] = useState<Token[]>([
         {
-            symbol: 'USDT',
-            name: 'Tether',
-            img: '/images/stock-3.png',
-            color: '#EF4444',
+            symbol: 'WPOL',
+            name: 'Wrapped Polygon',
+            img: '/images/pol.png',
+            color: '#8247E5',
             balance: 0,
             realBalance: '0',
         },
         {
-            symbol: 'USDC',
+            symbol: 'USDC.e',
             name: 'USD Coin',
             img: '/images/stock-5.png',
             color: '#2775CA',
@@ -51,7 +51,6 @@ const Converter = () => {
     const [exchangeRate, setExchangeRate] = useState(0)
     const [isSwapping, setIsSwapping] = useState(false)
     const [isLoadingQuote, setIsLoadingQuote] = useState(false)
-    const [lastQuoteTime, setLastQuoteTime] = useState(0)
     const [isFromDropdownOpen, setIsFromDropdownOpen] = useState(false)
     const [isToDropdownOpen, setIsToDropdownOpen] = useState(false)
 
@@ -63,20 +62,20 @@ const Converter = () => {
         if (!account) return
         const updated = await Promise.all(
             tokens.map(async (t) => {
-                const realBalance = await getTokenBalance(t.symbol).catch(
+                const realBalance = await getTokenBalance(t.symbol as any).catch(
                     () => '0'
                 )
                 return { ...t, realBalance, balance: parseFloat(realBalance) }
             })
         )
         setTokens(updated)
-        setFromToken(
-            updated.find((t) => t.symbol === fromToken.symbol) || updated[0]
+        setFromToken(prev =>
+            updated.find((t) => t.symbol === prev.symbol) || updated[0]
         )
-        setToToken(
-            updated.find((t) => t.symbol === toToken.symbol) || updated[1]
+        setToToken(prev =>
+            updated.find((t) => t.symbol === prev.symbol) || updated[1]
         )
-    }, [account, tokens, fromToken.symbol, toToken.symbol, getTokenBalance])
+    }, [account, getTokenBalance])
 
     // Fetch quote using context
     const fetchQuote = useCallback(
@@ -86,23 +85,29 @@ const Converter = () => {
                 setExchangeRate(0)
                 return
             }
+
+            const startTime = Date.now()
             setIsLoadingQuote(true)
+
             try {
                 const quote = await getQuote({
-                    fromSymbol: fromToken.symbol,
-                    toSymbol: toToken.symbol,
+                    fromSymbol: fromToken.symbol as "WPOL" | "USDC.e",
+                    toSymbol: toToken.symbol as "WPOL" | "USDC.e",
                     amountIn: amount,
                 })
+
                 setToAmount(quote.amountOut)
                 const rate = parseFloat(quote.amountOut) / parseFloat(amount)
                 setExchangeRate(rate)
-                setLastQuoteTime(Date.now())
-            } catch (e: unknown) {
+            } catch (e) {
                 console.error('Quote error:', e)
                 setToAmount('0')
                 setExchangeRate(0)
             } finally {
-                setIsLoadingQuote(false)
+                // ensure at least 500ms visible loading
+                const elapsed = Date.now() - startTime
+                const delay = elapsed < 500 ? 500 - elapsed : 0
+                setTimeout(() => setIsLoadingQuote(false), delay)
             }
         },
         [fromToken.symbol, toToken.symbol, getQuote]
@@ -111,7 +116,6 @@ const Converter = () => {
     // Handle swap
     const handleSwap = async () => {
         if (!account) {
-            await connect()
             return
         }
         if (!fromAmount || parseFloat(fromAmount) <= 0) {
@@ -120,11 +124,11 @@ const Converter = () => {
         }
         setIsSwapping(true)
         try {
-            const receipt = await swapExactInputSingle({
-                fromSymbol: fromToken.symbol,
-                toSymbol: toToken.symbol,
+            const receipt = await executeSwap({
+                fromSymbol: fromToken.symbol as "WPOL" | "USDC.e",
+                toSymbol: toToken.symbol as "WPOL" | "USDC.e",
                 amountIn: fromAmount,
-                slippage: slippageTolerance,
+                slippageTolerance: slippageTolerance,
             })
             alert(`Swap successful! Tx hash: ${receipt.hash}`)
             setFromAmount('')
@@ -146,9 +150,11 @@ const Converter = () => {
         if (account) updateBalances()
     }, [account, updateBalances])
     useEffect(() => {
-        if (fromAmount && fromToken.symbol !== toToken.symbol)
+        if (fromAmount && fromToken.symbol !== toToken.symbol) {
             fetchQuote(fromAmount)
-    }, [fromAmount, fromToken, toToken, fetchQuote])
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fromAmount, fromToken.symbol, toToken.symbol])
 
     // Dropdown close on outside click
     useEffect(() => {
@@ -427,19 +433,7 @@ const Converter = () => {
                                 : '--'}
                         </p>
                     </div>
-                    <div className="flex-1 text-center">
-                        <span className="text-[#888888] text-sm">
-                            Quote Valid Until:{' '}
-                            {lastQuoteTime
-                                ? new Date(
-                                      lastQuoteTime + 30000
-                                  ).toLocaleTimeString()
-                                : '--'}
-                        </span>
-                        <p className="text-[#333333] font-semibold text-[18px] mt-2">
-                            {fromToken.symbol} → {toToken.symbol}
-                        </p>
-                    </div>
+
                     <div className="flex-1 text-center md:text-right">
                         <span className="flex items-center justify-center md:justify-end gap-2 text-[#888888] text-sm">
                             Slippage Tolerance{' '}
@@ -464,22 +458,21 @@ const Converter = () => {
                 {/* Swap button */}
                 <button
                     onClick={handleSwap}
-                    disabled={
-                        isSwapping ||
-                        isLoadingQuote ||
-                        !fromAmount ||
-                        parseFloat(fromAmount) <= 0
-                    }
-                    className={`modern-button mt-[25px] md:mt-[40px] w-full p-[16px] text-center ${isSwapping || isLoadingQuote ? '!bg-[#E5E5E5] !text-[#888888]' : ''}`}
+                    disabled={isSwapping || !fromAmount || parseFloat(fromAmount) <= 0}
+                    className="modern-button mt-[25px] md:mt-[40px] w-full p-[16px] text-center disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    {isSwapping
-                        ? 'Swapping...'
-                        : !account
-                          ? 'Connect Wallet'
-                          : isLoadingQuote
-                            ? 'Getting Quote...'
-                            : 'Exchange'}
+                    {isSwapping ? (
+                        "Swapping..."
+                    ) : !account ? (
+                        "Connect Wallet"
+                    ) : (
+                        <>
+                            Exchange
+                            {isLoadingQuote && <span className="ml-2 animate-spin">⏳</span>}
+                        </>
+                    )}
                 </button>
+
             </div>
         </div>
     )

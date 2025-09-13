@@ -1,89 +1,73 @@
 // src/context/SwapContext.tsx
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useState } from "react";
 import { ethers } from "ethers";
-import SwapRouterABI from "../ABI/SwapRouter.json";
+import { useWallet } from "./WalletContext"; // Adjust the import path as needed
 
-// Contract addresses
-const SWAP_ROUTER_ADDRESS = "0x88F36b3c3704406f1Ae5A921a8727905f0F2bC4F";
-const FACTORY_ADDRESS = "0x5830423Fb4A3010f5546D5FBF68398B11c99709D";
+// Polygon mainnet addresses
+const SWAP_ROUTER_ADDRESS = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"; // SwapRouter02
+const QUOTER_ADDRESS = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"; // QuoterV2
 
-// Token addresses with proper configuration
-const TOKENS: Record<string, { address: string; decimals: number }> = {
-    USDC: { address: "0x1000cCa12d1360CE757734270f8a457127A93DaA", decimals: 18 },
-    USDT: { address: "0x6082626c05B1aDbb6Dea0750788e60b83A88f41f", decimals: 18 },
-};
+// Token configurations for Polygon mainnet
+const TOKENS = {
+    WPOL: {
+        address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+        decimals: 18,
+        symbol: "WPOL",
+        name: "Wrapped Polygon"
+    },
+    "USDC.e": {
+        address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+        decimals: 6,
+        symbol: "USDC.e",
+        name: "USD Coin (Ethereum)"
+    }
+} as const;
 
-// ABI definitions
-const FACTORY_ABI = [
-    "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)",
-];
+// Fee tiers for Uniswap V3
+const FEE_TIERS = [100, 500, 3000, 10000]; // 0.01%, 0.05%, 0.3%, 1%
 
-const POOL_ABI = [
-    "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
-    "function token0() external view returns (address)",
-    "function token1() external view returns (address)",
-    "function fee() external view returns (uint24)",
-    "function liquidity() external view returns (uint128)",
-];
-
+// Contract ABIs
 const ERC20_ABI = [
     "function approve(address spender, uint256 amount) external returns (bool)",
     "function allowance(address owner, address spender) external view returns (uint256)",
     "function balanceOf(address account) external view returns (uint256)",
-    "function transfer(address to, uint256 amount) external returns (bool)",
     "function symbol() external view returns (string)",
     "function decimals() external view returns (uint8)",
     "function name() external view returns (string)",
 ];
 
-// Fee tiers
-const FEE_TIERS = [500, 3000, 10000]; // 0.05%, 0.3%, 1%
+const QUOTER_ABI = [
+    "function quoteExactInputSingle((address tokenIn,address tokenOut,uint24 fee,uint256 amountIn,uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)",
+    "function quoteExactInput(bytes path,uint256 amountIn) external returns (uint256 amountOut,uint160[] memory sqrtPriceX96AfterList,uint32[] memory initializedTicksCrossedList,uint256 gasEstimate)"
+];
+
+
+const SWAP_ROUTER_ABI = [
+    "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
+];
 
 interface SwapQuote {
     amountOut: string;
     priceImpact: number;
     route: string[];
+    gasEstimate: string;
     fee: number;
-}
-
-interface PoolInfo {
-    address: string;
-    fee: number;
-    liquidity: string;
-    sqrtPriceX96: string;
-    token0: string;
-    token1: string;
 }
 
 interface SwapContextValue {
-    account: string | null;
-    provider: ethers.BrowserProvider | null;
-    signer: ethers.Signer | null;
-    isConnected: boolean;
-    isConnecting: boolean;
-    connect: () => Promise<void>;
-    disconnect: () => void;
     getQuote: (params: {
-        fromSymbol: string;
-        toSymbol: string;
+        fromSymbol: keyof typeof TOKENS; // This will now be "WPOL" | "USDC"
+        toSymbol: keyof typeof TOKENS;
         amountIn: string;
     }) => Promise<SwapQuote>;
-    swapExactInputSingle: (params: {
-        fromSymbol: string;
-        toSymbol: string;
+    executeSwap: (params: {
+        fromSymbol: keyof typeof TOKENS;
+        toSymbol: keyof typeof TOKENS;
         amountIn: string;
-        slippage: number;
+        slippageTolerance: number;
     }) => Promise<any>;
-    getTokenBalance: (tokenSymbol: string) => Promise<string>;
-    getPoolInfo: (
-        tokenA: string,
-        tokenB: string,
-        fee: number
-    ) => Promise<PoolInfo | null>;
-    getAllPoolsForPair: (
-        tokenA: string,
-        tokenB: string
-    ) => Promise<PoolInfo[]>;
+    getTokenBalance: (tokenSymbol: keyof typeof TOKENS) => Promise<string>;
+    isLoading: boolean;
 }
 
 const SwapContext = createContext<SwapContextValue | undefined>(undefined);
@@ -91,393 +75,185 @@ const SwapContext = createContext<SwapContextValue | undefined>(undefined);
 export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
     children,
 }) => {
-    const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
-    const [signer, setSigner] = useState<ethers.Signer | null>(null);
-    const [account, setAccount] = useState<string | null>(null);
-    const [isConnecting, setIsConnecting] = useState(false);
-    const [isConnected, setIsConnected] = useState(false);
+    const { account, provider, signer } = useWallet();
+    const [isLoading, setIsLoading] = useState(false);
 
-    // Check if MetaMask is available
-    const isMetaMaskAvailable = () => {
-        return typeof window !== 'undefined' &&
-            typeof (window as any).ethereum !== 'undefined' &&
-            (window as any).ethereum.isMetaMask;
-    };
-
-    // Initialize connection
-    const initializeConnection = async (providerInstance: ethers.BrowserProvider) => {
-        try {
-            const signerInstance = await providerInstance.getSigner();
-            const address = await signerInstance.getAddress();
-
-            setProvider(providerInstance);
-            setSigner(signerInstance);
-            setAccount(address);
-            setIsConnected(true);
-
-            console.log("Wallet connected successfully:", {
-                address,
-                provider: !!providerInstance,
-                signer: !!signerInstance
-            });
-
-            return { provider: providerInstance, signer: signerInstance, address };
-        } catch (error) {
-            console.error("Failed to initialize connection:", error);
-            throw error;
-        }
-    };
-
-    // Connect wallet function
-    const connect = async () => {
-        if (!isMetaMaskAvailable()) {
-            throw new Error("MetaMask is not installed. Please install MetaMask to continue.");
+    const getQuote = async ({
+        fromSymbol,
+        toSymbol,
+        amountIn,
+    }: {
+        fromSymbol: keyof typeof TOKENS;
+        toSymbol: keyof typeof TOKENS;
+        amountIn: string;
+    }): Promise<SwapQuote> => {
+        if (!provider) {
+            throw new Error("Provider not connected");
         }
 
-        if (isConnecting) {
-            console.log("Connection already in progress...");
-            return;
-        }
-
-        setIsConnecting(true);
+        setIsLoading(true);
 
         try {
-            const ethereum = (window as any).ethereum;
+            const tokenIn = TOKENS[fromSymbol];
+            const tokenOut = TOKENS[toSymbol];
+            const amountInWei = ethers.parseUnits(amountIn, tokenIn.decimals);
 
-            // Request account access
-            const accounts = await ethereum.request({
-                method: 'eth_requestAccounts'
-            });
+            const quoter = new ethers.Contract(QUOTER_ADDRESS, QUOTER_ABI, provider);
 
-            if (!accounts || accounts.length === 0) {
-                throw new Error("No accounts returned from MetaMask");
-            }
+            let bestQuote: any = null;
+            let bestFee = 0;
 
-            // Create provider
-            const providerInstance = new ethers.BrowserProvider(ethereum);
+            for (const fee of FEE_TIERS) {
+                try {
+                    // Encode path: tokenIn -> tokenOut with fee
+                    const path = ethers.solidityPacked(
+                        ["address", "uint24", "address"],
+                        [tokenIn.address, fee, tokenOut.address]
+                    );
 
-            // Verify network connection
-            const network = await providerInstance.getNetwork();
-            console.log("Connected to network:", network);
+                    const result = await quoter.quoteExactInput.staticCall(path, amountInWei);
 
-            // Initialize connection
-            await initializeConnection(providerInstance);
-
-        } catch (error: any) {
-            console.error("Connection failed:", error);
-
-            // Reset states on error
-            setProvider(null);
-            setSigner(null);
-            setAccount(null);
-            setIsConnected(false);
-
-            // Handle specific errors
-            if (error.code === 4001) {
-                throw new Error("Please connect to MetaMask to continue.");
-            } else if (error.code === -32002) {
-                throw new Error("MetaMask connection request is already pending. Please check MetaMask.");
-            } else {
-                throw new Error(error.message || "Failed to connect wallet");
-            }
-        } finally {
-            setIsConnecting(false);
-        }
-    };
-
-    // Disconnect wallet
-    const disconnect = () => {
-        setProvider(null);
-        setSigner(null);
-        setAccount(null);
-        setIsConnected(false);
-        console.log("Wallet disconnected");
-    };
-
-    // Handle account changes
-    const handleAccountsChanged = async (accounts: string[]) => {
-        console.log("Accounts changed:", accounts);
-
-        if (accounts.length === 0) {
-            // User disconnected
-            disconnect();
-        } else if (accounts[0] !== account) {
-            // Account switched
-            try {
-                if (provider) {
-                    await initializeConnection(provider);
+                    const [amountOut] = result;
+                    if (!bestQuote || amountOut > bestQuote.amountOut) {
+                        bestQuote = result;
+                        bestFee = fee;
+                    }
+                } catch (error) {
+                    console.log(`No pool found for fee tier ${fee}`);
                 }
-            } catch (error) {
-                console.error("Failed to handle account change:", error);
-                disconnect();
-            }
-        }
-    };
-
-    // Handle chain changes
-    const handleChainChanged = (chainId: string) => {
-        console.log("Chain changed to:", chainId);
-        // Reload the page or reinitialize connection as needed
-        window.location.reload();
-    };
-
-    // Handle disconnect
-    const handleDisconnect = () => {
-        console.log("MetaMask disconnected");
-        disconnect();
-    };
-
-    // Auto-connect on page load
-    useEffect(() => {
-        const autoConnect = async () => {
-            if (!isMetaMaskAvailable()) {
-                console.log("MetaMask not available");
-                return;
             }
 
-            try {
-                const ethereum = (window as any).ethereum;
-                const accounts = await ethereum.request({ method: 'eth_accounts' });
-
-                if (accounts && accounts.length > 0) {
-                    console.log("Auto-connecting to existing session...");
-                    const providerInstance = new ethers.BrowserProvider(ethereum);
-                    await initializeConnection(providerInstance);
-                }
-            } catch (error) {
-                console.error("Auto-connect failed:", error);
-            }
-        };
-
-        autoConnect();
-    }, []);
-
-    // Setup event listeners
-    useEffect(() => {
-        if (!isMetaMaskAvailable()) return;
-
-        const ethereum = (window as any).ethereum;
-
-        // Add event listeners
-        ethereum.on('accountsChanged', handleAccountsChanged);
-        ethereum.on('chainChanged', handleChainChanged);
-        ethereum.on('disconnect', handleDisconnect);
-
-        // Cleanup event listeners
-        return () => {
-            if (ethereum.removeListener) {
-                ethereum.removeListener('accountsChanged', handleAccountsChanged);
-                ethereum.removeListener('chainChanged', handleChainChanged);
-                ethereum.removeListener('disconnect', handleDisconnect);
-            }
-        };
-    }, [account, provider]);
-
-    const getPoolInfo = async (
-        tokenA: string,
-        tokenB: string,
-        fee: number
-    ): Promise<PoolInfo | null> => {
-        if (!provider) throw new Error("Provider not connected");
-
-        try {
-            const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
-            const poolAddress = await factory.getPool(tokenA, tokenB, fee);
-
-            if (poolAddress === ethers.ZeroAddress) {
-                return null;
+            if (!bestQuote) {
+                throw new Error("No liquidity pool found for this pair");
             }
 
-            const poolContract = new ethers.Contract(poolAddress, POOL_ABI, provider);
-            const [slot0Data, liquidity, token0, token1] = await Promise.all([
-                poolContract.slot0(),
-                poolContract.liquidity(),
-                poolContract.token0(),
-                poolContract.token1(),
-            ]);
+            const amountOut = ethers.formatUnits(bestQuote[0], tokenOut.decimals);
+
+            // Simple price impact calculation
+            const inputValue = parseFloat(amountIn);
+            const outputValue = parseFloat(amountOut);
+            const priceImpact = Math.abs((outputValue / inputValue - 1)) * 100;
 
             return {
-                address: poolAddress,
-                fee,
-                liquidity: liquidity.toString(),
-                sqrtPriceX96: slot0Data.sqrtPriceX96.toString(),
-                token0,
-                token1,
+                amountOut,
+                priceImpact,
+                route: [fromSymbol, toSymbol],
+                gasEstimate: bestQuote[3]?.toString() || "200000",
+                fee: bestFee,
             };
         } catch (error) {
-            console.error(`Error getting pool info for fee ${fee}:`, error);
-            return null;
+            console.error("Quote error:", error);
+            throw new Error("Failed to get quote");
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    const getAllPoolsForPair = async (
-        tokenA: string,
-        tokenB: string
-    ): Promise<PoolInfo[]> => {
-        const pools: PoolInfo[] = [];
-        for (const fee of FEE_TIERS) {
-            const poolInfo = await getPoolInfo(tokenA, tokenB, fee);
-            if (poolInfo && BigInt(poolInfo.liquidity) > 0n) {
-                pools.push(poolInfo);
-            }
+
+    const executeSwap = async ({
+        fromSymbol,
+        toSymbol,
+        amountIn,
+        slippageTolerance,
+    }: {
+        fromSymbol: keyof typeof TOKENS;
+        toSymbol: keyof typeof TOKENS;
+        amountIn: string;
+        slippageTolerance: number;
+    }) => {
+        if (!signer || !account) {
+            throw new Error("Wallet not connected");
         }
-        return pools.sort(
-            (a, b) => Number(BigInt(b.liquidity) - BigInt(a.liquidity))
-        );
-    };
 
-    const getTokenBalance = async (tokenSymbol: string): Promise<string> => {
-        if (!provider || !account) throw new Error("Wallet not connected");
-
-        const tokenInfo = TOKENS[tokenSymbol];
-        if (!tokenInfo) throw new Error(`Token ${tokenSymbol} not configured`);
+        setIsLoading(true);
 
         try {
-            const tokenContract = new ethers.Contract(
-                tokenInfo.address,
-                ERC20_ABI,
-                provider
-            );
+            const tokenIn = TOKENS[fromSymbol];
+            const tokenOut = TOKENS[toSymbol];
+            const amountInWei = ethers.parseUnits(amountIn, tokenIn.decimals);
+
+            // Get quote first to determine the best fee tier
+            const quote = await getQuote({ fromSymbol, toSymbol, amountIn });
+            const amountOutWei = ethers.parseUnits(quote.amountOut, tokenOut.decimals);
+
+            // Calculate minimum amount out with slippage
+            const slippageMultiplier = (100 - slippageTolerance) / 100;
+            const amountOutMin = BigInt(Math.floor(Number(amountOutWei) * slippageMultiplier));
+
+            // Check and approve token if necessary
+            const tokenContract = new ethers.Contract(tokenIn.address, ERC20_ABI, signer);
+            const currentAllowance = await tokenContract.allowance(account, SWAP_ROUTER_ADDRESS);
+
+            if (currentAllowance < amountInWei) {
+                console.log("Approving token spend...");
+                const approveTx = await tokenContract.approve(SWAP_ROUTER_ADDRESS, amountInWei);
+                const approveReceipt = await approveTx.wait();
+
+                if (!approveReceipt || approveReceipt.status !== 1) {
+                    throw new Error("Token approval failed");
+                }
+                console.log("Token approval successful");
+            }
+
+            // Execute swap
+            const swapRouter = new ethers.Contract(SWAP_ROUTER_ADDRESS, SWAP_ROUTER_ABI, signer);
+
+            const params = {
+                tokenIn: tokenIn.address,
+                tokenOut: tokenOut.address,
+                fee: quote.fee,
+                recipient: account,
+                amountIn: amountInWei,
+                amountOutMinimum: amountOutMin,
+                sqrtPriceLimitX96: 0n, // No price limit
+            };
+
+            console.log("Executing swap with params:", {
+                ...params,
+                amountIn: amountIn,
+                amountOutMinimum: ethers.formatUnits(amountOutMin, tokenOut.decimals),
+                slippageTolerance: `${slippageTolerance}%`
+            });
+
+            const swapTx = await swapRouter.exactInputSingle(params, {
+                gasLimit: 300000, // Set appropriate gas limit
+            });
+
+            const receipt = await swapTx.wait();
+            console.log("Swap successful:", receipt);
+            return receipt;
+
+        } catch (error) {
+            console.error("Swap error:", error);
+            throw error;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const getTokenBalance = async (tokenSymbol: keyof typeof TOKENS): Promise<string> => {
+        if (!provider || !account) {
+            throw new Error("Wallet not connected");
+        }
+
+        try {
+            const token = TOKENS[tokenSymbol];
+            const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
             const balance = await tokenContract.balanceOf(account);
-            return ethers.formatUnits(balance, tokenInfo.decimals);
+            return ethers.formatUnits(balance, token.decimals);
         } catch (error) {
             console.error(`Error getting balance for ${tokenSymbol}:`, error);
             return "0";
         }
     };
 
-    // Manual quote from pool sqrtPriceX96
-    const getQuote = async ({
-        fromSymbol,
-        toSymbol,
-        amountIn,
-    }: {
-        fromSymbol: string;
-        toSymbol: string;
-        amountIn: string;
-    }): Promise<SwapQuote> => {
-        if (!provider) throw new Error("Provider not connected");
-
-        const tokenInInfo = TOKENS[fromSymbol];
-        const tokenOutInfo = TOKENS[toSymbol];
-        if (!tokenInInfo || !tokenOutInfo) throw new Error("Token not configured");
-
-        const pools = await getAllPoolsForPair(
-            tokenInInfo.address,
-            tokenOutInfo.address
-        );
-
-        if (pools.length === 0) throw new Error("No liquidity pools found");
-
-        const bestPool = pools[0];
-
-        // Compute price from sqrtPriceX96
-        // Price = (sqrtPriceX96 ** 2) / 2**192 (token1/token0)
-        const sqrtPriceX96 = BigInt(bestPool.sqrtPriceX96);
-        const priceX192 = sqrtPriceX96 * sqrtPriceX96;
-        const price = Number(priceX192 >> 192n);
-
-        // For stable pair assume 1:1, fallback approximate
-        const inputAmount = parseFloat(amountIn);
-        const outputAmount = inputAmount * (price === 0 ? 1 : price);
-
-        return {
-            amountOut: outputAmount.toString(),
-            priceImpact: 0.1, // dummy simplified
-            route: [fromSymbol, toSymbol],
-            fee: bestPool.fee,
-        };
-    };
-
-    const swapExactInputSingle = async ({
-        fromSymbol,
-        toSymbol,
-        amountIn,
-        slippage,
-    }: {
-        fromSymbol: string;
-        toSymbol: string;
-        amountIn: string;
-        slippage: number;
-    }) => {
-        if (!signer || !account) throw new Error("Wallet not connected");
-
-        const tokenInInfo = TOKENS[fromSymbol];
-        const tokenOutInfo = TOKENS[toSymbol];
-        if (!tokenInInfo || !tokenOutInfo) throw new Error("Token not configured");
-
-        const tokenInContract = new ethers.Contract(
-            tokenInInfo.address,
-            ERC20_ABI,
-            signer
-        );
-        const router = new ethers.Contract(
-            SWAP_ROUTER_ADDRESS,
-            SwapRouterABI.abi,
-            signer
-        );
-
-        const amtInWei = ethers.parseUnits(amountIn, tokenInInfo.decimals);
-        const currentAllowance = await tokenInContract.allowance(
-            account,
-            SWAP_ROUTER_ADDRESS
-        );
-
-        if (currentAllowance < amtInWei) {
-            console.log("Approving token spend...");
-            const approveTx = await tokenInContract.approve(
-                SWAP_ROUTER_ADDRESS,
-                amtInWei
-            );
-            const receipt = await approveTx.wait();
-            if (!receipt || receipt.status !== 1) {
-                throw new Error("Token approval failed");
-            }
-            console.log("Token approval successful");
-        }
-
-        const quote = await getQuote({ fromSymbol, toSymbol, amountIn });
-        const amountOutWei = ethers.parseUnits(
-            quote.amountOut,
-            tokenOutInfo.decimals
-        );
-
-        const minOutWei = (amountOutWei * BigInt(100 - slippage)) / BigInt(100);
-        const deadline = Math.floor(Date.now() / 1000) + 60 * 10;
-
-        const params = {
-            tokenIn: tokenInInfo.address,
-            tokenOut: tokenOutInfo.address,
-            fee: quote.fee,
-            recipient: account,
-            deadline,
-            amountIn: amtInWei,
-            amountOutMinimum: minOutWei,
-            sqrtPriceLimitX96: 0n,
-        };
-
-        console.log("Executing swap...");
-        const tx = await router.exactInputSingle(params, { gasLimit: 300000 });
-        const receipt = await tx.wait();
-        console.log("Swap successful:", receipt);
-        return receipt;
-    };
-
     return (
         <SwapContext.Provider
             value={{
-                account,
-                provider,
-                signer,
-                isConnected,
-                isConnecting,
-                connect,
-                disconnect,
                 getQuote,
-                swapExactInputSingle,
+                executeSwap,
                 getTokenBalance,
-                getPoolInfo,
-                getAllPoolsForPair,
+                isLoading,
             }}
         >
             {children}
@@ -486,7 +262,9 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
 };
 
 export const useSwap = () => {
-    const ctx = useContext(SwapContext);
-    if (!ctx) throw new Error("useSwap must be used inside SwapProvider");
-    return ctx;
+    const context = useContext(SwapContext);
+    if (!context) {
+        throw new Error("useSwap must be used within a SwapProvider");
+    }
+    return context;
 };

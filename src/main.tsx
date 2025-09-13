@@ -6,17 +6,20 @@ import { BrowserRouter } from 'react-router-dom'
 import { SwapProvider } from './contexts/SwapContext.tsx'
 import { LiquidityProvider } from './contexts/LiquidityContext.tsx'
 import { OrderProvider } from './contexts/OrderLimitContext.tsx'
+import { WalletProvider } from './contexts/WalletContext.tsx'
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <BrowserRouter>
-            <SwapProvider>
-                <LiquidityProvider>
-                    <OrderProvider>
-                        <App />
-                    </OrderProvider>
-                </LiquidityProvider>
-            </SwapProvider>
+            <WalletProvider>
+                <SwapProvider>
+                    <LiquidityProvider>
+                        <OrderProvider>
+                            <App />
+                        </OrderProvider>
+                    </LiquidityProvider>
+                </SwapProvider>
+            </WalletProvider>
         </BrowserRouter>
     </StrictMode>
 )

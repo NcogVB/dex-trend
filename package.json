@@ -15,6 +15,7 @@
         "@1inch/limit-order-sdk": "^5.0.5",
         "@tailwindcss/vite": "^4.1.11",
         "@uniswap/sdk-core": "^7.7.2",
+        "@uniswap/smart-order-router": "^3.32.2",
         "@uniswap/v3-sdk": "^3.25.2",
         "assert": "^2.1.0",
         "axios": "^1.11.0",
