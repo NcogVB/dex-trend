@@ -1,231 +1,316 @@
 // contexts/WalletContext.tsx
-import React, {
-    createContext,
-    useState,
-    useEffect,
-    type ReactNode,
-} from 'react'
+"use client"
 
-// Define wallet types
-export type WalletType = 'metamask' | 'walletconnect' | null
+import React, { createContext, useContext, useState, useEffect } from 'react'
+import type { ReactNode } from 'react'
+import { ethers } from 'ethers'
 
-// Define the context interface
-export interface WalletContextType {
-    // State
-    isConnected: boolean
-    address: string | null
-    walletType: WalletType
-    isConnecting: boolean
-    error: string | null
-
-    // Actions
-    connectMetaMask: () => Promise<void>
-    connectWalletConnect: () => Promise<void>
-    disconnect: () => void
-
-    // Modal state
-    isModalOpen: boolean
-    openModal: () => void
-    closeModal: () => void
+declare global {
+    interface Window {
+        ethereum?: any
+        trustWallet?: any
+    }
 }
 
-// Create context
-export const WalletContext = createContext<WalletContextType | undefined>(undefined)
+type WalletType = 'metamask' | 'trust' | null
 
-// Provider props interface
+interface WalletContextType {
+    // State
+    account: string | null
+    provider: ethers.BrowserProvider | null
+    signer: ethers.JsonRpcSigner | null
+    isConnected: boolean
+    isConnecting: boolean
+    connectedWallet: WalletType
+    isModalOpen: boolean
+
+    // Actions
+    connect: (walletType: "metamask" | "trust") => Promise<void>
+    disconnect: () => void
+    switchToPolygon: () => Promise<void>
+    openModal: () => void
+    closeModal: () => void
+
+    // Utils
+    formatAddress: (addr: string) => string
+    copyAddress: () => Promise<void>
+    viewOnExplorer: () => void
+    copySuccess: boolean
+}
+
+const WalletContext = createContext<WalletContextType | undefined>(undefined)
+
+// Polygon mainnet configuration
+const POLYGON_CHAIN_ID = 137
+const POLYGON_NETWORK = {
+    chainId: `0x${POLYGON_CHAIN_ID.toString(16)}`,
+    chainName: "Polygon Mainnet",
+    nativeCurrency: {
+        name: "MATIC",
+        symbol: "MATIC",
+        decimals: 18
+    },
+    rpcUrls: ["https://polygon-rpc.com"],
+    blockExplorerUrls: ["https://polygonscan.com"]
+}
+
 interface WalletProviderProps {
     children: ReactNode
 }
 
-// Wallet provider component
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
-    const [isConnected, setIsConnected] = useState<boolean>(false)
-    const [address, setAddress] = useState<string | null>(null)
-    const [walletType, setWalletType] = useState<WalletType>(null)
-    const [isConnecting, setIsConnecting] = useState<boolean>(false)
-    const [error, setError] = useState<string | null>(null)
-    const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
+    const [account, setAccount] = useState<string | null>(null)
+    const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null)
+    const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null)
+    const [isConnecting, setIsConnecting] = useState(false)
+    const [connectedWallet, setConnectedWallet] = useState<WalletType>(null)
+    const [isModalOpen, setIsModalOpen] = useState(false)
+    const [copySuccess, setCopySuccess] = useState(false)
 
-    // Check if user has a connected wallet on app load
+    // Store detected providers
+    const [metaMaskProvider, setMetaMaskProvider] = useState<any>(null)
+    const [trustWalletProvider, setTrustWalletProvider] = useState<any>(null)
+
+    const isConnected = !!account && !!connectedWallet
+
+    // Format address
+    const formatAddress = (addr: string): string =>
+        `${addr.slice(0, 6)}...${addr.slice(-4)}`
+
+    // Listen for EIP-6963 announcements
     useEffect(() => {
-        checkConnection()
+        const handleAnnounce = (event: any) => {
+            const p = event.detail.provider
+            if (p.isMetaMask) setMetaMaskProvider(p)
+            if (p.isTrust) setTrustWalletProvider(p)
+        }
+
+        window.addEventListener("eip6963:announceProvider", handleAnnounce)
+        window.dispatchEvent(new Event("eip6963:requestProvider"))
+
+        return () => {
+            window.removeEventListener("eip6963:announceProvider", handleAnnounce)
+        }
     }, [])
 
-    // Check existing connection
-    const checkConnection = async (): Promise<void> => {
+    // Switch to Polygon network
+    const switchToPolygon = async (eth?: any) => {
+        const ethereumProvider = eth || (connectedWallet === "metamask" ? metaMaskProvider : trustWalletProvider)
+        if (!ethereumProvider) throw new Error("No wallet connected")
+
         try {
-            // Check MetaMask connection
-            if (typeof window !== 'undefined' && window.ethereum) {
-                const accounts = await window.ethereum.request({
-                    method: 'eth_accounts',
+            await ethereumProvider.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: POLYGON_NETWORK.chainId }]
+            })
+        } catch (switchError: any) {
+            if (switchError.code === 4902) {
+                await ethereumProvider.request({
+                    method: "wallet_addEthereumChain",
+                    params: [POLYGON_NETWORK]
                 })
-                if (accounts.length > 0) {
-                    setAddress(accounts[0])
-                    setIsConnected(true)
-                    setWalletType('metamask')
-
-                    // Store in localStorage for persistence
-                    localStorage.setItem('walletConnected', 'true')
-                    localStorage.setItem('walletType', 'metamask')
-                    localStorage.setItem('walletAddress', accounts[0])
-                }
+            } else {
+                throw switchError
             }
-
-            // Check WalletConnect connection (you can expand this based on your WalletConnect setup)
-            const savedWalletType = localStorage.getItem('walletType')
-            const savedAddress = localStorage.getItem('walletAddress')
-            const isWalletConnected = localStorage.getItem('walletConnected')
-
-            if (
-                isWalletConnected === 'true' &&
-                savedAddress &&
-                savedWalletType === 'walletconnect'
-            ) {
-                setAddress(savedAddress)
-                setIsConnected(true)
-                setWalletType('walletconnect')
-            }
-        } catch (err) {
-            console.error('Error checking wallet connection:', err)
         }
     }
 
-    // Connect to MetaMask
-    const connectMetaMask = async (): Promise<void> => {
-        if (typeof window === 'undefined' || !window.ethereum) {
-            setError(
-                'MetaMask is not installed. Please install MetaMask to continue.'
-            )
-            return
-        }
-
+    // Connect to wallet
+    const connect = async (walletType: "metamask" | "trust") => {
         setIsConnecting(true)
-        setError(null)
-
         try {
+            const eth = walletType === "metamask" ? metaMaskProvider : trustWalletProvider
+            if (!eth) throw new Error(`${walletType} provider not found`)
+
+            // Switch to Polygon network
+            await switchToPolygon(eth)
+
             // Request account access
-            const accounts = await window.ethereum.request({
-                method: 'eth_requestAccounts',
-            })
+            await eth.request({ method: "eth_requestAccounts" })
 
-            if (accounts.length > 0) {
-                setAddress(accounts[0])
-                setIsConnected(true)
-                setWalletType('metamask')
-                setIsModalOpen(false)
+            const ethersProvider = new ethers.BrowserProvider(eth)
+            const ethersSigner = await ethersProvider.getSigner()
+            const address = await ethersSigner.getAddress()
 
-                // Store in localStorage
-                localStorage.setItem('walletConnected', 'true')
-                localStorage.setItem('walletType', 'metamask')
-                localStorage.setItem('walletAddress', accounts[0])
-
-                // Listen for account changes
-                window.ethereum.on('accountsChanged', handleAccountsChanged)
-                window.ethereum.on('chainChanged', handleChainChanged)
+            // Verify we're on Polygon
+            const network = await ethersProvider.getNetwork()
+            if (Number(network.chainId) !== POLYGON_CHAIN_ID) {
+                throw new Error("Please switch to Polygon network")
             }
-        } catch (err: any) {
-            if (err.code === 4001) {
-                setError('Please connect to MetaMask.')
+
+            setProvider(ethersProvider)
+            setSigner(ethersSigner)
+            setAccount(address)
+            setConnectedWallet(walletType)
+
+            // Persist connection preference
+            localStorage.setItem("preferredWallet", walletType)
+
+            console.log(`Connected to ${walletType}:`, address)
+        } catch (error: any) {
+            console.error('Connection failed:', error)
+
+            // Handle specific error cases
+            if (error.code === 4001) {
+                alert('Connection rejected by user')
+            } else if (error.code === -32002) {
+                alert('Connection request already pending. Please check your wallet.')
             } else {
-                setError('An error occurred while connecting to MetaMask.')
+                alert(`Failed to connect: ${error.message}`)
             }
-            console.error('MetaMask connection error:', err)
+            throw error
         } finally {
             setIsConnecting(false)
         }
     }
 
-    // Connect to WalletConnect (basic implementation - you may need to expand based on your needs)
-    const connectWalletConnect = async (): Promise<void> => {
-        setIsConnecting(true)
-        setError(null)
-
-        try {
-            console.log(
-                'WalletConnect integration needed - implement based on your requirements'
-            )
-
-            setTimeout(() => {
-                const simulatedAddress =
-                    '0x1234567890123456789012345678901234567890'
-                setAddress(simulatedAddress)
-                setIsConnected(true)
-                setWalletType('walletconnect')
-                setIsModalOpen(false)
-
-                localStorage.setItem('walletConnected', 'true')
-                localStorage.setItem('walletType', 'walletconnect')
-                localStorage.setItem('walletAddress', simulatedAddress)
-
-                setIsConnecting(false)
-            }, 2000)
-        } catch (err: any) {
-            setError('An error occurred while connecting to WalletConnect.')
-            console.error('WalletConnect connection error:', err)
-            setIsConnecting(false)
-        }
-    }
-
-    // Handle account changes
-    const handleAccountsChanged = (accounts: string[]): void => {
-        if (accounts.length === 0) {
-            disconnect()
-        } else {
-            setAddress(accounts[0])
-            localStorage.setItem('walletAddress', accounts[0])
-        }
-    }
-
-    // Handle chain changes
-    const handleChainChanged = (): void => {
-        // Reload the page to avoid stale state
-        window.location.reload()
-    }
-
-    const disconnect = (): void => {
-        setIsConnected(false)
-        setAddress(null)
-        setWalletType(null)
-        setError(null)
-
-        localStorage.removeItem('walletConnected')
-        localStorage.removeItem('walletType')
-        localStorage.removeItem('walletAddress')
-
-        if (typeof window !== 'undefined' && window.ethereum) {
-            window.ethereum.removeListener(
-                'accountsChanged',
-                handleAccountsChanged
-            )
-            window.ethereum.removeListener('chainChanged', handleChainChanged)
-        }
+    // Disconnect wallet
+    const disconnect = () => {
+        localStorage.removeItem("preferredWallet")
+        setAccount(null)
+        setProvider(null)
+        setSigner(null)
+        setConnectedWallet(null)
     }
 
     // Modal controls
-    const openModal = (): void => {
-        setIsModalOpen(true)
-        setError(null)
+    const openModal = () => setIsModalOpen(true)
+    const closeModal = () => setIsModalOpen(false)
+
+    // Copy address to clipboard
+    const copyAddress = async () => {
+        if (account) {
+            try {
+                await navigator.clipboard.writeText(account)
+                setCopySuccess(true)
+                setTimeout(() => setCopySuccess(false), 2000)
+            } catch (err) {
+                console.error('Failed to copy address:', err)
+            }
+        }
     }
 
-    const closeModal = (): void => {
-        setIsModalOpen(false)
-        setError(null)
-        setIsConnecting(false)
+    // Open address in block explorer (Polygonscan)
+    const viewOnExplorer = () => {
+        if (account) {
+            const explorerUrl = `https://polygonscan.com/address/${account}`
+            window.open(explorerUrl, '_blank')
+        }
     }
 
-    // Context value
+    // Auto-reconnect on page load
+    useEffect(() => {
+        const autoConnect = async () => {
+            const preferred = localStorage.getItem("preferredWallet") as "metamask" | "trust" | null
+            if (!preferred) return
+
+            const eth = preferred === "metamask" ? metaMaskProvider : trustWalletProvider
+            if (!eth) return
+
+            try {
+                const accounts = await eth.request({ method: "eth_accounts" })
+                if (!accounts || accounts.length === 0) return
+
+                const chainId = await eth.request({ method: "eth_chainId" })
+                if (chainId !== POLYGON_NETWORK.chainId) {
+                    await switchToPolygon(eth)
+                }
+
+                const ethersProvider = new ethers.BrowserProvider(eth)
+                const ethersSigner = await ethersProvider.getSigner()
+                const address = await ethersSigner.getAddress()
+
+                setProvider(ethersProvider)
+                setSigner(ethersSigner)
+                setAccount(address)
+                setConnectedWallet(preferred)
+            } catch (error) {
+                console.error('Auto-reconnect failed:', error)
+                // Clear invalid saved connection
+                localStorage.removeItem("preferredWallet")
+            }
+        }
+
+        if (metaMaskProvider || trustWalletProvider) {
+            autoConnect()
+        }
+    }, [metaMaskProvider, trustWalletProvider])
+
+    // Handle account/chain changes
+    useEffect(() => {
+        if (!connectedWallet) return
+
+        const eth = connectedWallet === "metamask" ? metaMaskProvider : trustWalletProvider
+        if (!eth) return
+
+        const handleAccountsChanged = async (accounts: string[]) => {
+            if (!accounts || accounts.length === 0) {
+                disconnect()
+            } else {
+                const newAccount = accounts[0]
+                setAccount(newAccount)
+
+                // Update signer for new account
+                if (provider) {
+                    const newSigner = await provider.getSigner()
+                    setSigner(newSigner)
+                }
+            }
+        }
+
+        const handleChainChanged = (chainId: string) => {
+            if (chainId !== POLYGON_NETWORK.chainId) {
+                console.log('Chain changed from Polygon, disconnecting...')
+                disconnect()
+            } else {
+                // Reload to refresh provider state
+                window.location.reload()
+            }
+        }
+
+        const handleDisconnect = () => {
+            disconnect()
+        }
+
+        // Add event listeners
+        eth.on("accountsChanged", handleAccountsChanged)
+        eth.on("chainChanged", handleChainChanged)
+        eth.on("disconnect", handleDisconnect)
+
+        return () => {
+            // Clean up event listeners
+            eth.removeListener("accountsChanged", handleAccountsChanged)
+            eth.removeListener("chainChanged", handleChainChanged)
+            eth.removeListener("disconnect", handleDisconnect)
+        }
+    }, [connectedWallet, metaMaskProvider, trustWalletProvider, provider])
+
     const value: WalletContextType = {
+        // State
+        account,
+        provider,
+        signer,
         isConnected,
-        address,
-        walletType,
         isConnecting,
-        error,
-        connectMetaMask,
-        connectWalletConnect,
-        disconnect,
+        connectedWallet,
         isModalOpen,
+
+        // Actions
+        connect,
+        disconnect,
+        switchToPolygon: async () => {
+            const eth = connectedWallet === "metamask" ? metaMaskProvider : trustWalletProvider
+            if (!eth) throw new Error("No wallet connected")
+            await switchToPolygon(eth)
+        },
         openModal,
         closeModal,
+
+        // Utils
+        formatAddress,
+        copyAddress,
+        viewOnExplorer,
+        copySuccess,
     }
 
     return (
@@ -235,8 +320,14 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     )
 }
 
-declare global {
-    interface Window {
-        ethereum?: any
+// Custom hook to use wallet context
+export const useWallet = (): WalletContextType => {
+    const context = useContext(WalletContext)
+    if (context === undefined) {
+        throw new Error('useWallet must be used within a WalletProvider')
     }
+    return context
 }
+
+// Export types for use in other components
+export type { WalletType }

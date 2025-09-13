@@ -1,19 +1,27 @@
 // components/WalletModal.tsx
 import React from 'react'
-import { X, AlertCircle, Loader2 } from 'lucide-react'
-import { useWallet } from '../hooks/useWallet'
+import { X, Loader2 } from 'lucide-react'
+import { useWallet } from '../contexts/WalletContext'
 
 const WalletModal: React.FC = () => {
   const {
     isModalOpen,
     closeModal,
-    connectMetaMask,
-    connectWalletConnect,
+    connect,
     isConnecting,
-    error,
   } = useWallet()
 
   if (!isModalOpen) return null
+
+  const handleConnect = async (walletType: "metamask" | "trust") => {
+    try {
+      await connect(walletType)
+      closeModal()
+    } catch (error) {
+      console.error('Connection failed:', error)
+      // Error handling is done in the context with alerts
+    }
+  }
 
   return (
     <>
@@ -41,19 +49,11 @@ const WalletModal: React.FC = () => {
             </button>
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg mb-4">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
           {/* Wallet Options */}
           <div className="space-y-3">
             {/* MetaMask */}
             <button
-              onClick={connectMetaMask}
+              onClick={() => handleConnect('metamask')}
               disabled={isConnecting}
               className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -63,17 +63,41 @@ const WalletModal: React.FC = () => {
                   <svg
                     width="24"
                     height="24"
-                    viewBox="0 0 24 24"
+                    viewBox="0 0 318 318"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M22.56 5.443l-3.715-2.83c-.38-.29-.926-.22-1.22.157l-2.573 3.302c-.294.377-.227.925.15 1.218l3.715 2.83c.38.29.926.22 1.22-.157l2.573-3.302c.294-.377.227-.925-.15-1.218z"
+                      d="M274.3 35.9l-99.5 73.9L193.1 65.8z"
                       fill="#E17726"
+                      stroke="#E17726"
+                      strokeWidth="0.25"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
                     <path
-                      d="M1.44 5.443l3.715-2.83c.38-.29.926-.22 1.22.157l2.573 3.302c.294.377.227.925-.15 1.218l-3.715 2.83c-.38.29-.926.22-1.22-.157L1.29 6.661c-.294-.377-.227-.925.15-1.218z"
+                      d="M44.4 35.9l98.7 74.6-17.5-44.3z"
                       fill="#E27625"
+                      stroke="#E27625"
+                      strokeWidth="0.25"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M238.3 206.8l-26.5 40.6 56.7 15.6 16.3-55.3z"
+                      fill="#E27625"
+                      stroke="#E27625"
+                      strokeWidth="0.25"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M33.9 207.7l16.2 55.3 56.7-15.6-26.5-40.6z"
+                      fill="#E27625"
+                      stroke="#E27625"
+                      strokeWidth="0.25"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
                   </svg>
                 </div>
@@ -89,15 +113,15 @@ const WalletModal: React.FC = () => {
               )}
             </button>
 
-            {/* WalletConnect */}
+            {/* Trust Wallet */}
             <button
-              onClick={connectWalletConnect}
+              onClick={() => handleConnect('trust')}
               disabled={isConnecting}
               className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  {/* WalletConnect Icon */}
+                  {/* Trust Wallet Icon */}
                   <svg
                     width="24"
                     height="24"
@@ -106,15 +130,19 @@ const WalletModal: React.FC = () => {
                     xmlns="http://www.w3.org/2000/svg"
                   >
                     <path
-                      d="M7.168 8.832c3.29-3.22 8.625-3.22 11.915 0l.396.388c.164.16.164.42 0 .58l-1.355 1.326c-.082.08-.215.08-.297 0l-.545-.534c-2.295-2.246-6.016-2.246-8.311 0l-.584.572c-.082.08-.215.08-.297 0L6.735 9.838c-.164-.16-.164-.42 0-.58l.433-.426zm14.708 2.742l1.207 1.182c.164.16.164.42 0 .58l-5.442 5.326c-.164.16-.43.16-.594 0l-3.861-3.778c-.041-.04-.107-.04-.148 0l-3.861 3.778c-.164.16-.43.16-.594 0L3.141 13.336c-.164-.16-.164-.42 0-.58l1.207-1.182c.164-.16.43-.16.594 0l3.861 3.778c.041.04.107.04.148 0l3.861-3.778c.164-.16.43-.16.594 0l3.861 3.778c.041.04.107.04.148 0l3.861-3.778c.164-.16.43-.16.594 0z"
-                      fill="#3B99FC"
+                      d="M12 2C12 2 8.5 3.5 8.5 8.5V13.5C8.5 18.5 12 22 12 22C12 22 15.5 18.5 15.5 13.5V8.5C15.5 3.5 12 2 12 2Z"
+                      fill="#3375BB"
+                    />
+                    <path
+                      d="M12 4.5C12 4.5 9.5 5.5 9.5 8.5V13C9.5 16.5 12 19 12 19C12 19 14.5 16.5 14.5 13V8.5C14.5 5.5 12 4.5 12 4.5Z"
+                      fill="#FFFFFF"
                     />
                   </svg>
                 </div>
                 <div className="text-left">
-                  <h3 className="font-medium text-gray-900">WalletConnect</h3>
+                  <h3 className="font-medium text-gray-900">Trust Wallet</h3>
                   <p className="text-sm text-gray-500">
-                    Connect using WalletConnect
+                    Connect using Trust Wallet
                   </p>
                 </div>
               </div>
@@ -126,6 +154,9 @@ const WalletModal: React.FC = () => {
 
           {/* Footer */}
           <div className="mt-6 pt-4 border-t border-gray-200">
+            <p className="text-xs text-gray-500 text-center mb-2">
+              Will automatically switch to Polygon Mainnet
+            </p>
             <p className="text-xs text-gray-500 text-center">
               By connecting a wallet, you agree to our{' '}
               <span className="text-blue-600 hover:underline cursor-pointer">
