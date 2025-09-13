@@ -23,7 +23,7 @@ const Limit = () => {
         {
             symbol: 'WPOL',
             name: 'Wrapped Polygon',
-            img: 'https://polygonscan.com/token/images/polygonecosystem_32.png',
+            img: '/images/pol.png',
             color: '#8247E5',
             balance: 1000.5,
             address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270',
@@ -43,8 +43,6 @@ const Limit = () => {
     const [toToken, setToToken] = useState<Token>(tokens[1])
     const [fromAmount, setFromAmount] = useState<string>('')
     const [toAmount, setToAmount] = useState<string>('')
-    const [fromPercentage, setFromPercentage] = useState<string>('25')
-    const [toPercentage, setToPercentage] = useState<string>('25')
     const [isFromDropdownOpen, setIsFromDropdownOpen] = useState<boolean>(false)
     const [isToDropdownOpen, setIsToDropdownOpen] = useState<boolean>(false)
     const [slippageTolerance, setSlippageTolerance] = useState<number>(1)
@@ -62,12 +60,17 @@ const Limit = () => {
             !isNaN(Number(fromAmount)) &&
             parseFloat(fromAmount) > 0
         ) {
-            const amountInWei = (parseFloat(fromAmount) * 1e18).toString()
-            getQuote(fromToken.address, toToken.address, amountInWei)
+            const handler = setTimeout(() => {
+                const amountInWei = (parseFloat(fromAmount) * 1e18).toString();
+                getQuote(fromToken.address, toToken.address, amountInWei);
+            }, 500); // wait 500ms after typing stops
+
+            return () => clearTimeout(handler);
         } else {
-            setToAmount('')
+            setToAmount('');
         }
-    }, [fromAmount, fromToken, toToken, getQuote])
+    }, [fromAmount, fromToken, toToken, getQuote]);
+
 
     // Update toAmount when quote changes
     useEffect(() => {
@@ -101,23 +104,6 @@ const Limit = () => {
             document.removeEventListener('mousedown', handleClickOutside)
     }, [])
 
-    // Handle percentage selection
-    const handlePercentageSelect = (
-        percentage: string,
-        isFrom: boolean = true
-    ): void => {
-        const token = isFrom ? fromToken : toToken
-        const amount = (token.balance * (Number(percentage) / 100)).toFixed(6)
-
-        if (isFrom) {
-            setFromPercentage(percentage.toString())
-            setFromAmount(amount)
-        } else {
-            setToPercentage(percentage.toString())
-            setToAmount(amount)
-        }
-    }
-
     // Handle token swap
     const handleSwapTokens = (): void => {
         const tempToken = fromToken
@@ -146,51 +132,41 @@ const Limit = () => {
         // Remove the toAmount calculation - it's now handled by the quote
     }
     const handleCreateOrder = async (): Promise<void> => {
+        if (isCreatingOrder) return; // prevent double-click or re-trigger
+
         if (!fromAmount || !toAmount || !quote) {
-            alert('Please enter valid amounts')
-            return
+            alert('Please enter valid amounts');
+            return;
         }
 
-        setIsCreatingOrder(true)
+        setIsCreatingOrder(true);
         try {
-            // Calculate amounts with proper decimals
-            const fromDecimals =
-                fromToken.address ===
-                '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
-                    ? 6
-                    : 18
+            const fromDecimals = fromToken.address.toLowerCase() ===
+                '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
+                ? 6
+                : 18;
 
             const makingAmount = (
                 parseFloat(fromAmount) * Math.pow(10, fromDecimals)
-            ).toString()
-            const takingAmount = quote.dstAmount || quote.toAmount || '0'
+            ).toString();
+
+            const takingAmount = quote.dstAmount || quote.toAmount || '0';
 
             await createOrder({
                 makerToken: fromToken.address,
                 takerToken: toToken.address,
                 makingAmount,
                 takingAmount,
-            })
+            });
         } catch (err: unknown) {
             const errorMessage =
-                err instanceof Error ? err.message : String(err)
-            alert(`Failed to create order: ${errorMessage}`)
+                err instanceof Error ? err.message : String(err);
+            alert(`Failed to create order: ${errorMessage}`);
+        } finally {
+            setIsCreatingOrder(false);
         }
-        setIsCreatingOrder(false)
-    }
-    // Handle max amount
-    const handleMaxAmount = (isFrom: boolean = true): void => {
-        const token = isFrom ? fromToken : toToken
-        const amount = token.balance.toString()
+    };
 
-        if (isFrom) {
-            setFromAmount(amount)
-            setFromPercentage('100')
-        } else {
-            setToAmount(amount)
-            setToPercentage('100')
-        }
-    }
 
     return (
         <div>
@@ -215,21 +191,7 @@ const Limit = () => {
                                 {/* FROM TOKEN SECTION */}
                                 <div className="w-full lg:flex-1">
                                     <div className="modern-input px-[12px] sm:px-[16px] py-[12px] sm:py-[16px]">
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between font-normal text-xs sm:text-sm leading-[18.86px] text-[#888888] mb-3 gap-1 sm:gap-0">
-                                            <span>
-                                                Availability:{' '}
-                                                {fromToken.balance.toFixed(3)}
-                                            </span>
-                                            <button
-                                                onClick={() =>
-                                                    handleMaxAmount(true)
-                                                }
-                                                className="underline hover:text-[#DC2626] cursor-pointer text-left sm:text-right"
-                                            >
-                                                Max:{' '}
-                                                {fromToken.balance.toFixed(3)}
-                                            </button>
-                                        </div>
+
                                         <div className="flex items-center justify-between gap-2">
                                             <input
                                                 type="number"
@@ -268,11 +230,10 @@ const Limit = () => {
                                                         {fromToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`token-arrow transition-transform flex-shrink-0 ${
-                                                            isFromDropdownOpen
-                                                                ? 'rotate-180'
-                                                                : ''
-                                                        }`}
+                                                        className={`token-arrow transition-transform flex-shrink-0 ${isFromDropdownOpen
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                            }`}
                                                     />
                                                 </button>
                                                 {isFromDropdownOpen && (
@@ -323,39 +284,7 @@ const Limit = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="mt-3 sm:mt-4 grid grid-cols-4 gap-2 sm:gap-3 percentage-redio-buttons">
-                                        {['25', '50', '75', '100'].map(
-                                            (percentage) => (
-                                                <div
-                                                    key={percentage}
-                                                    className="flex-1"
-                                                >
-                                                    <input
-                                                        type="radio"
-                                                        name="1st_percentage"
-                                                        id={`${percentage}_percentage`}
-                                                        className="peer hidden"
-                                                        checked={
-                                                            fromPercentage ===
-                                                            percentage
-                                                        }
-                                                        onChange={() =>
-                                                            handlePercentageSelect(
-                                                                percentage,
-                                                                true
-                                                            )
-                                                        }
-                                                    />
-                                                    <label
-                                                        htmlFor={`${percentage}_percentage`}
-                                                        className="cursor-pointer w-full block bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-[6px] sm:py-[8px] text-[12px] sm:text-[14px] font-medium text-[#888888] text-center hover:bg-[#DC2626] hover:text-white transition-colors peer-checked:bg-[#DC2626] peer-checked:text-white"
-                                                    >
-                                                        {percentage}%
-                                                    </label>
-                                                </div>
-                                            )
-                                        )}
-                                    </div>
+
                                 </div>
 
                                 {/* SWAP BUTTON */}
@@ -382,28 +311,6 @@ const Limit = () => {
                                 {/* TO TOKEN SECTION */}
                                 <div className="w-full lg:flex-1">
                                     <div className="modern-input px-[12px] sm:px-[16px] py-[12px] sm:py-[16px]">
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between font-normal text-xs sm:text-sm leading-[18.86px] text-[#888888] mb-3 gap-1 sm:gap-0">
-                                            <span>
-                                                Availability:{' '}
-                                                {toToken.balance.toFixed(3)}
-                                            </span>
-                                            <div className="flex items-center gap-2">
-                                                {loading && (
-                                                    <span className="text-[#DC2626] text-xs sm:text-sm">
-                                                        Fetching quote...
-                                                    </span>
-                                                )}
-                                                <button
-                                                    onClick={() =>
-                                                        handleMaxAmount(false)
-                                                    }
-                                                    className="underline hover:text-[#DC2626] cursor-pointer text-left sm:text-right"
-                                                >
-                                                    Max:{' '}
-                                                    {toToken.balance.toFixed(3)}
-                                                </button>
-                                            </div>
-                                        </div>
                                         <div className="flex items-center justify-between gap-2">
                                             <input
                                                 type="number"
@@ -442,11 +349,10 @@ const Limit = () => {
                                                         {toToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${
-                                                            isToDropdownOpen
-                                                                ? 'rotate-180'
-                                                                : ''
-                                                        }`}
+                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${isToDropdownOpen
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                            }`}
                                                     />
                                                 </button>
                                                 {isToDropdownOpen && (
@@ -497,39 +403,7 @@ const Limit = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="mt-3 sm:mt-4 grid grid-cols-4 gap-2 sm:gap-3 percentage-redio-buttons">
-                                        {['25', '50', '75', '100'].map(
-                                            (percentage) => (
-                                                <div
-                                                    key={percentage}
-                                                    className="flex-1"
-                                                >
-                                                    <input
-                                                        type="radio"
-                                                        name="2st_percentage"
-                                                        id={`2st_${percentage}_percentage`}
-                                                        className="peer hidden"
-                                                        checked={
-                                                            toPercentage ===
-                                                            percentage
-                                                        }
-                                                        onChange={() =>
-                                                            handlePercentageSelect(
-                                                                percentage,
-                                                                false
-                                                            )
-                                                        }
-                                                    />
-                                                    <label
-                                                        htmlFor={`2st_${percentage}_percentage`}
-                                                        className="cursor-pointer w-full block bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-[6px] sm:py-[8px] text-[12px] sm:text-[14px] font-medium text-[#888888] text-center hover:bg-[#DC2626] hover:text-white transition-colors peer-checked:bg-[#DC2626] peer-checked:text-white"
-                                                    >
-                                                        {percentage}%
-                                                    </label>
-                                                </div>
-                                            )
-                                        )}
-                                    </div>
+
                                 </div>
                             </div>
 
@@ -540,12 +414,12 @@ const Limit = () => {
                                     <p className="text-[#333333] font-semibold text-[16px] sm:text-[18px] leading-[31.43px] mt-1 sm:mt-2 break-all">
                                         {quote
                                             ? (
-                                                  parseFloat(
-                                                      quote.outputAmount
-                                                  ) /
-                                                  1e18 /
-                                                  parseFloat(fromAmount || '1')
-                                              ).toFixed(8)
+                                                parseFloat(
+                                                    quote.outputAmount
+                                                ) /
+                                                1e18 /
+                                                parseFloat(fromAmount || '1')
+                                            ).toFixed(8)
                                             : '0.00000000'}
                                     </p>
                                 </div>
@@ -600,14 +474,13 @@ const Limit = () => {
                                     loading ||
                                     isCreatingOrder
                                 }
-                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${
-                                    !fromAmount ||
+                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${!fromAmount ||
                                     !toAmount ||
                                     loading ||
                                     isCreatingOrder
-                                        ? '!bg-[#E5E5E5] !text-[#888888]'
-                                        : ''
-                                }`}
+                                    ? '!bg-[#E5E5E5] !text-[#888888]'
+                                    : ''
+                                    }`}
                             >
                                 {isCreatingOrder
                                     ? 'Creating Order...'
