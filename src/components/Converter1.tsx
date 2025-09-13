@@ -1,145 +1,179 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useLiquidity } from '../contexts/LiquidityContext'
-import { ethers } from 'ethers'
 import { Token } from '@uniswap/sdk-core'
 import { Pool, Position } from '@uniswap/v3-sdk'
-import { UNISWAP_V3_POOL_ABI } from '../contexts/ABI'
+import { ethers } from 'ethers'
+import { ERC20_ABI, POSITION_MANAGER_MINIMAL_ABI, UNISWAP_V3_POOL_ABI } from '../contexts/ABI'
 
 interface LiquidityData {
-    poolTokens: number // Liquidity tokens (scaled)
-    usdtAmount: number // Amount of USDT in position
-    ethAmount: number // Amount of ETH in position
-    shareOfPool: number // Percentage of pool owned
-    reward: number | null // Uncollected fees (if any)
+    poolTokens: number
+    WPOLAmount: number
+    USDCAmount: number
+    shareOfPool: number
+    reward: number | null
+    totalPoolLiquidity: number
+    currentPrice: number
+    priceWPOLtoUSDC: number
+    priceUSDCtoWPOL: number
 }
-const POSITION_MANAGER_ADDRESS = '0x442d8CCae9d8dd3bc4B21494C0eD1ccF4d24F505'
-const POSITION_MANAGER_MINIMAL_ABI = [
-    'function positions(uint256 tokenId) view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)',
-    'function decreaseLiquidity(tuple(uint256 tokenId, uint128 liquidity, uint256 amount0Min, uint256 amount1Min, uint256 deadline)) returns (uint256 amount0, uint256 amount1)',
-    'function collect(tuple(uint256 tokenId, address recipient, uint128 amount0Max, uint128 amount1Max)) returns (uint256 amount0, uint256 amount1)',
-]
 
 const Converter1: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'exchange' | 'pool'>('pool')
     const { removeLiquidity } = useLiquidity()
     const [percentage, setPercentage] = useState<number>(25)
-    const [tokenId, setTokenId] = useState<string>('') // User inputs or fetches tokenId
-    const [selectedPercentage, setSelectedPercentage] = useState<
-        25 | 50 | 75 | 100
-    >(25)
+    const [tokenId, setTokenId] = useState<string>('12345') // Sample token ID
+    const [selectedPercentage, setSelectedPercentage] = useState<25 | 50 | 75 | 100>(25)
     const [isRemovingLiquidity, setIsRemovingLiquidity] = useState(false)
+    const [isEnabled, setIsEnabled] = useState<boolean>(false)
     const [liquidityData, setLiquidityData] = useState<LiquidityData>({
         poolTokens: 0,
-        usdtAmount: 0,
-        ethAmount: 0,
+        WPOLAmount: 0,
+        USDCAmount: 0,
         shareOfPool: 0,
         reward: null,
+        totalPoolLiquidity: 0,
+        currentPrice: 0,
+        priceWPOLtoUSDC: 0,
+        priceUSDCtoWPOL: 0,
     })
-    const [isEnabled, setIsEnabled] = useState<boolean>(false)
 
     const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = Number(e.target.value)
         setPercentage(value)
 
-        // Update radio button selection based on slider
         if (value >= 0 && value < 37.5) setSelectedPercentage(25)
         else if (value >= 37.5 && value < 62.5) setSelectedPercentage(50)
         else if (value >= 62.5 && value < 87.5) setSelectedPercentage(75)
         else setSelectedPercentage(100)
     }
 
+    // Mock function to simulate fetching real Uniswap V3 position data
     const fetchPositionData = useCallback(async () => {
-        if (!tokenId || !(window as any).ethereum) return
+        if (!tokenId || !(window as any).ethereum) return;
 
         try {
-            const provider = new ethers.BrowserProvider(
-                (window as any).ethereum
-            )
+            const provider = new ethers.BrowserProvider((window as any).ethereum);
+            const POSITION_MANAGER_ADDRESS = '0xC36442b4a4522E871399CD717aBDD847Ab11FE88'
 
             const positionManager = new ethers.Contract(
                 POSITION_MANAGER_ADDRESS,
                 POSITION_MANAGER_MINIMAL_ABI,
                 provider
-            )
+            );
 
-            const poolAddress = '0x8269d25b908d96169b8e10D0fb12169eF42334e3' // From addLiquidity call
+            // 1. Load position info
+            const pos = await positionManager.positions(tokenId);
+
+            const token0Address = pos[2];
+            const token1Address = pos[3];
+            const fee = pos[4];
+            const tickLower = Number(pos[5]);
+            const tickUpper = Number(pos[6]);
+            const liquidity = pos[7];
+            const tokensOwed0 = pos[10];
+            const tokensOwed1 = pos[11];
+
+            // 2. Pool contract
             const poolContract = new ethers.Contract(
-                poolAddress,
+                "0x45dDa9cb7c25131DF268515131f647d726f50608", // WPOL/USDC.e pool
                 UNISWAP_V3_POOL_ABI,
                 provider
-            )
+            );
 
-            // Fetch position and pool data
-            const [positionData, poolData] = await Promise.all([
-                positionManager.positions(tokenId),
-                Promise.all([
-                    poolContract.liquidity(),
-                    poolContract.slot0(),
-                    poolContract.fee(),
-                    poolContract.token0(),
-                    poolContract.token1(),
-                ]),
-            ])
+            const [poolLiquidity, slot0] = await Promise.all([
+                poolContract.liquidity(),
+                poolContract.slot0(),
+            ]);
 
-            const [liquidity, tokensOwed0, tokensOwed1] = positionData.slice(7) // Extract relevant fields
-            const [poolLiquidity, slot0, fee, token0Address, token1Address] =
-                poolData
+            // 3. Token metadata
+            const token0Contract = new ethers.Contract(token0Address, ERC20_ABI, provider);
+            const token1Contract = new ethers.Contract(token1Address, ERC20_ABI, provider);
 
-            // Create Token objects (assuming chainId 11155111 from context)
-            const chainId = 11155111
-            const token0 = new Token(chainId, token0Address, 18, 'USDT', 'USDT')
-            const token1 = new Token(chainId, token1Address, 18, 'ETH', 'ETH')
+            const [dec0, dec1] = await Promise.all([
+                token0Contract.decimals(),
+                token1Contract.decimals(),
+            ]);
+            const WPOL_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
+            const USDCe_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+            // Hardcode symbols (faster & safer than calling .symbol())
+            const sym0 =
+                token0Address.toLowerCase() === WPOL_ADDRESS.toLowerCase() ? "WPOL" : "USDC.e";
+            const sym1 =
+                token1Address.toLowerCase() === USDCe_ADDRESS.toLowerCase() ? "USDC.e" : "WPOL";
 
-            // Create Pool object
+            const chainId = 137;
+            const token0 = new Token(chainId, token0Address, Number(dec0), sym0);
+            const token1 = new Token(chainId, token1Address, Number(dec1), sym1);
+
+            // 4. Pool object
             const pool = new Pool(
                 token0,
                 token1,
                 Number(fee),
-                slot0[0].toString(),
+                slot0[0].toString(), // sqrtPriceX96
                 poolLiquidity.toString(),
                 Number(slot0[1])
-            )
+            );
 
-            // Create Position object
+            // 5. Position object
             const position = new Position({
                 pool,
                 liquidity: liquidity.toString(),
-                tickLower: Number(positionData[5]),
-                tickUpper: Number(positionData[6]),
-            })
+                tickLower,
+                tickUpper,
+            });
 
-            // Calculate amounts
-            const amount0 = Number(
-                position.amount0.toSignificant(6, { groupSeparator: '' })
-            )
-            const amount1 = Number(
-                position.amount1.toSignificant(6, { groupSeparator: '' })
-            )
-            const usdtAmount = token0.symbol === 'usdc' ? amount0 : amount1
-            const ethAmount = token1.symbol === 'usdt' ? amount1 : amount0
-            const shareOfPool =
-                (Number(liquidity) / Number(poolLiquidity)) * 100
+            // 6. Human-readable amounts (already scaled)
+            const amount0 = parseFloat(position.amount0.toExact());
+            const amount1 = parseFloat(position.amount1.toExact());
 
-            // Estimate rewards (uncollected fees)
-            const reward =
-                Number(tokensOwed0) / 1e18 + Number(tokensOwed1) / 1e18 // Simplified, adjust based on feeGrowth
+            const wpolAmount = token0.symbol === "WPOL" ? amount0 : amount1;
+            const usdcAmount = token0.symbol === "USDC.e" ? amount0 : amount1;
 
+            // 7. Prices
+            const priceWPOLtoUSDC = parseFloat(pool.token0Price.toSignificant(6)) / 1e18;
+            const priceUSDCtoWPOL = parseFloat(pool.token1Price.toSignificant(6)) / 1e18;
+
+            // 8. Rewards (convert from raw to decimals)
+            const reward0 = Number(tokensOwed0) / 10 ** Number(dec0);
+            const reward1 = Number(tokensOwed1) / 10 ** Number(dec1);
+            const reward = reward0 + reward1;
+
+            // 9. Pool share
+            const shareOfPool = (Number(liquidity) / Number(poolLiquidity)) * 100;
+
+            // ✅ Update state
             setLiquidityData({
-                poolTokens: Number(liquidity) / 1e18, // Scale for display
-                usdtAmount,
-                ethAmount,
+                poolTokens: Number(liquidity) / 1e18, // LP positions are uint128, scale for display
+                WPOLAmount: wpolAmount,
+                USDCAmount: usdcAmount / 1e18,
                 shareOfPool,
                 reward: reward > 0 ? reward : null,
-            })
-        } catch (error) {
-            console.error('Error fetching position data:', error)
-        }
-    }, [tokenId])
+                totalPoolLiquidity: Number(poolLiquidity) / 1e18,
+                currentPrice: priceWPOLtoUSDC,
+                priceWPOLtoUSDC,
+                priceUSDCtoWPOL,
+            });
 
-    // Fetch data when tokenId changes
+            console.log("Position data:", {
+                wpolAmount,
+                usdcAmount,
+                priceWPOLtoUSDC,
+                priceUSDCtoWPOL,
+                reward,
+                shareOfPool,
+            });
+        } catch (err) {
+            console.error("Error fetching position data:", err);
+        }
+    }, [tokenId]);
+
+
+
     useEffect(() => {
         if (tokenId) fetchPositionData()
     }, [tokenId, fetchPositionData])
+
     const handlePercentageSelect = (percent: 25 | 50 | 75 | 100) => {
         setSelectedPercentage(percent)
         setPercentage(percent)
@@ -147,7 +181,6 @@ const Converter1: React.FC = () => {
 
     const handleEnable = () => {
         setIsEnabled(true)
-        // In real app, this would trigger wallet connection/approval
     }
 
     const handleRemove = async () => {
@@ -173,8 +206,14 @@ const Converter1: React.FC = () => {
         }
     }
 
+
+    // Calculate amounts to receive
+    const wpolToReceive = (liquidityData.WPOLAmount * percentage) / 100
+    const usdcToReceive = (liquidityData.USDCAmount * percentage) / 100
+    const totalValueUSD = liquidityData.WPOLAmount * liquidityData.priceWPOLtoUSDC + liquidityData.USDCAmount
+
     return (
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center justify-center min-h-screen bg-gray-100">
             <div className="container mx-auto px-4">
                 <div
                     className="hero-border w-full p-[3.5px] lg:rounded-[40px] rounded-[20px]"
@@ -185,44 +224,61 @@ const Converter1: React.FC = () => {
                     }}
                 >
                     <div className="bg-white relative shadow-lg border border-gray-200 w-full lg:rounded-[40px] rounded-[20px] px-[15px] lg:px-[50px] py-[20px] lg:py-[60px]">
+                        {/* Tab Navigation */}
                         <div className="relative z-10 border bg-gray-50 inline-flex px-2 py-1.5 rounded-[14px] border-solid border-gray-200 gap-2 mb-[24px]">
                             <button
                                 onClick={() => setActiveTab('exchange')}
-                                className={`rounded-[8px] font-normal text-sm leading-[100%] px-[22px] py-[13px] transition-colors ${
-                                    activeTab === 'exchange'
-                                        ? 'bg-white text-[#B91C1C] font-bold'
-                                        : 'text-black'
-                                }`}
+                                className={`rounded-[8px] font-normal text-sm leading-[100%] px-[22px] py-[13px] transition-colors ${activeTab === 'exchange'
+                                    ? 'bg-white text-[#B91C1C] font-bold'
+                                    : 'text-black'
+                                    }`}
                             >
                                 Exchange
                             </button>
                             <button
                                 onClick={() => setActiveTab('pool')}
-                                className={`rounded-[8px] font-normal text-sm leading-[100%] px-[22px] py-[13px] transition-colors ${
-                                    activeTab === 'pool'
-                                        ? 'bg-white text-[#B91C1C] font-bold'
-                                        : 'text-black'
-                                }`}
+                                className={`rounded-[8px] font-normal text-sm leading-[100%] px-[22px] py-[13px] transition-colors ${activeTab === 'pool'
+                                    ? 'bg-white text-[#B91C1C] font-bold'
+                                    : 'text-black'
+                                    }`}
                             >
                                 Pool
                             </button>
                         </div>
 
+                        {/* Header */}
                         <h2 className="mb-4 font-bold text-xl sm:text-3xl leading-[100%] text-black">
-                            Remove USDT/USDC Liquidity
+                            Remove WPOL/USDC Liquidity
                         </h2>
-                        <p className="text-black font-normal text-xl leading-[18.86px] mb-10">
-                            To Receive USDT and USDC
+                        <p className="text-black font-normal text-xl leading-[18.86px] mb-6">
+                            To Receive WPOL and USDC
                         </p>
 
+                        {/* Position ID Input */}
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Position Token ID
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="Enter Position Token ID"
+                                value={tokenId}
+                                onChange={(e) => setTokenId(e.target.value)}
+                                className="w-full max-w-md p-3 rounded-[8px] border border-gray-300 bg-white text-black focus:border-[#B91C1C] focus:outline-none"
+                            />
+
+                        </div>
+
+                        {/* Main Content Grid */}
                         <div className="flex flex-col lg:flex-row items-start gap-[25px] lg:gap-[51px]">
+                            {/* Amount Selection */}
                             <div className="flex-1 w-full">
                                 <div className="bg-[#FFFFFF66] border border-solid border-[#FFFFFF1A] rounded-[12px] px-[15px] py-[18px]">
                                     <p className="font-bold md:text-lg text-base leading-[100%] mb-[17px]">
-                                        Amount
+                                        Amount to Remove
                                     </p>
                                     <p className="text-black font-bold text-[22px] leading-[31.43px] mb-2">
-                                        {percentage.toFixed(3)}%
+                                        {percentage.toFixed(1)}%
                                     </p>
                                     <input
                                         className="w-full accent-[#B91C1C]"
@@ -232,39 +288,23 @@ const Converter1: React.FC = () => {
                                         value={percentage}
                                         onChange={handleSliderChange}
                                     />
-                                    <div className="mt-4 flex gap-3 percentage-redio-buttons">
+                                    <div className="mt-4 flex gap-3 percentage-radio-buttons">
                                         {[25, 50, 75, 100].map((percent) => (
-                                            <div
-                                                key={percent}
-                                                className="flex-1"
-                                            >
+                                            <div key={percent} className="flex-1">
                                                 <input
                                                     type="radio"
                                                     name="percentage"
                                                     id={`${percent}_percentage`}
                                                     className="peer hidden"
-                                                    checked={
-                                                        selectedPercentage ===
-                                                        percent
-                                                    }
-                                                    onChange={() =>
-                                                        handlePercentageSelect(
-                                                            percent as
-                                                                | 25
-                                                                | 50
-                                                                | 75
-                                                                | 100
-                                                        )
-                                                    }
+                                                    checked={selectedPercentage === percent}
+                                                    onChange={() => handlePercentageSelect(percent as 25 | 50 | 75 | 100)}
                                                 />
                                                 <label
                                                     htmlFor={`${percent}_percentage`}
-                                                    className={`cursor-pointer w-full block bg-[#FFFFFF66] border border-solid border-[#FFFFFF1A] rounded-[8px] py-[5px] lg:py-[11px] text-[16px] lg:text-base font-semibold text-center transition-colors ${
-                                                        selectedPercentage ===
-                                                        percent
-                                                            ? 'border-white text-[#2a8576] bg-white'
-                                                            : 'text-[#80888A] lg:text-[#1D3B5E]'
-                                                    }`}
+                                                    className={`cursor-pointer w-full block bg-[#FFFFFF66] border border-solid border-[#FFFFFF1A] rounded-[8px] py-[5px] lg:py-[11px] text-[16px] lg:text-base font-semibold text-center transition-colors ${selectedPercentage === percent
+                                                        ? 'border-white text-[#2a8576] bg-white'
+                                                        : 'text-[#80888A] lg:text-[#1D3B5E]'
+                                                        }`}
                                                 >
                                                     {percent}%
                                                 </label>
@@ -274,13 +314,9 @@ const Converter1: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* Arrow */}
                             <div className="m-auto">
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="28"
-                                    height="29"
-                                    fill="none"
-                                >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="29" fill="none">
                                     <path
                                         fill="#000"
                                         d="M19.876.5H8.138C3.04.5 0 3.538 0 8.634v11.718c0 5.11 3.04 8.148 8.138 8.148h11.724C24.96 28.5 28 25.462 28 20.366V8.634C28.014 3.538 24.974.5 19.876.5Zm-7.284 21c0 .14-.028.266-.084.406a1.095 1.095 0 0 1-.574.574 1.005 1.005 0 0 1-.406.084 1.056 1.056 0 0 1-.743-.308l-4.132-4.13a1.056 1.056 0 0 1 0-1.484 1.057 1.057 0 0 1 1.485 0l2.34 2.338V7.5c0-.574.476-1.05 1.05-1.05.574 0 1.064.476 1.064 1.05v14Zm8.755-9.128a1.04 1.04 0 0 1-.743.308 1.04 1.04 0 0 1-.742-.308l-2.34-2.338V21.5c0 .574-.475 1.05-1.05 1.05-.574 0-1.05-.476-1.05-1.05v-14c0-.14.028-.266.084-.406.112-.252.308-.462.574-.574a.99.99 0 0 1 .798 0c.127.056.238.126.337.224l4.132 4.13c.406.42.406 1.092 0 1.498Z"
@@ -288,184 +324,176 @@ const Converter1: React.FC = () => {
                                 </svg>
                             </div>
 
+                            {/* You Will Receive */}
                             <div className="flex-1 w-full h-full">
                                 <div className="bg-[#FFFFFF66] border border-solid border-[#FFFFFF1A] rounded-[12px] px-[15px] pt-[18px] pb-[28px] h-full">
                                     <p className="font-bold md:text-lg text-base leading-[100%] mb-[38px]">
                                         You will Receive
                                     </p>
                                     <div className="space-y-[28px] font-bold md:text-[22px] text-base leading-[100%]">
-                                        <div className="flex justify-between">
+                                        <div className="flex justify-between items-center">
                                             <div className="flex items-center space-x-2">
                                                 <div className="size-[30px] bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                                    USDT
+                                                    W
                                                 </div>
-                                                <span className="font-normal text-lg leading-[100%]">
-                                                    USDT
-                                                </span>
+                                                <span className="font-normal text-lg leading-[100%]">WPOL</span>
                                             </div>
-                                            <span>
-                                                {(
-                                                    (liquidityData.usdtAmount *
-                                                        percentage) /
-                                                    100
-                                                ).toFixed(6)}
-                                            </span>
+                                            <div className="text-right">
+                                                <div className="font-bold">{wpolToReceive.toFixed(6)}</div>
+                                                <div className="text-sm text-gray-500 font-normal">
+                                                    ≈ ${(wpolToReceive * liquidityData.priceWPOLtoUSDC).toFixed(2)}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between">
+                                        <div className="flex justify-between items-center">
                                             <div className="flex items-center space-x-2">
                                                 <div className="size-[30px] bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                                    USDC
+                                                    $
                                                 </div>
-                                                <span className="font-normal text-lg leading-[100%]">
-                                                    USDC
+                                                <span className="font-normal text-lg leading-[100%]">USDC</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="font-bold">{usdcToReceive.toFixed(6)}</div>
+                                                <div className="text-sm text-gray-500 font-normal">
+                                                    ≈ ${usdcToReceive.toFixed(2)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="border-t pt-4">
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-normal text-lg">Total Value:</span>
+                                                <span className="font-bold text-green-600">
+                                                    ${((wpolToReceive * liquidityData.priceWPOLtoUSDC) + usdcToReceive).toFixed(2)}
                                                 </span>
                                             </div>
-                                            <span>
-                                                {(
-                                                    (liquidityData.ethAmount *
-                                                        percentage) /
-                                                    100
-                                                ).toFixed(6)}
-                                            </span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
+                        {/* Bottom Section */}
                         <div className="flex flex-col lg:flex-row items-start gap-[25px] lg:gap-[51px] mt-[40px]">
+                            {/* Prices and Pool Share */}
                             <div className="flex-1 w-full">
                                 <div className="bg-[#FFFFFF66] border border-solid border-[#FFFFFF1A] rounded-[12px] px-[15px] py-[18px]">
                                     <p className="font-bold md:text-lg text-base leading-[100%] mb-[34px]">
-                                        Prices and Pool Share:
+                                        Current Prices:
                                     </p>
-                                    <div className="space-y-[28px]">
-                                        <div className="flex justify-between">
-                                            <span className="font-normal text-lg leading-[100%]">
-                                                1 USDT =
-                                            </span>
-                                            <span className="font-bold md:text-[22px] text-base leading-[100%]">
-                                                {liquidityData.ethAmount.toFixed(
-                                                    5
-                                                )}{' '}
-                                                ETH
+                                    <div className="space-y-[20px]">
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-normal text-lg leading-[100%]">1 WPOL =</span>
+                                            <span className="font-bold md:text-[20px] text-base leading-[100%]">
+                                                ${liquidityData.priceWPOLtoUSDC.toFixed(4)} USDC
                                             </span>
                                         </div>
-                                        <div className="flex justify-between">
-                                            <span className="font-normal text-lg leading-[100%]">
-                                                1 USDC =
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-normal text-lg leading-[100%]">1 USDC =</span>
+                                            <span className="font-bold md:text-[20px] text-base leading-[100%]">
+                                                {liquidityData.priceUSDCtoWPOL.toFixed(4)} WPOL
                                             </span>
-                                            <span className="font-bold md:text-[22px] text-base leading-[100%]">
-                                                {liquidityData.usdtAmount.toFixed(
-                                                    5
-                                                )}
-                                                USDT
-                                            </span>
+                                        </div>
+                                        <div className="border-t pt-4">
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-normal text-lg leading-[100%]">Pool Share:</span>
+                                                <span className="font-bold md:text-[20px] text-base leading-[100%] text-blue-600">
+                                                    {liquidityData.shareOfPool.toFixed(4)}%
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="hidden lg:block">
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="28"
-                                    height="29"
-                                    fill="none"
-                                ></svg>
+                            <div className="hidden lg:block opacity-20">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="29" fill="none"></svg>
                             </div>
 
+                            {/* LP Position Details */}
                             <div className="flex-1 w-full h-full">
                                 <div className="bg-[#FFFFFF66] border border-solid border-[#FFFFFF1A] rounded-[12px] px-[15px] pt-[18px] pb-[28px] h-full">
                                     <p className="font-bold md:text-lg text-base leading-[100%] mb-[20px]">
-                                        LP Tokens in your Wallet
+                                        Your Position Details
                                     </p>
-                                    <div className="space-y-[8px]">
-                                        <div className="flex justify-between">
-                                            <div className="flex items-center space-x-2 mb-2.5">
-                                                <div className="size-[24px] bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                                    U
-                                                </div>
-                                                <div className="size-[24px] bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                                    $
-                                                </div>
+                                    <div className="space-y-[12px]">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div className="flex items-center space-x-2">
+                                                <div className="size-[24px] bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-xs">W</div>
+                                                <div className="size-[24px] bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs">$</div>
                                                 <span className="font-bold md:text-lg text-base leading-[100%]">
-                                                    USDT - USDC
+                                                    WPOL/USDC LP
                                                 </span>
                                             </div>
-                                            <span className="font-bold md:text-[22px] text-base leading-[100%]">
-                                                {liquidityData.poolTokens.toFixed(
-                                                    11
-                                                )}
+                                            <span className="font-bold md:text-[18px] text-base leading-[100%]">
+                                                #{tokenId}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between">
-                                            <span className="font-normal text-lg leading-[100%]">
-                                                Share of Pool:
-                                            </span>
-                                            <span>
-                                                {liquidityData.shareOfPool.toFixed(
-                                                    2
-                                                )}
-                                                %
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="font-normal text-lg leading-[100%]">
-                                                Pool USDT:
-                                            </span>
-                                            <span>
-                                                {liquidityData.usdtAmount.toFixed(
-                                                    5
-                                                )}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="font-normal text-lg leading-[100%]">
-                                                Pool USDC:
-                                            </span>
-                                            <span>
-                                                {liquidityData.ethAmount.toFixed(
-                                                    5
-                                                )}
-                                            </span>
+
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="font-normal text-gray-700">LP Tokens:</span>
+                                                <span className="font-semibold">{liquidityData.poolTokens.toFixed(11)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="font-normal text-gray-700">Pool WPOL:</span>
+                                                <span className="font-semibold">{liquidityData.WPOLAmount.toFixed(6)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="font-normal text-gray-700">Pool USDC:</span>
+                                                <span className="font-semibold">{liquidityData.USDCAmount.toFixed(6)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="font-normal text-gray-700">Total Value:</span>
+                                                <span className="font-bold text-green-600">${totalValueUSD.toFixed(2)}</span>
+                                            </div>
+                                            {liquidityData.reward !== null && liquidityData.reward > 0 && (
+                                                <div className="flex justify-between border-t pt-2">
+                                                    <span className="font-normal text-gray-700">Unclaimed Fees:</span>
+                                                    <span className="font-bold text-orange-600">
+                                                        ${liquidityData.reward.toFixed(6)}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
-                                <input
-                                    type="text"
-                                    placeholder="Enter Position Token ID"
-                                    value={tokenId}
-                                    onChange={(e) => setTokenId(e.target.value)}
-                                    className="w-full mb-4 p-2 rounded-[8px] border border-[#FFFFFF1A] bg-transparent text-black"
-                                />
                             </div>
                         </div>
 
+                        {/* Action Buttons */}
                         <div className="flex flex-wrap items-center gap-[18px] mt-[40px]">
                             <button
                                 onClick={handleEnable}
-                                disabled={isEnabled}
-                                className={`rounded-[150px] p-[16px_92px] font-semibold text-base leading-[17.6px] border-2 transition-colors ${
-                                    isEnabled
-                                        ? 'text-gray-500 bg-gray-300 border-gray-300 cursor-not-allowed'
+                                disabled={isEnabled || !tokenId}
+                                className={`rounded-[150px] px-[92px] py-[16px] font-semibold text-base leading-[17.6px] border-2 transition-colors ${isEnabled
+                                    ? 'text-gray-500 bg-gray-300 border-gray-300 cursor-not-allowed'
+                                    : !tokenId
+                                        ? 'text-gray-400 bg-gray-200 border-gray-200 cursor-not-allowed'
                                         : 'text-white bg-[#DC2626] border-[#DC2626] hover:bg-[#B91C1C]'
-                                }`}
+                                    }`}
                             >
-                                {isEnabled ? 'Enabled' : 'Enable'}
+                                Enable
                             </button>
                             <button
                                 onClick={handleRemove}
-                                disabled={!isEnabled}
-                                className={`rounded-[150px] p-[16px_92px] font-semibold text-base leading-[17.6px] border-2 transition-colors ${
-                                    !isEnabled
-                                        ? 'text-gray-400 border-gray-300 cursor-not-allowed'
-                                        : 'text-[#DC2626] border-[#DC2626] hover:bg-[#DC2626] hover:text-white'
-                                }`}
+                                disabled={!isEnabled || isRemovingLiquidity || !tokenId}
+                                className={`rounded-[150px] px-[92px] py-[16px] font-semibold text-base leading-[17.6px] border-2 transition-colors ${!isEnabled || !tokenId
+                                    ? 'text-gray-400 border-gray-300 cursor-not-allowed'
+                                    : 'text-[#DC2626] border-[#DC2626] hover:bg-[#DC2626] hover:text-white'
+                                    }`}
                             >
-                                {isRemovingLiquidity ? 'Removing..' : 'Remove'}
+                                {isRemovingLiquidity ? 'Removing...' : 'Remove Liquidity'}
                             </button>
                         </div>
+
+                        {/* Status Messages */}
+                        {isEnabled && (
+                            <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded-lg">
+                                <p className="text-green-800 text-sm">
+                                    ✅ Position enabled. You can now remove liquidity.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

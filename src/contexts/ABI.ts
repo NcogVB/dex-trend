@@ -3,6 +3,7 @@ export const ERC20_ABI = [
     "function allowance(address owner,address spender) external view returns (uint256)",
     "function balanceOf(address owner) external view returns (uint256)",
     "function decimals() view returns (uint8)",
+    "function symbol() view returns (string)",
 ];
 
 export const UNISWAP_V3_POOL_ABI = [
