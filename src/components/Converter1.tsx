@@ -53,7 +53,8 @@ const Converter1: React.FC = () => {
 
         try {
             const provider = new ethers.BrowserProvider((window as any).ethereum);
-            const POSITION_MANAGER_ADDRESS = '0xC36442b4a4522E871399CD717aBDD847Ab11FE88'
+            const POSITION_MANAGER_ADDRESS =
+                "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
 
             const positionManager = new ethers.Contract(
                 POSITION_MANAGER_ADDRESS,
@@ -66,16 +67,16 @@ const Converter1: React.FC = () => {
 
             const token0Address = pos[2];
             const token1Address = pos[3];
-            const fee = pos[4];
+            const fee = Number(pos[4]);
             const tickLower = Number(pos[5]);
             const tickUpper = Number(pos[6]);
             const liquidity = pos[7];
             const tokensOwed0 = pos[10];
             const tokensOwed1 = pos[11];
 
-            // 2. Pool contract
+            // 2. Pool contract (derive instead of hardcode if needed)
             const poolContract = new ethers.Contract(
-                "0x45dDa9cb7c25131DF268515131f647d726f50608", // WPOL/USDC.e pool
+                "0xA374094527e1673A86dE625aa59517c5dE346d32", // WMATIC/USDC.e 0.3% pool
                 UNISWAP_V3_POOL_ABI,
                 provider
             );
@@ -93,13 +94,18 @@ const Converter1: React.FC = () => {
                 token0Contract.decimals(),
                 token1Contract.decimals(),
             ]);
+
             const WPOL_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
             const USDCe_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
-            // Hardcode symbols (faster & safer than calling .symbol())
+
             const sym0 =
-                token0Address.toLowerCase() === WPOL_ADDRESS.toLowerCase() ? "WPOL" : "USDC.e";
+                token0Address.toLowerCase() === WPOL_ADDRESS.toLowerCase()
+                    ? "WPOL"
+                    : "USDC.e";
             const sym1 =
-                token1Address.toLowerCase() === USDCe_ADDRESS.toLowerCase() ? "USDC.e" : "WPOL";
+                token1Address.toLowerCase() === USDCe_ADDRESS.toLowerCase()
+                    ? "USDC.e"
+                    : "WPOL";
 
             const chainId = 137;
             const token0 = new Token(chainId, token0Address, Number(dec0), sym0);
@@ -109,8 +115,8 @@ const Converter1: React.FC = () => {
             const pool = new Pool(
                 token0,
                 token1,
-                Number(fee),
-                slot0[0].toString(), // sqrtPriceX96
+                fee,
+                slot0[0].toString(),
                 poolLiquidity.toString(),
                 Number(slot0[1])
             );
@@ -123,18 +129,18 @@ const Converter1: React.FC = () => {
                 tickUpper,
             });
 
-            // 6. Human-readable amounts (already scaled)
+            // 6. Human-readable amounts
             const amount0 = parseFloat(position.amount0.toExact());
             const amount1 = parseFloat(position.amount1.toExact());
 
             const wpolAmount = token0.symbol === "WPOL" ? amount0 : amount1;
             const usdcAmount = token0.symbol === "USDC.e" ? amount0 : amount1;
 
-            // 7. Prices
-            const priceWPOLtoUSDC = parseFloat(pool.token0Price.toSignificant(6)) / 1e18;
-            const priceUSDCtoWPOL = parseFloat(pool.token1Price.toSignificant(6)) / 1e18;
+            // 7. Prices (no /1e18!)
+            const priceWPOLtoUSDC = parseFloat(pool.token0Price.toSignificant(6));
+            const priceUSDCtoWPOL = parseFloat(pool.token1Price.toSignificant(6));
 
-            // 8. Rewards (convert from raw to decimals)
+            // 8. Rewards
             const reward0 = Number(tokensOwed0) / 10 ** Number(dec0);
             const reward1 = Number(tokensOwed1) / 10 ** Number(dec1);
             const reward = reward0 + reward1;
@@ -142,11 +148,10 @@ const Converter1: React.FC = () => {
             // 9. Pool share
             const shareOfPool = (Number(liquidity) / Number(poolLiquidity)) * 100;
 
-            // ✅ Update state
             setLiquidityData({
-                poolTokens: Number(liquidity) / 1e18, // LP positions are uint128, scale for display
+                poolTokens: Number(liquidity) / 1e18,
                 WPOLAmount: wpolAmount,
-                USDCAmount: usdcAmount / 1e18,
+                USDCAmount: usdcAmount, // no divide by 1e18
                 shareOfPool,
                 reward: reward > 0 ? reward : null,
                 totalPoolLiquidity: Number(poolLiquidity) / 1e18,
@@ -167,6 +172,7 @@ const Converter1: React.FC = () => {
             console.error("Error fetching position data:", err);
         }
     }, [tokenId]);
+
 
 
 

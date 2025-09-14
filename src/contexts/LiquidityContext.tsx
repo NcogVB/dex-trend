@@ -33,9 +33,9 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
     // === Constants for WPOL/USDC.e 0.05% Pool on Polygon ===
     const POSITION_MANAGER_ADDRESS =
         "0xC36442b4a4522E871399CD717aBDD847Ab11FE88"; // official NFT position manager
-    const POOL_ADDRESS = "0x45dDa9cb7c25131DF268515131f647d726f50608"; // WPOL/USDC.e 0.05% Uniswap V3 pool on Polygon
+    const POOL_ADDRESS = "0xA374094527e1673A86dE625aa59517c5dE346d32"; // WPOL/USDC.e 0.05% Uniswap V3 pool on Polygon
     const WPOL_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
-    const USDCe_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; 
+    const USDCe_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
     console.log("WalletContext:", { account, signer, provider });
     console.log("Liquidity signer:", signer);
 
@@ -119,7 +119,6 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
                     poolData.liquidity,
                     poolData.tick
                 );
-
                 // 5) Convert input amounts to raw units
                 const amountARaw = ethers.parseUnits(amountA, decimalsA);
                 const amountBRaw = ethers.parseUnits(amountB, decimalsB);
@@ -129,12 +128,19 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
                         ? { amount0: amountARaw.toString(), amount1: amountBRaw.toString() }
                         : { amount0: amountBRaw.toString(), amount1: amountARaw.toString() };
 
-                // 6) Compute ticks
+                console.log("Parsed input amounts:", {
+                    amount0: ethers.formatUnits(amounts.amount0, token0.decimals),
+                    amount1: ethers.formatUnits(amounts.amount1, token1.decimals),
+                });
+
+
                 const spacing = poolData.tickSpacing;
                 const currentTick = poolData.tick;
                 const baseTick = nearestUsableTick(currentTick, spacing);
-                const tickLower = baseTick - spacing * 200;
-                const tickUpper = baseTick + spacing * 200;
+                const tickLower = baseTick - spacing * 10;
+                const tickUpper = baseTick + spacing * 10;
+                console.log("Current price:", pool.token0Price.toSignificant(6));
+                console.log("Inverse price:", pool.token1Price.toSignificant(6));
 
 
                 // 7) Build Position
@@ -194,9 +200,11 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
                     recipient: account,
                     deadline: Math.floor(Date.now() / 1000) + 600,
                 };
-                console.log("Final amounts that will be used:", {
-                    token0: ethers.formatUnits(amount0Desired.toString(), decimalsA),
-                    token1: ethers.formatUnits(amount1Desired.toString(), decimalsB),
+                console.log("Mint params:", mintParams);
+
+                console.log("Formatted amounts:", {
+                    token0: ethers.formatUnits(mintParams.amount0Desired, token0.decimals),
+                    token1: ethers.formatUnits(mintParams.amount1Desired, token1.decimals),
                 });
 
                 const positionManager = new ethers.Contract(

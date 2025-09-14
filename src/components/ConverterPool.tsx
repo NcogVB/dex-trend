@@ -21,7 +21,7 @@ interface LiquidityData {
 
 // Polygon constants
 const POSITION_MANAGER_ADDRESS = '0xC36442b4a4522E871399CD717aBDD847Ab11FE88'
-const POOL_ADDRESS = '0x45dDa9cb7c25131DF268515131f647d726f50608'
+const POOL_ADDRESS = '0xA374094527e1673A86dE625aa59517c5dE346d32'
 const chainId = 137
 
 const ConverterPool: React.FC = () => {
