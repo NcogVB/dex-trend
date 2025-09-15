@@ -10,7 +10,6 @@ import {
     randBigInt,
     FetchProviderConnector,
 } from "@1inch/limit-order-sdk";
-// Load environment variables
 dotenv.config();
 
 const app = express();
@@ -20,15 +19,11 @@ const API_KEY = process.env.ONEINCH_API_KEY || "EwDxi00pxhdnZMoptXcvIktFUSPO3Wmm
 // Middleware
 app.use(express.json());
 app.use(cors({
-    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:3001'], // Add your frontend URLs
+    origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:3001'],
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
 
 // 1inch quote proxy endpoint
 app.post('/api/1inch-quote', async (req, res) => {
@@ -97,13 +92,10 @@ app.post('/api/1inch-quote', async (req, res) => {
         }
     }
 });
-// Simple in-memory storage for orders (use Redis in production)
 const orderStore = new Map();
 
-// Generate a simple unique ID
 const generateOrderId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
 
-// Fixed Create Order API - Store order in memory
 app.post('/api/1inch-create-order-complete', async (req, res) => {
     const { makerToken, takerToken, makingAmount, takingAmount, maker } = req.body;
 
@@ -115,7 +107,6 @@ app.post('/api/1inch-create-order-complete', async (req, res) => {
             httpConnector: new FetchProviderConnector(),
         });
 
-        // Create order on server
         const expiresIn = 86400n; // 24 hours
         const expiration = BigInt(Math.floor(Date.now() / 1000)) + expiresIn;
         const UINT_40_MAX = (1n << 40n) - 1n;
@@ -138,7 +129,6 @@ app.post('/api/1inch-create-order-complete', async (req, res) => {
             makerTraits
         );
 
-        // Generate unique ID and store the actual order instance
         const orderId = generateOrderId();
         orderStore.set(orderId, order);
 
@@ -159,7 +149,7 @@ app.post('/api/1inch-create-order-complete', async (req, res) => {
 
         res.json({
             success: true,
-            orderId,        // Send the order ID instead of order data
+            orderId,      
             orderHash,
             typedData
         });
@@ -173,7 +163,6 @@ app.post('/api/1inch-create-order-complete', async (req, res) => {
     }
 });
 
-// Fixed Submit Order API - Retrieve stored order
 app.post('/api/1inch-submit-order', async (req, res) => {
     console.log('=== SUBMIT ORDER DEBUG ===');
     console.log('Request body:', JSON.stringify(req.body, null, 2));
@@ -245,7 +234,6 @@ app.post('/api/1inch-submit-order', async (req, res) => {
         });
     }
 });
-// Error handling middleware
 app.use((error, req, res, next) => {
     console.error('Unhandled error:', error);
     res.status(500).json({
@@ -254,29 +242,23 @@ app.use((error, req, res, next) => {
     });
 });
 
-// 404 handler
 app.use((req, res) => {
     res.status(404).json({
         error: 'Endpoint not found',
         path: req.path,
         method: req.method,
         available: [
-            'GET /health',
             'POST /api/1inch-quote',
             'GET /api/1inch-tokens'
         ]
     });
 });
 
-// Start server
 app.listen(PORT, () => {
     console.log(`🚀 1inch Proxy Server running on port ${PORT}`);
-    console.log(`📍 Health check: http://localhost:${PORT}/health`);
-    console.log(`📍 Quote endpoint: http://localhost:${PORT}/api/1inch-quote`);
     console.log(`🔑 Using API Key: ${API_KEY.substring(0, 8)}...`);
 });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
     console.log('SIGTERM received. Shutting down gracefully...');
     process.exit(0);

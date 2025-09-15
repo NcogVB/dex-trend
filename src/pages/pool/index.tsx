@@ -1,18 +1,12 @@
-import { Wallet, X } from 'lucide-react'
+import { Wallet } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import AskExpertsSection from '../../components/AskExpertsSection'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
 import WalletButton from '../../components/WalletButton'
 import JoinCommunity from '../../components/JoinCommunity'
-import { useState } from 'react'
-import ConverterPool from '../../components/ConverterPool'
+
 
 const Pool = () => {
-    const [isPanelOpen, setIsPanelOpen] = useState(false)
-
-    const openPanel = () => setIsPanelOpen(true)
-    const closePanel = () => setIsPanelOpen(false)
-
     return (
         <div>
             <div className="hero-section">
@@ -29,91 +23,79 @@ const Pool = () => {
                         maximum efficiency.
                     </p>
                     <WalletButton />
-                    {isPanelOpen ? (
-                        // Show ConverterPool with close button inside the div
-                        <div className="modern-card w-full max-w-7xl mx-auto px-4 mt-[56px]">
-                            {/* Close Button */}
-                            <div className="flex justify-end mb-4">
-                                <button
-                                    onClick={closePanel}
-                                    className="p-2 bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-full shadow-lg transition-colors duration-200"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
 
-                            {/* ConverterPool Component */}
-                            <div className="relative z-10">
-                                <ConverterPool />
+                    <div className="modern-card mt-[56px] w-full max-w-[690px] mx-auto px-4">
+                        <div className="w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
+                            <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">
+                                <Link
+                                    to="/swap"
+                                    className="rounded-[6px] text-[#888888] font-medium text-sm px-[20px] py-[10px] cursor-pointer hover:text-[#333333] transition-colors"
+                                >
+                                    Exchange
+                                </Link>
+                                <Link
+                                    to="/pool"
+                                    className="rounded-[6px] bg-white text-[#DC2626] font-semibold text-sm px-[20px] py-[10px] cursor-pointer shadow-sm"
+                                >
+                                    Pool
+                                </Link>
+                            </div>
+                            <Link
+                                to="/addlp"
+                                className="modern-button relative z-10 w-full flex items-center justify-center space-x-2 mb-6 py-4"
+                            >
+                                <Wallet />
+                                <span>Add Liquidity</span>
+                            </Link>
+                            <Link
+                                to="/removeLp"
+                                className="modern-button relative z-10 w-full flex items-center justify-center space-x-2 mb-6 py-4"
+                            >
+                                <Wallet />
+                                <span>Remove Liquidity</span>
+                            </Link>
+
+                            <div className="relative z-10 modern-card p-10 text-center">
+                                <svg
+                                    className="mx-auto mb-[22px]"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="64"
+                                    height="64"
+                                    fill="none"
+                                >
+                                    <path
+                                        stroke="#B91C1C"
+                                        strokeLinecap="round"
+                                        strokeWidth="3.5"
+                                        d="M5.333 5.333h53.333"
+                                    />
+                                    <path
+                                        stroke="#DC2626"
+                                        strokeLinecap="round"
+                                        strokeWidth="3.5"
+                                        d="m24 28 3.448-3.448c.889-.889 1.333-1.333 1.885-1.333.553 0 .997.444 1.886 1.333l1.562 1.562c.889.89 1.333 1.334 1.886 1.334.552 0 .996-.445 1.885-1.334L40 22.667"
+                                    />
+                                    <path
+                                        stroke="#B91C1C"
+                                        strokeLinecap="round"
+                                        strokeWidth="3.5"
+                                        d="M32 56V45.333M26.667 58.667 32 56M37.333 58.667 32 56"
+                                    />
+                                    <path
+                                        stroke="#B91C1C"
+                                        strokeWidth="3.5"
+                                        d="M53.334 5.333V28c0 8.171 0 12.257-2.678 14.795-2.678 2.538-6.988 2.538-15.608 2.538h-6.095c-8.62 0-12.93 0-15.608-2.538-2.678-2.538-2.678-6.624-2.678-14.795V5.333"
+                                    />
+                                </svg>
+
+                                <p className="text-[#333333] font-semibold text-xl leading-7 max-w-[380px] mx-auto">
+                                    Check Your Active Liquidity positions
+                                    <br />
+                                </p>
                             </div>
                         </div>
-                    ) : (
-                        <div className="modern-card mt-[56px] w-full max-w-[690px] mx-auto px-4">
-                            <div className="w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
-                                <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">
-                                    <Link
-                                        to="/swap"
-                                        className="rounded-[6px] text-[#888888] font-medium text-sm px-[20px] py-[10px] cursor-pointer hover:text-[#333333] transition-colors"
-                                    >
-                                        Exchange
-                                    </Link>
-                                    <Link
-                                        to="/pool"
-                                        className="rounded-[6px] bg-white text-[#DC2626] font-semibold text-sm px-[20px] py-[10px] cursor-pointer shadow-sm"
-                                    >
-                                        Pool
-                                    </Link>
-                                </div>
-                                <button
-                                    onClick={openPanel}
-                                    className={`modern-button relative z-10 w-full flex items-center justify-center space-x-2 mb-6 py-4`}
-                                    type="button"
-                                >
-                                    <Wallet />
-                                    <span>Add Liquidity</span>
-                                </button>
-                                <div className="relative z-10 modern-card p-10 text-center">
-                                    <svg
-                                        className="mx-auto mb-[22px]"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="64"
-                                        height="64"
-                                        fill="none"
-                                    >
-                                        <path
-                                            stroke="#B91C1C"
-                                            strokeLinecap="round"
-                                            strokeWidth="3.5"
-                                            d="M5.333 5.333h53.333"
-                                        />
-                                        <path
-                                            stroke="#DC2626"
-                                            strokeLinecap="round"
-                                            strokeWidth="3.5"
-                                            d="m24 28 3.448-3.448c.889-.889 1.333-1.333 1.885-1.333.553 0 .997.444 1.886 1.333l1.562 1.562c.889.89 1.333 1.334 1.886 1.334.552 0 .996-.445 1.885-1.334L40 22.667"
-                                        />
-                                        <path
-                                            stroke="#B91C1C"
-                                            strokeLinecap="round"
-                                            strokeWidth="3.5"
-                                            d="M32 56V45.333M26.667 58.667 32 56M37.333 58.667 32 56"
-                                        />
-                                        <path
-                                            stroke="#B91C1C"
-                                            strokeWidth="3.5"
-                                            d="M53.334 5.333V28c0 8.171 0 12.257-2.678 14.795-2.678 2.538-6.988 2.538-15.608 2.538h-6.095c-8.62 0-12.93 0-15.608-2.538-2.678-2.538-2.678-6.624-2.678-14.795V5.333"
-                                        />
-                                    </svg>
+                    </div>
 
-                                    <p className="text-[#333333] font-semibold text-xl leading-7 max-w-[380px] mx-auto">
-                                        Your Active V2 Liquidity positions
-                                        <br />
-                                        will appear here
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
             <section className="md:py-[90px] py-[40px] px-4">

@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useState } from "react";
 import { ethers } from "ethers";
-import { useSwap } from "./SwapContext";
+import { useWallet } from "./WalletContext";
 
 type QuoteResult = {
     dstAmount: string;
@@ -25,28 +25,21 @@ type OrderContextType = {
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { account, } = useSwap()
-
+    const { account } = useWallet();
     const [quote, setQuote] = useState<QuoteResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Alternative: Try direct call with different headers
-    const getQuote = async (fromToken: string, toToken: string, amount: string) => {
+    const getQuote = useCallback(async (fromToken: string, toToken: string, amount: string) => {
         setLoading(true);
         setError(null);
 
         try {
             const response = await fetch('http://localhost:3001/api/1inch-quote', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    src: fromToken,
-                    dst: toToken,
-                    amount: amount
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ src: fromToken, dst: toToken, amount })
             });
 
             if (!response.ok) {
@@ -55,16 +48,12 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }
 
             const data = await response.json();
-            console.log('Quote data:', data);
-            if (!data.dstAmount) {
-                throw new Error('Invalid response from 1inch API:');
-            }
-            // Process the 1inch API response
+            if (!data.dstAmount) throw new Error('Invalid response from 1inch API');
+
             const fromDecimals = 18;
             const toDecimals = 6;
             const inputAmount = parseFloat(amount) / Math.pow(10, fromDecimals);
             const outputAmount = parseFloat(data.dstAmount) / Math.pow(10, toDecimals);
-            console.log("outputAmount", outputAmount);
             const rate = outputAmount / inputAmount;
 
             const quoteResult: QuoteResult = {
@@ -78,7 +67,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 outputAmount,
                 estimatedGas: data.estimatedGas || '21000',
                 protocols: data.protocols || [],
-                ...data // Include all other fields from 1inch API
+                ...data
             };
 
             setQuote(quoteResult);
@@ -91,7 +80,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
     const createOrder = async ({
         makerToken,
         takerToken,
