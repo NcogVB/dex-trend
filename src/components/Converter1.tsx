@@ -4,6 +4,11 @@ import { Token } from '@uniswap/sdk-core'
 import { Pool, Position } from '@uniswap/v3-sdk'
 import { ethers } from 'ethers'
 import { ERC20_ABI, POSITION_MANAGER_MINIMAL_ABI, UNISWAP_V3_POOL_ABI } from '../contexts/ABI'
+import { useNavigate } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
+import JoinCommunity from './JoinCommunity'
+import AskExpertsSection from './AskExpertsSection'
+import EarnPassiveIncomeSection from './EarnPassiveIncomeSection'
 
 interface LiquidityData {
     poolTokens: number
@@ -18,7 +23,6 @@ interface LiquidityData {
 }
 
 const Converter1: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'exchange' | 'pool'>('pool')
     const { removeLiquidity } = useLiquidity()
     const [percentage, setPercentage] = useState<number>(25)
     const [tokenId, setTokenId] = useState<string>('12345') // Sample token ID
@@ -217,40 +221,36 @@ const Converter1: React.FC = () => {
     const wpolToReceive = (liquidityData.WPOLAmount * percentage) / 100
     const usdcToReceive = (liquidityData.USDCAmount * percentage) / 100
     const totalValueUSD = liquidityData.WPOLAmount * liquidityData.priceWPOLtoUSDC + liquidityData.USDCAmount
+    const navigate = useNavigate()
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-            <div className="container mx-auto px-4">
-                <div
-                    className="hero-border w-full p-[3.5px] lg:rounded-[40px] rounded-[20px]"
-                    style={{
-                        background: `radial-gradient(98% 49.86% at 100.03% 100%, #33a36d 0%, rgba(51, 163, 109, 0.05) 100%), 
-                        radial-gradient(24.21% 39.21% at 0% 0%, rgba(255, 255, 255, 0.81) 0%, rgba(255, 255, 255, 0.19) 100%), 
-                        radial-gradient(21.19% 40.1% at 100.03% 0%, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 100%)`,
-                    }}
-                >
+        <div>
+            <div className="hero-section">
+                <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
+                    <JoinCommunity />
+                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
+                        <span className="text-[#B91C1C]"> Pool </span> Exchange
+                        with DEX.
+                    </h1>
+                    <p className="text-center font-normal md:text-[17.72px] md:leading-7 text-[#767676] max-w-[700px] mb-6">
+                        At our cryptocurrency token exchange platform, we offer
+                        an easy-to-use token swap service that allows you to
+                        seamlessly exchange one type of token for another with
+                        maximum efficiency.
+                    </p>
+                </div>
+            </div>
+            <div className="flex items-center justify-center px-4 min-h-screen">
+                <div className=" w-full p-[3.5px] md:rounded-[40px] rounded-[20px] max-w-[790px]">
                     <div className="bg-white relative shadow-lg border border-gray-200 w-full lg:rounded-[40px] rounded-[20px] px-[15px] lg:px-[50px] py-[20px] lg:py-[60px]">
                         {/* Tab Navigation */}
-                        <div className="relative z-10 border bg-gray-50 inline-flex px-2 py-1.5 rounded-[14px] border-solid border-gray-200 gap-2 mb-[24px]">
-                            <button
-                                onClick={() => setActiveTab('exchange')}
-                                className={`rounded-[8px] font-normal text-sm leading-[100%] px-[22px] py-[13px] transition-colors ${activeTab === 'exchange'
-                                    ? 'bg-white text-[#B91C1C] font-bold'
-                                    : 'text-black'
-                                    }`}
-                            >
-                                Exchange
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('pool')}
-                                className={`rounded-[8px] font-normal text-sm leading-[100%] px-[22px] py-[13px] transition-colors ${activeTab === 'pool'
-                                    ? 'bg-white text-[#B91C1C] font-bold'
-                                    : 'text-black'
-                                    }`}
-                            >
-                                Pool
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="flex items-center gap-1 rounded-[8px] font-normal text-sm leading-[100%] px-[16px] py-[10px] transition-colors text-black hover:text-[#B91C1C]"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            Back
+                        </button>
 
                         {/* Header */}
                         <h2 className="mb-4 font-bold text-xl sm:text-3xl leading-[100%] text-black">
@@ -274,7 +274,6 @@ const Converter1: React.FC = () => {
                             />
 
                         </div>
-
                         {/* Main Content Grid */}
                         <div className="flex flex-col lg:flex-row items-start gap-[25px] lg:gap-[51px]">
                             {/* Amount Selection */}
@@ -483,9 +482,9 @@ const Converter1: React.FC = () => {
                             <button
                                 onClick={handleRemove}
                                 disabled={!isEnabled || isRemovingLiquidity || !tokenId}
-                                className={`rounded-[150px] px-[92px] py-[16px] font-semibold text-base leading-[17.6px] border-2 transition-colors ${!isEnabled || !tokenId
-                                    ? 'text-gray-400 border-gray-300 cursor-not-allowed'
-                                    : 'text-[#DC2626] border-[#DC2626] hover:bg-[#DC2626] hover:text-white'
+                                className={`rounded-[150px] px-[92px] py-[16px] font-semibold text-base leading-[17.6px] border-2 transition-colors cursor-pointer ${!isEnabled || !tokenId
+                                    ? 'text-gray-400 border-gray-300 cursor-not-allowed disabled:opacity-50 disabled:cursor-not-allowed'
+                                    : 'text-[#DC2626] border-[#DC2626] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed'
                                     }`}
                             >
                                 {isRemovingLiquidity ? 'Removing...' : 'Remove Liquidity'}
@@ -503,6 +502,43 @@ const Converter1: React.FC = () => {
                     </div>
                 </div>
             </div>
+            <section className="md:py-[90px] py-[40px] px-4">
+                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#DC2626] max-w-[514px] mx-auto">
+                    How
+                    <span className="text-[#B91C1C]">Pool </span>Exchange Works
+                </h2>
+                <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
+                    Ol regnbågsbarn sedan trigraf. Sus bloggosfär. Flexitarian
+                    hemin i ben. Disamma. Sat diaren, i idyse. Pånen tiktigt.
+                    Ningar polyna. Premussa. Tetrabelt dispere. Epinera.
+                    Terranomi fabelt. Dore ser. Ponde nyn. Viter luvis utom
+                    dide. Pansexuell låtir om än bobesm. Metrogram vekåvis.
+                    Tjejsamla preligt i polig. Niseligen primatyp bibel. Prertad
+                    lese. Mytogen bipod trevigon. Rorat filototal. Nepämohet
+                    mongen. Rende okålig oaktat paraktiga. Kravallturism pahet.
+                    Tick tral. Ananigt lask. Non. Otrohetskontroll egode. Vass
+                    stenossade dekapött. Hint krislåda. Kvasise R-tal mivis.
+                    Timent bonus malus, kalsongbadare. Plare. Klimatflykting
+                    ohidengen. Robotjournalistik pernetik. Spere magisk lang.
+                    Tell movis. Rögt lönöligen. Homor åtöligt, töposm. Prede
+                    ament. Safariforskning tetrasasade förutom gågging. Reaska
+                    multiren dial. Pren previs. Geosa progipäligt. Jypäng
+                    snippa. Askbränd pådytining raligt. Platreck kollektomat i
+                    mill. Pladade kynde. Andronomi. Progiras våsm fast intrase.
+                    Semiren peteteles, homodent. Incel kaktig. Yck eska plus
+                    pneumalog. Homon ol megan.
+                </p>
+                <div className="flex justify-center gap-3 md:mt-[60px] mt-[40px] items-center">
+                    <a
+                        href="#"
+                        className="border-2 border-[#E9E9E9] md:px-[32px] px-[20px] py-[16px] rounded-[80px] font-medium text-base text-[#000000]"
+                    >
+                        Learn More
+                    </a>
+                </div>
+            </section>
+            <AskExpertsSection />
+            <EarnPassiveIncomeSection />
         </div>
     )
 }

@@ -5,6 +5,8 @@ import Limit from './pages/limit'
 import Pool from './pages/pool'
 import Bridge from './pages/bridge'
 import Swap from './pages/swap'
+import ConverterPool from './components/ConverterPool'
+import Converter1 from './components/Converter1'
 
 
 function App() {
@@ -16,6 +18,8 @@ function App() {
         <Route path="/bridge" element={<Bridge />} />
         <Route path="/limit" element={<Limit />} />
         <Route path="/pool" element={<Pool />} />
+        <Route path="/addlp" element={<ConverterPool />} />
+        <Route path="/removeLp" element={<Converter1 />} />
       </Route>
     </Routes>
   )

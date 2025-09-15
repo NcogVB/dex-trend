@@ -360,10 +360,9 @@ const Converter = () => {
                                 {isToDropdownOpen && (
                                     <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto">
                                         {tokens
-                                            .filter(
+                                             .filter(
                                                 (t) =>
-                                                    t.symbol !==
-                                                    fromToken.symbol
+                                                    t.symbol !== toToken.symbol
                                             )
                                             .map((token) => (
                                                 <li

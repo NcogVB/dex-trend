@@ -8,17 +8,12 @@ import {
   type ReactNode,
 } from "react";
 import { createAcrossClient } from "@across-protocol/app-sdk";
-import { useWalletClient, usePublicClient } from "wagmi";
+import { useWalletClient, usePublicClient, useSwitchChain } from "wagmi";
 import { parseUnits, formatUnits, erc20Abi } from "viem";
 import { polygon, arbitrum } from "viem/chains";
 
-const POLYGON_USDCE =
-  "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" as `0x${string}`;
-const ARBITRUM_USDCE =
-  "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" as `0x${string}`;
-
 interface QuoteResult {
-  swapQuote: any; // Store the full swap quote from Across
+  swapQuote: any;
   outputAmount: string;
   estimatedFillTimeSec: number;
   fees: any;
@@ -31,39 +26,55 @@ interface ProgressEvent {
   fillTxTimestamp?: number;
 }
 interface BridgeContextValue {
-  getQuote: (amountHuman: string) => Promise<QuoteResult | null>;
-  executeQuote: (quote: QuoteResult) => Promise<void>;
-  checkAndApprove: (amountHuman: string) => Promise<boolean>;
-  isLoading: boolean;
+  getQuote: (
+    amountHuman: string,
+    originChainId: number,
+    destinationChainId: number,
+    inputToken: `0x${string}`,
+    outputToken: `0x${string}`
+  ) => Promise<QuoteResult | null>;
+
+  executeQuote: (
+    quote: QuoteResult,
+    originChainId: number
+  ) => Promise<void>;
+
+  checkAndApprove: (
+    amountHuman: string,
+    originChainId: number,
+    inputToken: `0x${string}`
+  ) => Promise<boolean>;
+
+  isFetchingQuote: boolean;
+  isExecutingBridge: boolean;
   isApproving: boolean;
   lastQuote?: QuoteResult | null;
   error?: string | null;
-  progress: ProgressEvent[]; // 👈 add this line
+  progress: ProgressEvent[];
 }
 
-
-const BridgeContext = createContext<BridgeContextValue | undefined>(
-  undefined,
-
-);
+const BridgeContext = createContext<BridgeContextValue | undefined>(undefined);
 
 export const BridgeProvider = ({ children }: { children: ReactNode }) => {
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
+
   const [progress, setProgress] = useState<ProgressEvent[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+
+  const [isFetchingQuote, setIsFetchingQuote] = useState(false);
+  const [isExecutingBridge, setIsExecutingBridge] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+
   const [lastQuote, setLastQuote] = useState<QuoteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [acrossClient, setAcrossClient] = useState<any>(null);
+  const { switchChainAsync } = useSwitchChain()
 
   // Initialize Across client
   useEffect(() => {
     const client = createAcrossClient({
-      integratorId: "0xdead", // Replace with your integrator ID from Across
+      integratorId: "0xdead", // Replace with your Across integrator ID
       chains: [polygon, arbitrum],
-      // Add testnet configuration if needed
-      // useTestnet: false,
     });
     setAcrossClient(client);
   }, []);
@@ -71,8 +82,22 @@ export const BridgeProvider = ({ children }: { children: ReactNode }) => {
   const parseAmount = (amountHuman: string) => parseUnits(amountHuman, 6);
   const formatAmount = (amount: bigint) => formatUnits(amount, 6);
 
+  /** Progress batching */
+  const pushProgress = (event: ProgressEvent) => {
+    setProgress(prev => {
+      if (prev.some(p => p.step === event.step && p.status === event.status)) {
+        return prev;
+      }
+      return [...prev, event];
+    });
+  };
+
   /** Check and approve tokens if needed */
-  const checkAndApprove = async (amountHuman: string): Promise<boolean> => {
+  const checkAndApprove = async (
+    amountHuman: string,
+    originChainId: number,
+    inputToken: `0x${string}`
+  ): Promise<boolean> => {
     if (!walletClient?.account?.address || !publicClient || !acrossClient) {
       throw new Error("Wallet not connected or clients not available");
     }
@@ -82,34 +107,29 @@ export const BridgeProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       const amount = parseAmount(amountHuman);
-      const spenderAddress = await acrossClient.getSpokePoolAddress(polygon.id);
+      const spenderAddress = await acrossClient.getSpokePoolAddress(originChainId);
 
-      // Check current allowance
       const allowance = await publicClient.readContract({
-        address: POLYGON_USDCE,
+        address: inputToken,
         abi: erc20Abi,
         functionName: "allowance",
         args: [walletClient.account.address, spenderAddress],
       });
 
-      // If allowance is sufficient, return true
-      if (allowance >= amount) {
-        return true;
-      }
+      if (allowance >= amount) return true;
 
-      // Need to approve
       const hash = await walletClient.writeContract({
-        address: POLYGON_USDCE,
+        address: inputToken,
         abi: erc20Abi,
         functionName: "approve",
         args: [spenderAddress, amount],
       });
 
-      // Wait for approval transaction to be confirmed
       await publicClient.waitForTransactionReceipt({ hash });
       return true;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Approval failed";
+      const errorMessage =
+        err instanceof Error ? err.message : "Approval failed";
       setError(errorMessage);
       return false;
     } finally {
@@ -117,43 +137,46 @@ export const BridgeProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+
   /** Fetch a bridging quote via Across */
-  const getQuote = async (amountHuman: string): Promise<QuoteResult | null> => {
-    setIsLoading(true);
+  const getQuote = async (
+    amountHuman: string,
+    originChainId: number,
+    destinationChainId: number,
+    inputToken: `0x${string}`,
+    outputToken: `0x${string}`
+  ): Promise<QuoteResult | null> => {
+    setIsFetchingQuote(true);
     setError(null);
 
     try {
-      if (!walletClient?.account?.address) {
-        throw new Error("Wallet not connected");
-      }
-
-      if (!acrossClient) {
-        throw new Error("Across client not initialized");
-      }
+      if (!walletClient?.account?.address) throw new Error("Wallet not connected");
+      if (!acrossClient) throw new Error("Across client not initialized");
 
       const route = {
-        originChainId: polygon.id, // Use the chain id directly from viem
-        destinationChainId: arbitrum.id, // Use the chain id directly from viem
-        inputToken: POLYGON_USDCE,
-        outputToken: ARBITRUM_USDCE,
+        originChainId,
+        destinationChainId,
+        inputToken,
+        outputToken,
       };
-
-      console.log("Fetching quote for route:", route);
 
       const swapQuote = await acrossClient.getSwapQuote({
         route,
-        amount: parseAmount(amountHuman).toString(), // Convert to string
+        amount: parseAmount(amountHuman).toString(),
         depositor: walletClient.account.address as `0x${string}`,
       });
 
-      console.log("Received swap quote:", swapQuote);
-
-      const outputAmount = formatAmount(BigInt(swapQuote.outputAmount || swapQuote.minOutputAmount));
+      const outputAmount = formatAmount(
+        swapQuote.outputAmount || swapQuote.minOutputAmount
+      );
 
       const result: QuoteResult = {
-        swapQuote, // Store the full quote object
+        swapQuote,
         outputAmount,
-        estimatedFillTimeSec: swapQuote.estimatedFillTimeSec || swapQuote.expectedFillTime || 120,
+        estimatedFillTimeSec:
+          swapQuote.estimatedFillTimeSec ||
+          swapQuote.expectedFillTime ||
+          120,
         fees: swapQuote.totalRelayFee || swapQuote.fees,
       };
 
@@ -161,36 +184,35 @@ export const BridgeProvider = ({ children }: { children: ReactNode }) => {
       return result;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to get quote";
-      console.error("Quote error:", err);
       setError(msg);
       setLastQuote(null);
       return null;
     } finally {
-      setIsLoading(false);
+      setIsFetchingQuote(false);
     }
   };
 
+
   /** Execute an Across quote */
-  const executeQuote = async (quote: QuoteResult) => {
-    setIsLoading(true);
+  const executeQuote = async (
+    quote: QuoteResult,
+    originChainId: number
+  ) => {
+    setIsExecutingBridge(true);
     setError(null);
 
     try {
       if (!walletClient) throw new Error("Wallet not connected");
       if (!acrossClient) throw new Error("Across client not ready");
 
-      console.log("Executing quote:", quote);
-      console.log("Wallet client chain:", walletClient.chain);
-
-      // Make sure wallet is on the correct chain (Polygon)
-      if (walletClient.chain?.id !== polygon.id) {
-        throw new Error(`Please switch to Polygon network. Current: ${walletClient.chain?.name}, Required: ${polygon.name}`);
+      // ensure wallet is on correct origin chain
+      if (walletClient.chain?.id !== originChainId) {
+        await switchChainAsync({ chainId: originChainId });
       }
 
-      // Use executeSwapQuote instead of executeQuote for swap quotes
       await acrossClient.executeSwapQuote({
         walletClient,
-        swapQuote: quote.swapQuote, // Pass the full swap quote object
+        swapQuote: quote.swapQuote,
         onProgress: (progress: any) => {
           const event: ProgressEvent = {
             step: progress.step,
@@ -199,51 +221,18 @@ export const BridgeProvider = ({ children }: { children: ReactNode }) => {
             depositId: progress.depositId,
             fillTxTimestamp: progress.fillTxTimestamp,
           };
-
-          setProgress((prev) => [...prev, event]);
-          console.log("Bridge progress:", progress);
-
-          if (progress.step === "approve" && progress.status === "txSuccess") {
-            console.log("Token approval successful:", progress.txReceipt);
-          }
-
-          if (progress.step === "deposit" && progress.status === "txSuccess") {
-            console.log("Deposit successful:", {
-              depositId: progress.depositId,
-              txReceipt: progress.txReceipt,
-            });
-          }
-
-          if (progress.step === "fill" && progress.status === "txSuccess") {
-            console.log("Fill successful:", {
-              fillTxTimestamp: progress.fillTxTimestamp,
-              txReceipt: progress.txReceipt,
-              actionSuccess: progress.actionSuccess,
-            });
-          }
-          if (progress.step === "deposit" && progress.status === "txSuccess") {
-            setProgress((prev) => [
-              ...prev,
-              {
-                step: "waiting",
-                status: "pending",
-              },
-            ]);
-          }
+          pushProgress(event);
         },
       });
-
-      console.log("Bridge execution completed successfully");
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Quote execution failed";
-      console.error("Execution error:", err);
+      const msg = err instanceof Error ? err.message : "Quote execution failed";
       setError(msg);
       throw err;
     } finally {
-      setIsLoading(false);
+      setIsExecutingBridge(false);
     }
   };
+
 
   return (
     <BridgeContext.Provider
@@ -251,7 +240,8 @@ export const BridgeProvider = ({ children }: { children: ReactNode }) => {
         getQuote,
         executeQuote,
         checkAndApprove,
-        isLoading,
+        isFetchingQuote,
+        isExecutingBridge,
         isApproving,
         lastQuote,
         progress,
@@ -265,7 +255,6 @@ export const BridgeProvider = ({ children }: { children: ReactNode }) => {
 
 export const useBridge = () => {
   const ctx = useContext(BridgeContext);
-  if (!ctx)
-    throw new Error("useBridge must be used within BridgeProvider");
+  if (!ctx) throw new Error("useBridge must be used within BridgeProvider");
   return ctx;
 };

@@ -1,10 +1,15 @@
 import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import AskExpertsSection from '../../components/AskExpertsSection'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
 import WalletButton from '../../components/WalletButton'
 import JoinCommunity from '../../components/JoinCommunity'
 import { useBridge } from '../../contexts/Bridge'
+import TransferStatus from './TransferStatus'
+import { arbitrum, polygon } from 'viem/chains'
+import { useSwap } from '../../contexts/SwapContext'
+import { useWallet } from '../../contexts/WalletContext'
+import { useChainId } from 'wagmi'
 
 interface DropdownStates {
     fromToken: boolean
@@ -42,14 +47,67 @@ interface ChainOption {
     img: string
 }
 
+interface Token {
+    symbol: string
+    chainId: number
+    name: string
+    img: string
+    color: string
+    balance: number
+    realBalance?: string
+}
+
 type DropdownName = keyof DropdownStates
 type SelectionType = keyof SelectedValues
 type InputField = keyof InputValues
 
 const Bridge = () => {
-    const { getQuote, executeQuote, lastQuote, progress,isLoading, error } = useBridge()
+    const { getQuote, executeQuote, lastQuote, progress,
+        isExecutingBridge, } = useBridge()
+    const { getTokenBalance } = useSwap()
+    const chainId = useChainId();
+    const { account } = useWallet()
+    const [tokens, setTokens] = useState<Token[]>([
+        {
+            symbol: 'USDC POL',
+            chainId: 137,
+            name: 'USD Coin',
+            img: '/images/stock-5.png',
+            color: '#2775CA',
+            balance: 0,
+            realBalance: '0',
+        },
+        {
+            symbol: 'USDC ARB',
+            chainId: 42161,
+            name: 'USD Coin',
+            img: '/images/stock-5.png',
+            color: '#2775CA',
+            balance: 0,
+            realBalance: '0',
+        },
+    ])
     const [showProgressModal, setShowProgressModal] = useState(false)
-
+    const [exchangeRate, setExchangeRate] = useState(0)
+    const [isTransactionInProgress, setIsTransactionInProgress] = useState(false);
+    const chainMap: Record<string, { id: number; name: string; explorer: string }> = {
+        "Polygon Mainnet": {
+            id: polygon.id,
+            name: polygon.name,
+            explorer: "https://polygonscan.com",
+        },
+        Arbitrum: {
+            id: arbitrum.id,
+            name: arbitrum.name,
+            explorer: "https://arbiscan.io",
+        },
+    };
+    const tokenMap: Record<string, Record<number, `0x${string}`>> = {
+        USDC: {
+            [polygon.id]: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+            [arbitrum.id]: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        },
+    };
     const [dropdownStates, setDropdownStates] = useState<DropdownStates>({
         fromToken: false,
         fromChain: false,
@@ -71,14 +129,14 @@ const Bridge = () => {
     const [slippageTolerance, setSlippageTolerance] = useState<number>(1)
 
     const [inputValues, setInputValues] = useState<InputValues>({
-        fromAmount: '0.000',
-        toAmount: '0.000',
-        price: '0.000',
+        fromAmount: '',
+        toAmount: '',
+        price: '0',
         slippage: '1%',
     })
 
     const tokenOptions: TokenOption[] = [
-        { name: 'USDCE', img: '/images/stock-2.png', color: '#EF4444' },
+        { name: 'USDC', img: '/images/stock-2.png', color: '#EF4444' },
     ]
 
     const chainOptions: ChainOption[] = [
@@ -144,35 +202,118 @@ const Bridge = () => {
             toAmount: prev.fromAmount,
         }))
     }
+    const updateBalances = useCallback(async () => {
+        if (!account) return
+        const updated = await Promise.all(
+            tokens.map(async (t) => {
+                const realBalance = await getTokenBalance(t.symbol as any).catch(
+                    () => '0'
+                )
+                return { ...t, realBalance, balance: parseFloat(realBalance) }
+            })
+        )
+        setTokens(updated)
+    }, [account, getTokenBalance])
+
+    useEffect(() => {
+        if (account) updateBalances()
+    }, [account, updateBalances])
 
     // 🔑 Fetch quote whenever user types a new amount
     useEffect(() => {
+        let cancelled = false;
+
         const fetchQuote = async () => {
-            if (!inputValues.fromAmount || parseFloat(inputValues.fromAmount) <= 0) {
-                handleInputChange('toAmount', '0.000')
-                return
+            const fromAmt = inputValues.fromAmount;
+
+            if (!fromAmt || Number(fromAmt) <= 0) {
+                handleInputChange("toAmount", "");
+                setExchangeRate(0);
+                return;
             }
-            const quote = await getQuote(inputValues.fromAmount)
-            if (quote) {
-                handleInputChange('toAmount', quote.outputAmount)
+
+            try {
+                const fromChainId = chainMap[selectedValues.fromChain].id;
+                const toChainId = chainMap[selectedValues.toChain].id;
+                const fromToken = tokenMap[selectedValues.fromToken][fromChainId];
+                const toToken = tokenMap[selectedValues.toToken][toChainId];
+
+                const quote = await getQuote(fromAmt, fromChainId, toChainId, fromToken, toToken);
+
+                if (!quote || cancelled) return;
+
+                if (quote.outputAmount !== inputValues.toAmount) {
+                    handleInputChange("toAmount", quote.outputAmount);
+                }
+
+                const rate = Number(quote.outputAmount) / Number(fromAmt);
+                if (rate !== exchangeRate) setExchangeRate(rate);
+            } catch (e) {
+                console.error("Quote fetch error:", e);
+                if (!cancelled) setExchangeRate(0);
             }
-        }
-        fetchQuote()
-    }, [inputValues.fromAmount])
+        };
+
+
+        fetchQuote();
+
+        return () => {
+            cancelled = true; // cancel stale calls
+        };
+    }, [inputValues.fromAmount]);
 
     // 🔑 Handle Exchange
     const handleExchange = async () => {
-        if (!lastQuote) return
-        setShowProgressModal(true) // open modal
+        if (!lastQuote || isTransactionInProgress) return;
+
+        setIsTransactionInProgress(true);
+        setShowProgressModal(true);
+
         try {
-            await executeQuote(lastQuote)
-            // success -> close after short delay
-            setTimeout(() => setShowProgressModal(false), 3000)
+            const fromChainId = chainMap[selectedValues.fromChain].id;
+            await executeQuote(lastQuote, fromChainId);
+
+            const fillCompleted = progress.some(
+                (p) => p.step === "fill" && p.status === "txSuccess"
+            );
+            if (fillCompleted) {
+                setTimeout(() => {
+                    setShowProgressModal(false);
+                    setIsTransactionInProgress(false);
+                }, 5000);
+            }
         } catch (err) {
-            // error -> keep open so user sees it, but auto-close later
-            setTimeout(() => setShowProgressModal(false), 5000)
+            console.error("Bridge execution failed:", err);
+            setTimeout(() => {
+                setShowProgressModal(false);
+                setIsTransactionInProgress(false);
+            }, 8000);
         }
-    }
+    };
+
+    // Helper function to get current step
+    const getCurrentStep = (): "approve" | "deposit" | "fill" | "completed" => {
+        const latestProgress = progress[progress.length - 1];
+        if (!latestProgress) return "approve";
+
+        // If fill is successful, mark as completed
+        if (latestProgress.step === "fill" && latestProgress.status === "txSuccess") {
+            return "completed";
+        }
+
+        // Map progress step names to our expected types
+        const stepMapping: Record<string, "approve" | "deposit" | "fill"> = {
+            "approve": "approve",
+            "deposit": "deposit",
+            "fill": "fill",
+            // Add any other step names that might come from the SDK
+            "approval": "approve",
+            "swap": "deposit",
+        };
+
+        const mappedStep = stepMapping[latestProgress.step];
+        return mappedStep || "approve"; // fallback to approve
+    };
     return (
         <>
             <div className="hero-section">
@@ -314,29 +455,31 @@ const Bridge = () => {
                                                 </button>
                                                 {dropdownStates.fromTokenSelect && (
                                                     <ul className="token-list absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-48 overflow-auto ring-1 ring-black ring-opacity-5 text-[13px] font-normal text-black">
-                                                        {tokenOptions.map(
-                                                            (token, index) => (
-                                                                <li
-                                                                    key={index}
-                                                                    className="token-item cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center hover:bg-gray-100"
-                                                                    onClick={() =>
-                                                                        handleSelection(
-                                                                            'fromTokenType',
-                                                                            token.name
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <img
-                                                                        alt=""
-                                                                        className="w-6 h-6 mr-2"
-                                                                        src={
-                                                                            token.img
+                                                        {tokens.filter((t) => t.chainId === chainId)
+
+                                                            .map(
+                                                                (token, index) => (
+                                                                    <li
+                                                                        key={index}
+                                                                        className="token-item cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center hover:bg-gray-100"
+                                                                        onClick={() =>
+                                                                            handleSelection(
+                                                                                'fromTokenType',
+                                                                                token.name
+                                                                            )
                                                                         }
-                                                                    />
-                                                                    {token.name}
-                                                                </li>
-                                                            )
-                                                        )}
+                                                                    >
+                                                                        <img
+                                                                            alt=""
+                                                                            className="w-6 h-6 mr-2"
+                                                                            src={
+                                                                                token.img
+                                                                            }
+                                                                        />
+                                                                        {token.realBalance}
+                                                                    </li>
+                                                                )
+                                                            )}
                                                     </ul>
                                                 )}
                                             </div>
@@ -484,7 +627,7 @@ const Bridge = () => {
                                                 </button>
                                                 {dropdownStates.toTokenSelect && (
                                                     <ul className="token-list absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-48 overflow-auto ring-1 ring-black ring-opacity-5 text-[13px] font-normal text-black">
-                                                        {tokenOptions.map(
+                                                        {tokens.filter((t) => t.chainId === chainId).map(
                                                             (token, index) => (
                                                                 <li
                                                                     key={index}
@@ -503,7 +646,7 @@ const Bridge = () => {
                                                                             token.img
                                                                         }
                                                                     />
-                                                                    {token.name}
+                                                                    {token.realBalance}
                                                                 </li>
                                                             )
                                                         )}
@@ -518,7 +661,7 @@ const Bridge = () => {
                                 <div className="flex-1 font-normal text-sm leading-[18.86px] text-[#888888] text-center md:text-left">
                                     <span>Price</span>
                                     <p className="text-[#333333] font-semibold text-[18px] leading-[31.43px] mt-2">
-                                        {/* {exchangeRate.toFixed(8)} */}
+                                        {exchangeRate.toFixed(8)}
                                     </p>
                                 </div>
                                 <div className="flex-1">
@@ -548,94 +691,34 @@ const Bridge = () => {
                                     </div>
                                 </div>
                             </div>
-                            {showProgressModal && (
-                                <div className="fixed inset-0 flex items-center justify-center z-50">
-                                    {/* Background with blur, not solid black */}
-                                    <div className="absolute inset-0 bg-white/20 backdrop-blur-sm" />
-
-                                    {/* Modal */}
-                                    <div className="relative bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-200">
-                                        <h2 className="text-xl font-bold mb-4 text-gray-900">Bridge Progress</h2>
-
-                                        <div className="space-y-3 max-h-64 overflow-y-auto">
-                                            {progress.map((p, i) => {
-                                                let statusColor =
-                                                    p.status === "txSuccess"
-                                                        ? "text-green-600"
-                                                        : p.status === "pending"
-                                                            ? "text-yellow-600"
-                                                            : "text-red-600";
-                                                return (
-                                                    <div
-                                                        key={i}
-                                                        className="p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm"
-                                                    >
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="font-medium text-gray-800">
-                                                                Step: {p.step}
-                                                            </span>
-                                                            <span className={`font-semibold ${statusColor}`}>
-                                                                {p.status}
-                                                            </span>
-                                                        </div>
-
-                                                        {p.txHash && (
-                                                            <div className="mt-1">
-                                                                <a
-                                                                    href={`https://polygonscan.com/tx/${p.txHash}`}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-blue-500 underline"
-                                                                >
-                                                                    View Tx
-                                                                </a>
-                                                            </div>
-                                                        )}
-                                                        {p.step === "waiting" && p.status === "pending" && (
-                                                            <div className="mt-2 text-gray-600">
-                                                                ⏳ Tokens are on the way... this usually takes 2–5 minutes.
-                                                            </div>
-                                                        )}
-                                                        {p.depositId && (
-                                                            <div className="text-gray-600 mt-1">
-                                                                <strong>DepositId:</strong> {p.depositId}
-                                                            </div>
-                                                        )}
-                                                        {p.fillTxTimestamp && (
-                                                            <div className="text-gray-600 mt-1">
-                                                                <strong>Fill Time:</strong>{" "}
-                                                                {new Date(p.fillTxTimestamp * 1000).toLocaleString()}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {error && (
-                                            <div className="mt-4 text-red-500 text-sm bg-red-50 border border-red-200 rounded p-2">
-                                                <strong>Error:</strong> {error}
-                                            </div>
-                                        )}
-
-                                        <div className="mt-6 flex justify-end">
-                                            <button
-                                                onClick={() => setShowProgressModal(false)}
-                                                className="bg-blue-600 px-4 py-2 rounded-lg text-white font-medium hover:bg-blue-500 transition"
-                                            >
-                                                Close
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                            {showProgressModal && lastQuote && (
+                                <TransferStatus
+                                    depositTxHash={progress.find(p => p.step === "deposit" && p.status === "txSuccess")?.txHash}
+                                    fillTxHash={progress.find(p => p.step === "fill" && p.status === "txSuccess")?.txHash}
+                                    fillTime={progress.find(p => p.step === "fill" && p.status === "txSuccess")?.fillTxTimestamp}
+                                    amount={`${lastQuote.outputAmount} USDC`}
+                                    currentStep={getCurrentStep()}
+                                    isComplete={progress.some(p => p.step === "fill" && p.status === "txSuccess")}
+                                    onClose={() => setShowProgressModal(false)}
+                                />
                             )}
+
                             <button
                                 onClick={handleExchange}
-                                disabled={showProgressModal || isLoading}
+                                disabled={
+                                    showProgressModal ||
+                                    isTransactionInProgress ||
+                                    isExecutingBridge ||
+                                    !inputValues.fromAmount ||
+                                    !inputValues.toAmount
+                                }
                                 className="modern-button mt-[25px] md:mt-[40px] w-full p-[16px] text-center text-base font-semibold disabled:opacity-50"
                             >
-                                {showProgressModal || isLoading ? 'Processing...' : 'Exchange'}
+                                {isExecutingBridge || showProgressModal
+                                    ? 'Processing...'
+                                    : 'Exchange'}
                             </button>
+
                         </div>
                     </div>
                 </div>
