@@ -390,7 +390,7 @@ const Converter1: React.FC = () => {
                                         <div className="flex justify-between items-center">
                                             <span className="font-normal text-lg leading-[100%]">1 WPOL =</span>
                                             <span className="font-bold md:text-[20px] text-base leading-[100%]">
-                                                ${liquidityData.priceWPOLtoUSDC.toFixed(4)} USDC
+                                                {liquidityData.priceWPOLtoUSDC.toFixed(4)} USDC
                                             </span>
                                         </div>
                                         <div className="flex justify-between items-center">

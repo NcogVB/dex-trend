@@ -1,9 +1,11 @@
 import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AskExpertsSection from '../../components/AskExpertsSection'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
 import WalletButton from '../../components/WalletButton'
 import JoinCommunity from '../../components/JoinCommunity'
+import { useBridge } from '../../contexts/Bridge'
+
 interface DropdownStates {
     fromToken: boolean
     fromChain: boolean
@@ -43,8 +45,11 @@ interface ChainOption {
 type DropdownName = keyof DropdownStates
 type SelectionType = keyof SelectedValues
 type InputField = keyof InputValues
+
 const Bridge = () => {
-    // State for dropdown visibility
+    const { getQuote, executeQuote, lastQuote, progress,isLoading, error } = useBridge()
+    const [showProgressModal, setShowProgressModal] = useState(false)
+
     const [dropdownStates, setDropdownStates] = useState<DropdownStates>({
         fromToken: false,
         fromChain: false,
@@ -54,55 +59,39 @@ const Bridge = () => {
         toTokenSelect: false,
     })
 
-    // State for selected values
     const [selectedValues, setSelectedValues] = useState<SelectedValues>({
-        fromToken: 'Ethereum Mainnet',
-        fromChain: 'SEPOLIA',
-        toToken: 'Ethereum Mainnet',
-        toChain: 'SEPOLIA',
-        fromTokenType: 'USDT',
-        toTokenType: 'USDT',
+        fromToken: 'USDC',
+        fromChain: 'Polygon Mainnet',
+        toToken: 'USDC',
+        toChain: 'Arbitrum',
+        fromTokenType: 'USDC',
+        toTokenType: 'USDC',
     })
 
     const [slippageTolerance, setSlippageTolerance] = useState<number>(1)
 
-    // State for input values
     const [inputValues, setInputValues] = useState<InputValues>({
         fromAmount: '0.000',
         toAmount: '0.000',
         price: '0.000',
         slippage: '1%',
     })
-    // Mock exchange rate (in real app, this would come from API)
-    const exchangeRate: number = 0.000025 // 1 USDT = 0.000025 BTC (example)
 
-    // Token options
     const tokenOptions: TokenOption[] = [
-        { name: 'USDT', img: '/images/stock-2.png', color: '#EF4444' },
-        {
-            name: 'BTC',
-            img: 'https://storage.googleapis.com/a1aa/image/6d94bf53-1009-4e09-cc33-08da0b192de7.jpg',
-            color: '#F7931A',
-        },
-        { name: 'ETH', img: '/images/stock-1.svg', color: '#3B3B3B' },
+        { name: 'USDCE', img: '/images/stock-2.png', color: '#EF4444' },
     ]
 
     const chainOptions: ChainOption[] = [
         {
-            name: 'Ethereum Mainnet',
+            name: 'Polygon Mainnet',
             img: 'https://storage.googleapis.com/a1aa/image/6d94bf53-1009-4e09-cc33-08da0b192de7.jpg',
         },
         {
-            name: 'SEPOLIA',
-            img: 'https://storage.googleapis.com/a1aa/image/6d94bf53-1009-4e09-cc33-08da0b192de7.jpg',
-        },
-        {
-            name: 'Polygon',
+            name: 'Arbitrum',
             img: 'https://storage.googleapis.com/a1aa/image/6d94bf53-1009-4e09-cc33-08da0b192de7.jpg',
         },
     ]
 
-    // Toggle dropdown
     const toggleDropdown = (dropdownName: DropdownName): void => {
         setDropdownStates((prev) => ({
             ...prev,
@@ -110,14 +99,12 @@ const Bridge = () => {
         }))
     }
 
-    // Handle selection
     const handleSelection = (type: SelectionType, value: string): void => {
         setSelectedValues((prev) => ({
             ...prev,
             [type]: value,
         }))
 
-        // Close dropdown
         const dropdownMap: Record<SelectionType, DropdownName> = {
             fromToken: 'fromToken',
             fromChain: 'fromChain',
@@ -133,7 +120,6 @@ const Bridge = () => {
         }))
     }
 
-    // Handle input change
     const handleInputChange = (field: InputField, value: string): void => {
         setInputValues((prev) => ({
             ...prev,
@@ -141,7 +127,6 @@ const Bridge = () => {
         }))
     }
 
-    // Handle swap
     const handleSwap = (): void => {
         setSelectedValues((prev) => ({
             ...prev,
@@ -160,6 +145,34 @@ const Bridge = () => {
         }))
     }
 
+    // 🔑 Fetch quote whenever user types a new amount
+    useEffect(() => {
+        const fetchQuote = async () => {
+            if (!inputValues.fromAmount || parseFloat(inputValues.fromAmount) <= 0) {
+                handleInputChange('toAmount', '0.000')
+                return
+            }
+            const quote = await getQuote(inputValues.fromAmount)
+            if (quote) {
+                handleInputChange('toAmount', quote.outputAmount)
+            }
+        }
+        fetchQuote()
+    }, [inputValues.fromAmount])
+
+    // 🔑 Handle Exchange
+    const handleExchange = async () => {
+        if (!lastQuote) return
+        setShowProgressModal(true) // open modal
+        try {
+            await executeQuote(lastQuote)
+            // success -> close after short delay
+            setTimeout(() => setShowProgressModal(false), 3000)
+        } catch (err) {
+            // error -> keep open so user sees it, but auto-close later
+            setTimeout(() => setShowProgressModal(false), 5000)
+        }
+    }
     return (
         <>
             <div className="hero-section">
@@ -182,69 +195,7 @@ const Bridge = () => {
                             <div className="flex flex-col md:flex-row justify-between items-center gap-[25px] md:gap-[51px]">
                                 <div className="flex-1 w-full">
                                     <div className="grid grid-cols-1 lg:grid-cols-2 mb-3 gap-3">
-                                        <div className="relative min-w-[133px]">
-                                            <button
-                                                aria-expanded={
-                                                    dropdownStates.fromToken
-                                                }
-                                                aria-haspopup="listbox"
-                                                className="token-button bg-[#FFFFFF66] border rounded-xl border-solid border-[#FFFFFF1A] px-2 py-2 w-full flex items-center cursor-pointer select-none"
-                                                type="button"
-                                                onClick={() =>
-                                                    toggleDropdown('fromToken')
-                                                }
-                                            >
-                                                <img
-                                                    src="https://storage.googleapis.com/a1aa/image/6d94bf53-1009-4e09-cc33-08da0b192de7.jpg"
-                                                    className="token-img rounded-full shadow-[0px_6px_10px_0px_#00000013] size-[26px] min-w-[26px]"
-                                                    alt=""
-                                                />
-                                                <div className="flex flex-col text-left ml-1.5 mr-4">
-                                                    <span className="text-[#606060] font-normal text-[10px] leading-[100%] mb-1">
-                                                        Token
-                                                    </span>
-                                                    <span className="token-label text-[13px] font-normal text-black flex-grow">
-                                                        {
-                                                            selectedValues.fromToken
-                                                        }
-                                                    </span>
-                                                </div>
-                                                <ChevronDown
-                                                    className={`ml-auto token-arrow transition-transform ${
-                                                        dropdownStates.fromToken
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                    }`}
-                                                />
-                                            </button>
-                                            {dropdownStates.fromToken && (
-                                                <ul className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-48 overflow-auto ring-1 ring-black ring-opacity-5 text-[13px] font-normal text-black">
-                                                    {chainOptions.map(
-                                                        (option, index) => (
-                                                            <li
-                                                                key={index}
-                                                                className="cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center hover:bg-gray-100"
-                                                                onClick={() =>
-                                                                    handleSelection(
-                                                                        'fromToken',
-                                                                        option.name
-                                                                    )
-                                                                }
-                                                            >
-                                                                <img
-                                                                    alt=""
-                                                                    className="w-6 h-6 mr-2"
-                                                                    src={
-                                                                        option.img
-                                                                    }
-                                                                />
-                                                                {option.name}
-                                                            </li>
-                                                        )
-                                                    )}
-                                                </ul>
-                                            )}
-                                        </div>
+
                                         <div className="relative min-w-[133px]">
                                             <button
                                                 aria-expanded={
@@ -273,11 +224,10 @@ const Bridge = () => {
                                                     </span>
                                                 </div>
                                                 <ChevronDown
-                                                    className={`ml-auto token-arrow transition-transform ${
-                                                        dropdownStates.fromChain
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                    }`}
+                                                    className={`ml-auto token-arrow transition-transform ${dropdownStates.fromChain
+                                                        ? 'rotate-180'
+                                                        : ''
+                                                        }`}
                                                 />
                                             </button>
                                             {dropdownStates.fromChain && (
@@ -310,12 +260,7 @@ const Bridge = () => {
                                         </div>
                                     </div>
                                     <div className="modern-input px-[16px] py-[16px]">
-                                        <div className="flex items-center justify-between font-normal text-sm leading-[18.86px] text-[#888888] mb-3">
-                                            <span>Availability: 0</span>
-                                            <span className="underline cursor-pointer">
-                                                Max: 0
-                                            </span>
-                                        </div>
+
                                         <div className="flex items-center justify-between">
                                             <input
                                                 type="text"
@@ -361,11 +306,10 @@ const Bridge = () => {
                                                         }
                                                     </span>
                                                     <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform ${
-                                                            dropdownStates.fromTokenSelect
-                                                                ? 'rotate-180'
-                                                                : ''
-                                                        }`}
+                                                        className={`ml-auto token-arrow transition-transform ${dropdownStates.fromTokenSelect
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                            }`}
                                                     />
                                                 </button>
                                                 {dropdownStates.fromTokenSelect && (
@@ -419,68 +363,6 @@ const Bridge = () => {
                                 </div>
                                 <div className="flex-1 w-full">
                                     <div className="grid grid-cols-1 lg:grid-cols-2 mb-3 gap-3">
-                                        <div className="relative min-w-[133px]">
-                                            <button
-                                                aria-expanded={
-                                                    dropdownStates.toToken
-                                                }
-                                                aria-haspopup="listbox"
-                                                className="token-button bg-[#FFFFFF66] border rounded-xl border-solid border-[#FFFFFF1A] px-2 py-2 w-full flex items-center cursor-pointer select-none"
-                                                type="button"
-                                                onClick={() =>
-                                                    toggleDropdown('toToken')
-                                                }
-                                            >
-                                                <img
-                                                    src="https://storage.googleapis.com/a1aa/image/6d94bf53-1009-4e09-cc33-08da0b192de7.jpg"
-                                                    className="token-img rounded-full shadow-[0px_6px_10px_0px_#00000013] size-[26px] min-w-[26px]"
-                                                    alt=""
-                                                />
-                                                <div className="flex flex-col text-left ml-1.5 mr-4">
-                                                    <span className="text-[#606060] font-normal text-[10px] leading-[100%] mb-1">
-                                                        Token
-                                                    </span>
-                                                    <span className="token-label text-[13px] font-normal text-black flex-grow">
-                                                        {selectedValues.toToken}
-                                                    </span>
-                                                </div>
-                                                <ChevronDown
-                                                    className={`ml-auto token-arrow transition-transform ${
-                                                        dropdownStates.toToken
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                    }`}
-                                                />
-                                            </button>
-                                            {dropdownStates.toToken && (
-                                                <ul className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-48 overflow-auto ring-1 ring-black ring-opacity-5 text-[13px] font-normal text-black">
-                                                    {chainOptions.map(
-                                                        (option, index) => (
-                                                            <li
-                                                                key={index}
-                                                                className="cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center hover:bg-gray-100"
-                                                                onClick={() =>
-                                                                    handleSelection(
-                                                                        'toToken',
-                                                                        option.name
-                                                                    )
-                                                                }
-                                                            >
-                                                                <img
-                                                                    alt=""
-                                                                    className="w-6 h-6 mr-2"
-                                                                    src={
-                                                                        option.img
-                                                                    }
-                                                                />
-                                                                {option.name}
-                                                            </li>
-                                                        )
-                                                    )}
-                                                </ul>
-                                            )}
-                                        </div>
-
                                         {/* Chain Dropdown */}
                                         <div className="relative min-w-[133px]">
                                             <button
@@ -508,11 +390,10 @@ const Bridge = () => {
                                                     </span>
                                                 </div>
                                                 <ChevronDown
-                                                    className={`ml-auto token-arrow transition-transform ${
-                                                        dropdownStates.toChain
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                    }`}
+                                                    className={`ml-auto token-arrow transition-transform ${dropdownStates.toChain
+                                                        ? 'rotate-180'
+                                                        : ''
+                                                        }`}
                                                 />
                                             </button>
                                             {dropdownStates.toChain && (
@@ -548,18 +429,7 @@ const Bridge = () => {
                                     {/* Amount Input Section */}
                                     <div className="modern-input px-[16px] py-[16px]">
                                         <div className="flex items-center justify-between font-normal text-sm leading-[18.86px] text-[#888888] mb-3">
-                                            <span>Availability: 0</span>
-                                            <span
-                                                className="underline cursor-pointer"
-                                                onClick={() =>
-                                                    handleInputChange(
-                                                        'toAmount',
-                                                        '0'
-                                                    )
-                                                }
-                                            >
-                                                Max: 0
-                                            </span>
+
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <input
@@ -606,11 +476,10 @@ const Bridge = () => {
                                                         }
                                                     </span>
                                                     <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform ${
-                                                            dropdownStates.toTokenSelect
-                                                                ? 'rotate-180'
-                                                                : ''
-                                                        }`}
+                                                        className={`ml-auto token-arrow transition-transform ${dropdownStates.toTokenSelect
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                            }`}
                                                     />
                                                 </button>
                                                 {dropdownStates.toTokenSelect && (
@@ -649,7 +518,7 @@ const Bridge = () => {
                                 <div className="flex-1 font-normal text-sm leading-[18.86px] text-[#888888] text-center md:text-left">
                                     <span>Price</span>
                                     <p className="text-[#333333] font-semibold text-[18px] leading-[31.43px] mt-2">
-                                        {exchangeRate.toFixed(8)}
+                                        {/* {exchangeRate.toFixed(8)} */}
                                     </p>
                                 </div>
                                 <div className="flex-1">
@@ -679,8 +548,93 @@ const Bridge = () => {
                                     </div>
                                 </div>
                             </div>
-                            <button className="modern-button mt-[25px] md:mt-[40px] w-full p-[16px] text-center text-base font-semibold">
-                                Exchange
+                            {showProgressModal && (
+                                <div className="fixed inset-0 flex items-center justify-center z-50">
+                                    {/* Background with blur, not solid black */}
+                                    <div className="absolute inset-0 bg-white/20 backdrop-blur-sm" />
+
+                                    {/* Modal */}
+                                    <div className="relative bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-gray-200">
+                                        <h2 className="text-xl font-bold mb-4 text-gray-900">Bridge Progress</h2>
+
+                                        <div className="space-y-3 max-h-64 overflow-y-auto">
+                                            {progress.map((p, i) => {
+                                                let statusColor =
+                                                    p.status === "txSuccess"
+                                                        ? "text-green-600"
+                                                        : p.status === "pending"
+                                                            ? "text-yellow-600"
+                                                            : "text-red-600";
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        className="p-3 rounded-lg border border-gray-200 bg-gray-50 text-sm"
+                                                    >
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="font-medium text-gray-800">
+                                                                Step: {p.step}
+                                                            </span>
+                                                            <span className={`font-semibold ${statusColor}`}>
+                                                                {p.status}
+                                                            </span>
+                                                        </div>
+
+                                                        {p.txHash && (
+                                                            <div className="mt-1">
+                                                                <a
+                                                                    href={`https://polygonscan.com/tx/${p.txHash}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-blue-500 underline"
+                                                                >
+                                                                    View Tx
+                                                                </a>
+                                                            </div>
+                                                        )}
+                                                        {p.step === "waiting" && p.status === "pending" && (
+                                                            <div className="mt-2 text-gray-600">
+                                                                ⏳ Tokens are on the way... this usually takes 2–5 minutes.
+                                                            </div>
+                                                        )}
+                                                        {p.depositId && (
+                                                            <div className="text-gray-600 mt-1">
+                                                                <strong>DepositId:</strong> {p.depositId}
+                                                            </div>
+                                                        )}
+                                                        {p.fillTxTimestamp && (
+                                                            <div className="text-gray-600 mt-1">
+                                                                <strong>Fill Time:</strong>{" "}
+                                                                {new Date(p.fillTxTimestamp * 1000).toLocaleString()}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {error && (
+                                            <div className="mt-4 text-red-500 text-sm bg-red-50 border border-red-200 rounded p-2">
+                                                <strong>Error:</strong> {error}
+                                            </div>
+                                        )}
+
+                                        <div className="mt-6 flex justify-end">
+                                            <button
+                                                onClick={() => setShowProgressModal(false)}
+                                                className="bg-blue-600 px-4 py-2 rounded-lg text-white font-medium hover:bg-blue-500 transition"
+                                            >
+                                                Close
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            <button
+                                onClick={handleExchange}
+                                disabled={showProgressModal || isLoading}
+                                className="modern-button mt-[25px] md:mt-[40px] w-full p-[16px] text-center text-base font-semibold disabled:opacity-50"
+                            >
+                                {showProgressModal || isLoading ? 'Processing...' : 'Exchange'}
                             </button>
                         </div>
                     </div>

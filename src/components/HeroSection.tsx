@@ -37,7 +37,7 @@ const HeroSection = () => (
                                                 alt=""
                                             />
                                             <span className="token-label text-[13px] font-normal text-black flex-grow ml-1.5 mr-4">
-                                                Ethereum Mainnet
+                                                Polygin Mainnet
                                             </span>
                                             <svg
                                                 className="token-arrow"
@@ -72,7 +72,7 @@ const HeroSection = () => (
                                                     src="./images/stock-2.png"
                                                     width="24"
                                                 />
-                                                USDT
+                                                USDC
                                             </li>
                                             <li
                                                 className="token-item cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center"
@@ -89,7 +89,7 @@ const HeroSection = () => (
                                                     src="https://storage.googleapis.com/a1aa/image/6d94bf53-1009-4e09-cc33-08da0b192de7.jpg"
                                                     width="24"
                                                 />
-                                                Ethereum Mainnet
+                                                Polygon Mainnet
                                             </li>
                                             <li
                                                 className="token-item cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center"
@@ -106,7 +106,7 @@ const HeroSection = () => (
                                                     src="./images/stock-1.svg "
                                                     width="24"
                                                 />
-                                                BNB Chain
+                                                Arbitrum Chain
                                             </li>
                                         </ul>
                                     </div>
@@ -134,7 +134,7 @@ const HeroSection = () => (
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <p className="text-[#333333] font-semibold text-[20px] leading-[31.43px]">
-                                        0.000
+                                        0
                                     </p>
                                     <div className="relative min-w-[95px]">
                                         <button
@@ -149,7 +149,7 @@ const HeroSection = () => (
                                                 src="./images/stock-2.png"
                                             />
                                             <span className="token-label text-[#000000] text-[16px] font-normal text-left flex-grow ml-3 mr-8">
-                                                USDT
+                                                USDC
                                             </span>
                                             <svg
                                                 className="token-arrow"
@@ -257,7 +257,7 @@ const HeroSection = () => (
                                         />
 
                                         <span className="token-label text-[13px] font-normal text-black flex-grow ml-1.5 mr-4">
-                                            BNB Chain
+                                            Arbitrum Chain
                                         </span>
 
                                         <svg
@@ -310,7 +310,7 @@ const HeroSection = () => (
                                                 src="https://storage.googleapis.com/a1aa/image/6d94bf53-1009-4e09-cc33-08da0b192de7.jpg"
                                                 width="24"
                                             />
-                                            Ethereum Mainnet
+                                            Polygon Mainnet
                                         </li>
                                         <li
                                             className="token-item cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center"
@@ -327,7 +327,7 @@ const HeroSection = () => (
                                                 src="./images/stock-1.svg "
                                                 width="24"
                                             />
-                                            BNB Chain
+                                            Arbitrum Chain
                                         </li>
                                     </ul>
                                 </div>
@@ -338,7 +338,7 @@ const HeroSection = () => (
                                     <span>Receive (estimated):</span>
                                 </div>
                                 <p className="text-[#333333] font-semibold text-[20px] leading-[31.43px]">
-                                    10,000
+                                   0
                                 </p>
                             </div>
                         </div>

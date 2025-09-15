@@ -8,6 +8,9 @@ export default defineConfig({
     plugins: [react(), tailwindcss(), nodePolyfills({
         protocolImports: true,
     }),],
+    optimizeDeps: {
+        include: ['@across-protocol/app-sdk', 'ethers', 'wagmi']
+    },
 
     resolve: {
         alias: {
