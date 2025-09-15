@@ -184,7 +184,7 @@ const Converter = () => {
                 <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">
                     <Link
                         to="/swap"
-                        className="rounded-[6px] bg-white text-[#DC2626] font-semibold text-sm px-[20px] py-[10px] cursor-pointer shadow-sm"
+                        className="rounded-[6px] bg-white text-[#2563EB] font-semibold text-sm px-[20px] py-[10px] cursor-pointer shadow-sm"
                     >
                         Exchange
                     </Link>
@@ -290,7 +290,7 @@ const Converter = () => {
                                         ).toFixed(6)
                                         setFromAmount(calcAmt)
                                     }}
-                                    className="cursor-pointer w-full block bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-[8px] text-[14px] font-medium text-[#888888] text-center hover:bg-[#DC2626] hover:text-white transition-colors peer-checked:bg-[#DC2626] peer-checked:text-white"
+                                    className="cursor-pointer w-full block bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-[8px] text-[14px] font-medium text-[#888888] text-center hover:bg-[#2563EB] hover:text-white transition-colors peer-checked:bg-[#2563EB] peer-checked:text-white"
                                 >
                                     {pct === 100 ? 'MAX' : `${pct}%`}
                                 </button>
@@ -411,7 +411,7 @@ const Converter = () => {
                                         ).toFixed(6)
                                         setToAmount(calcAmt)
                                     }}
-                                    className="cursor-pointer w-full block bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-[8px] text-[14px] font-medium text-[#888888] text-center hover:bg-[#DC2626] hover:text-white transition-colors peer-checked:bg-[#DC2626] peer-checked:text-white"
+                                    className="cursor-pointer w-full block bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-[8px] text-[14px] font-medium text-[#888888] text-center hover:bg-[#2563EB] hover:text-white transition-colors peer-checked:bg-[#2563EB] peer-checked:text-white"
                                 >
                                     {pct === 100 ? 'MAX' : `${pct}%`}
                                 </button>
@@ -447,7 +447,7 @@ const Converter = () => {
                                         parseFloat(e.target.value) || 1
                                     )
                                 }
-                                className="font-semibold text-[18px] text-[#DC2626] bg-transparent border-none outline-none w-12 text-right"
+                                className="font-semibold text-[18px] text-[#2563EB] bg-transparent border-none outline-none w-12 text-right"
                             />
                             %
                         </div>

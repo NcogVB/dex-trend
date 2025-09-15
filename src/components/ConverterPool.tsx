@@ -61,14 +61,19 @@ const ConverterPool: React.FC = () => {
                 )
 
                 const pos = await posManager.positions(tokenId)
-                const [poolLiquidity, slot0, fee, token0Address, token1Address] =
-                    await Promise.all([
-                        poolContract.liquidity(),
-                        poolContract.slot0(),
-                        poolContract.fee(),
-                        poolContract.token0(),
-                        poolContract.token1(),
-                    ])
+                const [
+                    poolLiquidity,
+                    slot0,
+                    fee,
+                    token0Address,
+                    token1Address,
+                ] = await Promise.all([
+                    poolContract.liquidity(),
+                    poolContract.slot0(),
+                    poolContract.fee(),
+                    poolContract.token0(),
+                    poolContract.token1(),
+                ])
 
                 const liquidity = pos[7] // uint128
                 const tickLower = Number(pos[5])
@@ -77,8 +82,16 @@ const ConverterPool: React.FC = () => {
                 const tokensOwed1 = pos[11]
 
                 // Fetch decimals
-                const token0Contract = new ethers.Contract(token0Address, ERC20_ABI, provider)
-                const token1Contract = new ethers.Contract(token1Address, ERC20_ABI, provider)
+                const token0Contract = new ethers.Contract(
+                    token0Address,
+                    ERC20_ABI,
+                    provider
+                )
+                const token1Contract = new ethers.Contract(
+                    token1Address,
+                    ERC20_ABI,
+                    provider
+                )
                 const [dec0, dec1] = await Promise.all([
                     token0Contract.decimals(),
                     token1Contract.decimals(),
@@ -107,7 +120,8 @@ const ConverterPool: React.FC = () => {
                 const amount1 = parseFloat(position.amount1.toExact())
 
                 // 3. Compute ratio
-                const valueToken0InToken1 = amount0 * parseFloat(pool.token0Price.toSignificant(6))
+                const valueToken0InToken1 =
+                    amount0 * parseFloat(pool.token0Price.toSignificant(6))
                 const positionValue = valueToken0InToken1 + amount1
                 const reward =
                     Number(tokensOwed0) / 10 ** Number(dec0) +
@@ -152,8 +166,8 @@ const ConverterPool: React.FC = () => {
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <JoinCommunity />
-                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
-                        <span className="text-[#B91C1C]"> Pool </span> Exchange
+                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#2563EB] max-w-[720px] mx-auto">
+                        <span className="text-[#2563EB]"> Pool </span> Exchange
                         with DEX.
                     </h1>
                     <p className="text-center font-normal md:text-[17.72px] md:leading-7 text-[#767676] max-w-[700px] mb-6">
@@ -169,13 +183,15 @@ const ConverterPool: React.FC = () => {
                     <div className="bg-white relative shadow-lg border border-gray-200 w-full md:rounded-[40px] rounded-[20px] px-[15px] md:px-[50px] py-[20px] md:py-[60px]">
                         <button
                             onClick={() => navigate(-1)}
-                            className="flex items-center gap-1 rounded-[8px] font-normal text-sm leading-[100%] px-[16px] py-[10px] transition-colors text-black hover:text-[#B91C1C]"
+                            className="flex items-center gap-1 rounded-[8px] font-normal text-sm leading-[100%] px-[16px] py-[10px] transition-colors text-black hover:text-[#2563EB]"
                         >
                             <ArrowLeft className="w-4 h-4" />
                             Back
                         </button>
                         {/* Liquidity Info */}
-                        <h2 className="mb-4 font-bold text-2xl">Your Liquidity</h2>
+                        <h2 className="mb-4 font-bold text-2xl">
+                            Your Liquidity
+                        </h2>
                         <input
                             type="text"
                             placeholder="Enter Token ID To Load Values"
@@ -186,31 +202,46 @@ const ConverterPool: React.FC = () => {
 
                         <div className="bg-gray-50 rounded-[12px] px-[18px] py-[22px] text-black border border-solid border-gray-200">
                             <div className="font-bold text-lg mb-4">
-                                Pool Tokens: {liquidityData.poolTokens.toFixed(4)}
+                                Pool Tokens:{' '}
+                                {liquidityData.poolTokens.toFixed(4)}
                             </div>
                             <div className="flex justify-between mb-2">
                                 <span>Wpol</span>
-                                <span>{liquidityData.token0Amount.toFixed(5)}</span>
+                                <span>
+                                    {liquidityData.token0Amount.toFixed(5)}
+                                </span>
                             </div>
                             <div className="flex justify-between mb-2">
                                 <span>USDC.e</span>
-                                <span>{liquidityData.token1Amount.toFixed(5)}</span>
+                                <span>
+                                    {liquidityData.token1Amount.toFixed(5)}
+                                </span>
                             </div>
                             <div className="flex justify-between mb-2">
                                 <span>Reward</span>
-                                <span>{liquidityData.reward ? liquidityData.reward.toFixed(6) : '-'}</span>
+                                <span>
+                                    {liquidityData.reward
+                                        ? liquidityData.reward.toFixed(6)
+                                        : '-'}
+                                </span>
                             </div>
                             <div className="flex justify-between mb-6">
                                 <span>Position Value</span>
-                                <span>{liquidityData.shareOfPool.toFixed(2)}</span>
+                                <span>
+                                    {liquidityData.shareOfPool.toFixed(2)}
+                                </span>
                             </div>
 
                             <div className="mb-4">
-                                <label className="block text-lg mb-2">Add Liquidity</label>
+                                <label className="block text-lg mb-2">
+                                    Add Liquidity
+                                </label>
                                 <input
                                     type="number"
                                     value={AddingAmount}
-                                    onChange={(e) => setAddingAmount(Number(e.target.value))}
+                                    onChange={(e) =>
+                                        setAddingAmount(Number(e.target.value))
+                                    }
                                     className="w-full p-2 rounded-[8px] border bg-transparent text-black"
                                 />
                             </div>
@@ -218,40 +249,26 @@ const ConverterPool: React.FC = () => {
                             <button
                                 onClick={handleAddLiquidity}
                                 disabled={isAddingLiquidity || loading}
-                                className="mt-10 w-full bg-[#DC2626] text-white rounded-full py-4 cursor-pointer font-semibold text-lg hover:bg-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="mt-10 w-full bg-[#2563EB] text-white rounded-full py-4 cursor-pointer font-semibold text-lg hover:bg-[#1D4ED8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isAddingLiquidity ? 'Adding Liquidity...' : 'Add Liquidity'}
+                                {isAddingLiquidity
+                                    ? 'Adding Liquidity...'
+                                    : 'Add Liquidity'}
                             </button>
                         </div>
-                
                     </div>
                 </div>
             </div>
             <section className="md:py-[90px] py-[40px] px-4">
-                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#DC2626] max-w-[514px] mx-auto">
+                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#2563EB] max-w-[514px] mx-auto">
                     How
-                    <span className="text-[#B91C1C]">Pool </span>Exchange Works
+                    <span className="text-[#2563EB]">Pool </span>Exchange Works
                 </h2>
                 <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
-                    Ol regnbågsbarn sedan trigraf. Sus bloggosfär. Flexitarian
-                    hemin i ben. Disamma. Sat diaren, i idyse. Pånen tiktigt.
-                    Ningar polyna. Premussa. Tetrabelt dispere. Epinera.
-                    Terranomi fabelt. Dore ser. Ponde nyn. Viter luvis utom
-                    dide. Pansexuell låtir om än bobesm. Metrogram vekåvis.
-                    Tjejsamla preligt i polig. Niseligen primatyp bibel. Prertad
-                    lese. Mytogen bipod trevigon. Rorat filototal. Nepämohet
-                    mongen. Rende okålig oaktat paraktiga. Kravallturism pahet.
-                    Tick tral. Ananigt lask. Non. Otrohetskontroll egode. Vass
-                    stenossade dekapött. Hint krislåda. Kvasise R-tal mivis.
-                    Timent bonus malus, kalsongbadare. Plare. Klimatflykting
-                    ohidengen. Robotjournalistik pernetik. Spere magisk lang.
-                    Tell movis. Rögt lönöligen. Homor åtöligt, töposm. Prede
-                    ament. Safariforskning tetrasasade förutom gågging. Reaska
-                    multiren dial. Pren previs. Geosa progipäligt. Jypäng
-                    snippa. Askbränd pådytining raligt. Platreck kollektomat i
-                    mill. Pladade kynde. Andronomi. Progiras våsm fast intrase.
-                    Semiren peteteles, homodent. Incel kaktig. Yck eska plus
-                    pneumalog. Homon ol megan.
+                    Dextrand provides intuitive liquidity tools and clear
+                    insights so you can add, manage, and track your positions
+                    with confidence. Built for speed and clarity, optimized for
+                    all devices.
                 </p>
                 <div className="flex justify-center gap-3 md:mt-[60px] mt-[40px] items-center">
                     <a

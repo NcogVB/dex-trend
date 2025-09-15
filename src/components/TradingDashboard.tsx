@@ -302,37 +302,37 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
         >
             <path
                 d="M2.33301 2.33325H55.6663"
-                stroke="#B91C1C"
+                stroke="#2563EB"
                 strokeWidth="3.5"
                 strokeLinecap="round"
             />
             <path
                 d="M21 25L24.4477 21.5522C25.3366 20.6634 25.781 20.2189 26.3333 20.2189C26.8856 20.2189 27.3301 20.6634 28.219 21.5522L29.7811 23.1143C30.6699 24.0032 31.1144 24.4477 31.6667 24.4477C32.219 24.4477 32.6634 24.0032 33.5523 23.1143L37 19.6666"
-                stroke="#DC2626"
+                stroke="#2563EB"
                 strokeWidth="3.5"
                 strokeLinecap="round"
             />
             <path
                 d="M29 53L29 42.3333"
-                stroke="#B91C1C"
+                stroke="#2563EB"
                 strokeWidth="3.5"
                 strokeLinecap="round"
             />
             <path
                 d="M23.667 55.6667L29.0003 53"
-                stroke="#B91C1C"
+                stroke="#2563EB"
                 strokeWidth="3.5"
                 strokeLinecap="round"
             />
             <path
                 d="M34.3333 55.6667L29 53"
-                stroke="#B91C1C"
+                stroke="#2563EB"
                 strokeWidth="3.5"
                 strokeLinecap="round"
             />
             <path
                 d="M50.3337 2.33325V24.9999C50.3337 33.1709 50.3337 37.2564 47.6558 39.7948C44.9779 42.3333 40.6679 42.3333 32.0479 42.3333H25.9527C17.3327 42.3333 13.0228 42.3333 10.3449 39.7948C7.66699 37.2564 7.66699 33.1709 7.66699 24.9999V2.33325"
-                stroke="#B91C1C"
+                stroke="#2563EB"
                 strokeWidth="3.5"
             />
         </svg>

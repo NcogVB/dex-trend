@@ -141,7 +141,7 @@ const YouWillReceive2Modal: React.FC<YouWillReceive2Props> = ({
                                 <h3 className="flex-grow truncate">
                                     {formatNumber(exchangeData.ethAmount)}
                                 </h3>
-                                <div className="md:size-[32px] size-[20px] bg-red-500 rounded-full flex items-center justify-center text-white font-bold text-xs md:text-sm">
+                                <div className="md:size-[32px] size-[20px] bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xs md:text-sm">
                                     U
                                 </div>
                                 <h4>USDT</h4>

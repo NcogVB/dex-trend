@@ -56,14 +56,14 @@ const AskExpertsSection = () => {
 
     return (
         <section className="md:py-[140px] py-[50px] px-4">
-            <h2 className="font-semibold text-[37px] md:leading-[77px] md:text-[80px] text-center text-[#DC2626] max-w-[740px] mx-auto whitespace-pre-line mb-[54px]">
+            <h2 className="font-semibold text-[37px] md:leading-[77px] md:text-[80px] text-center text-[#2563EB] max-w-[740px] mx-auto whitespace-pre-line mb-[54px]">
                 Ask Anything.{' '}
-                <span className="text-[#B91C1C]">From our Experts.</span>
+                <span className="text-[#2563EB]">From our Experts.</span>
             </h2>
 
             <div className="max-w-[670px] mx-auto">
-                <div className="bg-white shadow-[4px_24px_60px_0px_#006D5A40] border-2 border-[#DC2626] md:rounded-[20px] rounded-[12px] py-[16px] px-[25px] flex items-center gap-3">
-                    <button className="text-[#DC2626] hover:text-[#B91C1C] transition-colors">
+                <div className="bg-white shadow-[4px_24px_60px_0px_#006D5A40] border-2 border-[#2563EB] md:rounded-[20px] rounded-[12px] py-[16px] px-[25px] flex items-center gap-3">
+                    <button className="text-[#2563EB] hover:text-[#1D4ED8] transition-colors">
                         <Search />
                     </button>
 
@@ -80,10 +80,10 @@ const AskExpertsSection = () => {
                     <button
                         onClick={() => sendToTelegram(message)}
                         disabled={isLoading || !message.trim()}
-                        className="text-[#DC2626] hover:text-[#B91C1C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-[#2563EB] hover:text-[#1D4ED8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isLoading ? (
-                            <div className="w-6 h-6 border-2 border-[#DC2626] border-t-transparent rounded-full animate-spin"></div>
+                            <div className="w-6 h-6 border-2 border-[#2563EB] border-t-transparent rounded-full animate-spin"></div>
                         ) : (
                             <Send />
                         )}

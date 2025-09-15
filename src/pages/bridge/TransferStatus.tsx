@@ -28,7 +28,7 @@ const TransferStatus = ({
 
     const getStepIcon = (step: string, isActive: boolean, isCompleted: boolean) => {
         if (error && isActive) {
-            return <AlertCircle className="w-8 h-8 text-red-400" />
+            return <AlertCircle className="w-8 h-8 text-blue-400" />
         }
         if (isCompleted) {
             return <CheckCircle className="w-8 h-8 text-green-400" />
@@ -102,7 +102,7 @@ const TransferStatus = ({
 
                 {/* Error Message */}
                 {error && (
-                    <p className="text-center text-red-400 mb-4 text-sm">
+                    <p className="text-center text-blue-400 mb-4 text-sm">
                         {error}
                     </p>
                 )}
@@ -165,7 +165,7 @@ const TransferStatus = ({
                     <button
                         onClick={onClose}
                         className={`px-4 py-2 rounded-lg font-medium transition ${error
-                            ? "bg-red-600 hover:bg-red-500 text-white"
+                            ? "bg-blue-600 hover:bg-blue-500 text-white"
                             : isComplete
                                 ? "bg-green-600 hover:bg-green-500 text-white"
                                 : "bg-blue-600 hover:bg-blue-500 text-white"

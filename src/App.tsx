@@ -7,13 +7,14 @@ import Bridge from './pages/bridge'
 import Swap from './pages/swap'
 import ConverterPool from './components/ConverterPool'
 import Converter1 from './components/Converter1'
+import Home from './pages/Home'
 
 
 function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<Bridge />} />
+        <Route path="/" element={<Home />} />
         <Route path="/swap" element={<Swap />} />
         <Route path="/bridge" element={<Bridge />} />
         <Route path="/limit" element={<Limit />} />

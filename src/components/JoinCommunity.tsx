@@ -1,7 +1,7 @@
 const JoinCommunity = () => {
     return (
         <a
-            href="https://t.me/NCOG_Earth"
+            href="#"
             target="_blank"
             aria-label="Join our community"
             className="flex cursor-pointer items-center gap-4 text-black font-normal text-[14.29px] leading-[15.84px] bg-white border border-[#eaeaea] rounded-full px-[15px] py-2 mb-5 transition"

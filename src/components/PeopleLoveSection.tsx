@@ -1,8 +1,8 @@
 const PeopleLoveSection = () => (
     <section>
         <div className="md:mt-[105px] mt-6 md:mb-[80px] mb-6">
-            <h2 className="font-medium md:text-7xl text-[38px] md:leading-[79.2px] md:tracking-[-2.88px] text-center text-[#DC2626] mb-[24px]">
-                People ❤️ NCOG
+            <h2 className="font-medium md:text-7xl text-[38px] md:leading-[79.2px] md:tracking-[-2.88px] text-center text-[#2563EB] mb-[24px] break-words">
+                People ❤️ Dextrand
             </h2>
             <p className="font-normal md:text-base text-sm md:leading-[25px] text-center text-[#767676]">
                 Mojek is packed with neat features that further assist you in

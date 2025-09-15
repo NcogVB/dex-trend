@@ -62,7 +62,7 @@ body {
 
 .marketTrend-btn.marketTrend-active {
     background-color: #ffffff;
-    color: #dc2626;
+    color: #2563eb;
     border-radius: 8px;
     font-weight: 600;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -97,14 +97,14 @@ body {
 }
 
 .percentage-redio-buttons input:checked ~ label {
-    border: 1px solid #dc2626;
+    border: 1px solid #2563eb;
     color: #ffffff;
-    background-color: #dc2626;
+    background-color: #2563eb;
     font-weight: 600;
 }
 
 .active-orders {
-    background-color: #dc2626;
+    background-color: #2563eb;
     font-weight: 600;
     color: #ffffff;
     border-radius: 8px;
@@ -125,7 +125,7 @@ body {
     transform: translateX(-50%);
     width: 4px;
     height: 4px;
-    background: #dc2626;
+    background: #2563eb;
     border-radius: 50%;
 }
 
@@ -144,8 +144,8 @@ body {
 
 .modern-input:focus {
     outline: none;
-    border-color: #dc2626;
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .modern-input::placeholder {
@@ -154,7 +154,7 @@ body {
 
 /* Modern button styles */
 .modern-button {
-    background: #dc2626;
+    background: #2563eb;
     color: #ffffff;
     border: none;
     border-radius: 8px;
@@ -168,7 +168,7 @@ body {
 }
 
 .modern-button:hover {
-    background: #b91c1c;
+    background: #1d4ed8;
     transform: translateY(-1px);
 }
 
@@ -256,3 +256,6 @@ input[type='number'] {
     -moz-appearance: textfield;
     appearance: textfield;
 }
+
+
+/* tailwind config */

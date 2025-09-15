@@ -8,7 +8,7 @@ const Layout = () => {
     return (
         <WalletProvider>
             {/* Add top padding to compensate for fixed header */}
-            <div className="pt-20">
+            <div>
                 <Header />
                 <Outlet />
                 <Footer />

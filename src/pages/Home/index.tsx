@@ -1,6 +1,7 @@
 import AskExpertsSection from '../../components/AskExpertsSection'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
-import HeroSection from '../../components/HeroSection'
+import HeroSection2 from '../../components/HeroSection2'
+import FeatureCards from '../../components/FeatureCards'
 import MarketTrend from '../../components/MarketTrend'
 import PeopleLoveSection from '../../components/PeopleLoveSection'
 import SecurelyConnectsSection from '../../components/SecurelyConnectsSection'
@@ -10,7 +11,9 @@ import TrustSection from '../../components/TrustSection'
 function Home() {
     return (
         <>
-            <HeroSection />
+            {/* <HeroSection /> */}
+            <HeroSection2 />
+            <FeatureCards />
             <SecurelyConnectsSection />
             <MarketTrend />
             <TrustSection />

@@ -61,16 +61,15 @@ const Limit = () => {
             parseFloat(fromAmount) > 0
         ) {
             const handler = setTimeout(() => {
-                const amountInWei = (parseFloat(fromAmount) * 1e18).toString();
-                getQuote(fromToken.address, toToken.address, amountInWei);
-            }, 500); // wait 500ms after typing stops
+                const amountInWei = (parseFloat(fromAmount) * 1e18).toString()
+                getQuote(fromToken.address, toToken.address, amountInWei)
+            }, 500) // wait 500ms after typing stops
 
-            return () => clearTimeout(handler);
+            return () => clearTimeout(handler)
         } else {
-            setToAmount('');
+            setToAmount('')
         }
-    }, [fromAmount, fromToken, toToken, getQuote]);
-
+    }, [fromAmount, fromToken, toToken, getQuote])
 
     // Update toAmount when quote changes
     useEffect(() => {
@@ -132,49 +131,49 @@ const Limit = () => {
         // Remove the toAmount calculation - it's now handled by the quote
     }
     const handleCreateOrder = async (): Promise<void> => {
-        if (isCreatingOrder) return; // prevent double-click or re-trigger
+        if (isCreatingOrder) return // prevent double-click or re-trigger
 
         if (!fromAmount || !toAmount || !quote) {
-            alert('Please enter valid amounts');
-            return;
+            alert('Please enter valid amounts')
+            return
         }
 
-        setIsCreatingOrder(true);
+        setIsCreatingOrder(true)
         try {
-            const fromDecimals = fromToken.address.toLowerCase() ===
+            const fromDecimals =
+                fromToken.address.toLowerCase() ===
                 '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
-                ? 6
-                : 18;
+                    ? 6
+                    : 18
 
             const makingAmount = (
                 parseFloat(fromAmount) * Math.pow(10, fromDecimals)
-            ).toString();
+            ).toString()
 
-            const takingAmount = quote.dstAmount || quote.toAmount || '0';
+            const takingAmount = quote.dstAmount || quote.toAmount || '0'
 
             await createOrder({
                 makerToken: fromToken.address,
                 takerToken: toToken.address,
                 makingAmount,
                 takingAmount,
-            });
+            })
         } catch (err: unknown) {
             const errorMessage =
-                err instanceof Error ? err.message : String(err);
-            alert(`Failed to create order: ${errorMessage}`);
+                err instanceof Error ? err.message : String(err)
+            alert(`Failed to create order: ${errorMessage}`)
         } finally {
-            setIsCreatingOrder(false);
+            setIsCreatingOrder(false)
         }
-    };
-
+    }
 
     return (
         <div>
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <JoinCommunity />
-                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] text-center mx-auto">
-                        <span className="text-[#B91C1C]"> Pool </span> Exchange
+                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] align-middle capitalize mb-3 text-[#2563EB] max-w-[720px] text-center mx-auto">
+                        <span className="text-[#2563EB]"> Pool </span> Exchange
                         with DEX.
                     </h1>
                     <p className="text-center font-normal md:text-[17.72px] md:leading-7 text-[#767676] max-w-[700px] mb-6">
@@ -191,7 +190,6 @@ const Limit = () => {
                                 {/* FROM TOKEN SECTION */}
                                 <div className="w-full lg:flex-1">
                                     <div className="modern-input px-[12px] sm:px-[16px] py-[12px] sm:py-[16px]">
-
                                         <div className="flex items-center justify-between gap-2">
                                             <input
                                                 type="number"
@@ -230,10 +228,11 @@ const Limit = () => {
                                                         {fromToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`token-arrow transition-transform flex-shrink-0 ${isFromDropdownOpen
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                            }`}
+                                                        className={`token-arrow transition-transform flex-shrink-0 ${
+                                                            isFromDropdownOpen
+                                                                ? 'rotate-180'
+                                                                : ''
+                                                        }`}
                                                     />
                                                 </button>
                                                 {isFromDropdownOpen && (
@@ -284,7 +283,6 @@ const Limit = () => {
                                             </div>
                                         </div>
                                     </div>
-
                                 </div>
 
                                 {/* SWAP BUTTON */}
@@ -349,10 +347,11 @@ const Limit = () => {
                                                         {toToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${isToDropdownOpen
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                            }`}
+                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${
+                                                            isToDropdownOpen
+                                                                ? 'rotate-180'
+                                                                : ''
+                                                        }`}
                                                     />
                                                 </button>
                                                 {isToDropdownOpen && (
@@ -403,7 +402,6 @@ const Limit = () => {
                                             </div>
                                         </div>
                                     </div>
-
                                 </div>
                             </div>
 
@@ -414,12 +412,12 @@ const Limit = () => {
                                     <p className="text-[#333333] font-semibold text-[16px] sm:text-[18px] leading-[31.43px] mt-1 sm:mt-2 break-all">
                                         {quote
                                             ? (
-                                                parseFloat(
-                                                    quote.outputAmount
-                                                ) /
-                                                1e18 /
-                                                parseFloat(fromAmount || '1')
-                                            ).toFixed(8)
+                                                  parseFloat(
+                                                      quote.outputAmount
+                                                  ) /
+                                                  1e18 /
+                                                  parseFloat(fromAmount || '1')
+                                              ).toFixed(8)
                                             : '0.00000000'}
                                     </p>
                                 </div>
@@ -454,12 +452,12 @@ const Limit = () => {
                                                     ) || 1
                                                 )
                                             }
-                                            className="font-semibold text-[16px] sm:text-[18px] leading-[31.43px] text-[#DC2626] bg-transparent border-none outline-none w-10 sm:w-12 text-right"
+                                            className="font-semibold text-[16px] sm:text-[18px] leading-[31.43px] text-[#2563EB] bg-transparent border-none outline-none w-10 sm:w-12 text-right"
                                             min="0.1"
                                             max="50"
                                             step="0.1"
                                         />
-                                        <span className="font-semibold text-[16px] sm:text-[18px] leading-[31.43px] text-[#DC2626]">
+                                        <span className="font-semibold text-[16px] sm:text-[18px] leading-[31.43px] text-[#2563EB]">
                                             %
                                         </span>
                                     </div>
@@ -474,13 +472,14 @@ const Limit = () => {
                                     loading ||
                                     isCreatingOrder
                                 }
-                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${!fromAmount ||
+                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${
+                                    !fromAmount ||
                                     !toAmount ||
                                     loading ||
                                     isCreatingOrder
-                                    ? '!bg-[#E5E5E5] !text-[#888888]'
-                                    : ''
-                                    }`}
+                                        ? '!bg-[#E5E5E5] !text-[#888888]'
+                                        : ''
+                                }`}
                             >
                                 {isCreatingOrder
                                     ? 'Creating Order...'
@@ -491,30 +490,14 @@ const Limit = () => {
                 </div>
             </div>
             <section className="md:py-[90px] py-[40px] px-4">
-                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#DC2626] max-w-[514px] mx-auto">
+                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#2563EB] max-w-[514px] mx-auto">
                     How
-                    <span className="text-[#B91C1C]">Pool </span>Exchange Works
+                    <span className="text-[#2563EB]">Pool </span>Exchange Works
                 </h2>
                 <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
-                    Ol regnbågsbarn sedan trigraf. Sus bloggosfär. Flexitarian
-                    hemin i ben. Disamma. Sat diaren, i idyse. Pånen tiktigt.
-                    Ningar polyna. Premussa. Tetrabelt dispere. Epinera.
-                    Terranomi fabelt. Dore ser. Ponde nyn. Viter luvis utom
-                    dide. Pansexuell låtir om än bobesm. Metrogram vekåvis.
-                    Tjejsamla preligt i polig. Niseligen primatyp bibel. Prertad
-                    lese. Mytogen bipod trevigon. Rorat filototal. Nepämohet
-                    mongen. Rende okålig oaktat paraktiga. Kravallturism pahet.
-                    Tick tral. Ananigt lask. Non. Otrohetskontroll egode. Vass
-                    stenossade dekapött. Hint krislåda. Kvasise R-tal mivis.
-                    Timent bonus malus, kalsongbadare. Plare. Klimatflykting
-                    ohidengen. Robotjournalistik pernetik. Spere magisk lang.
-                    Tell movis. Rögt lönöligen. Homor åtöligt, töposm. Prede
-                    ament. SafarihtmlForskning tetrasasade förutom gågging.
-                    Reaska multiren dial. Pren previs. Geosa progipäligt. Jypäng
-                    snippa. Askbränd pådytining raligt. Platreck kollektomat i
-                    mill. Pladade kynde. Andronomi. Progiras våsm fast intrase.
-                    Semiren peteteles, homodent. Incel kaktig. Yck eska plus
-                    pneumalog. Homon ol megan.
+                    Place limit orders on Dextrand to execute at your price,
+                    with smart routing, transparent fees, and a clean interface
+                    that keeps you focused on the trade.
                 </p>
                 <div className="flex justify-center gap-3 md:mt-[60px] mt-[40px] items-center">
                     <WalletButton />

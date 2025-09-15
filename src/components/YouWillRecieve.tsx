@@ -262,7 +262,7 @@ const YouWillReceive: React.FC = () => {
             {!isModalOpen && (
                 <button
                     onClick={handleReopenModal}
-                    className="bg-[#DC2626] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#B91C1C] transition-colors"
+                    className="bg-[#2563EB] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#1D4ED8] transition-colors"
                 >
                     Show Confirm Exchange Modal
                 </button>

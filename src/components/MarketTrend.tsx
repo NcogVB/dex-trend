@@ -140,15 +140,15 @@ const MarketTrend: React.FC = () => {
                     <span
                         className={`size-[6px] min-w-[6px] rounded-full ${
                             crypto.changeType === 'positive'
-                                ? 'bg-[#DC2626]'
-                                : 'bg-[#F04438]'
+                                ? 'bg-[#2563EB]'
+                                : 'bg-[#1E3A8A]'
                         }`}
                     ></span>
                     <h4
                         className={`font-medium ${
                             crypto.changeType === 'positive'
-                                ? 'text-[#B91C1C]'
-                                : 'text-[#B42318]'
+                                ? 'text-[#2563EB]'
+                                : 'text-[#1E3A8A]'
                         }`}
                     >
                         {crypto.change}
@@ -181,7 +181,7 @@ const MarketTrend: React.FC = () => {
         <section className="lg:py-[150px] md:py-[100px] py-[50px]">
             <div className="w-full max-w-[1300px] mx-auto px-4">
                 <div className="flex items-center justify-between gap-3 mb-12">
-                    <h2 className="md:text-[49px] text-base text-[#3DBEA3] font-medium">
+                    <h2 className="md:text-[49px] text-base text-[#1d4ed8] font-medium">
                         Market Trend
                     </h2>
                     <a

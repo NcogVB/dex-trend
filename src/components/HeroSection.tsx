@@ -5,8 +5,8 @@ const HeroSection = () => (
     <div className="hero-section">
         <div className="flex-grow flex flex-col items-center md:px-6 px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
             <JoinCommunity />
-            <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] align-middle capitalize mb-3 text-[#DC2626] max-w-[620px] text-center mx-auto">
-                <span className="text-[#B91C1C]"> Token </span> Swap With
+            <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] align-middle capitalize mb-3 text-[#2563EB] max-w-[620px] text-center mx-auto">
+                <span className="text-[#2563EB]"> Token </span> Swap With
                 Efficiency.
             </h1>
             <p className="text-center font-normal md:text-[17.72px] md:leading-7 text-[#767676] max-w-[700px] mb-6">

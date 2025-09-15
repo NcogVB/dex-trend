@@ -1,5 +1,13 @@
 // components/Header.tsx
-import { Menu, X, Wallet, ChevronDown, Copy, ExternalLink, LogOut } from 'lucide-react'
+import {
+    Menu,
+    X,
+    Wallet,
+    ChevronDown,
+    Copy,
+    ExternalLink,
+    LogOut,
+} from 'lucide-react'
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useWallet } from '../contexts/WalletContext'
@@ -14,7 +22,8 @@ interface NavItem {
 const Header: React.FC = () => {
     const location = useLocation()
     const [isNavOpen, setIsNavOpen] = useState<boolean>(false)
-    const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState<boolean>(false)
+    const [isWalletDropdownOpen, setIsWalletDropdownOpen] =
+        useState<boolean>(false)
     const [isVisible, setIsVisible] = useState<boolean>(true)
     const [lastScrollY, setLastScrollY] = useState<number>(0)
 
@@ -28,7 +37,7 @@ const Header: React.FC = () => {
         formatAddress,
         copyAddress,
         viewOnExplorer,
-        copySuccess
+        copySuccess,
     } = useWallet()
 
     const navItems: NavItem[] = [
@@ -102,11 +111,12 @@ const Header: React.FC = () => {
                     onClick={toggleWalletDropdown}
                     className="flex items-center space-x-2 bg-[#F8F8F8] text-[#333333] font-medium px-[16px] py-4 rounded-[8px] border hover:bg-[#E5E5E5] transition"
                 >
-                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                     <span>{formatAddress(account!)}</span>
                     <ChevronDown
-                        className={`w-4 h-4 transition-transform ${isWalletDropdownOpen ? 'rotate-180' : ''
-                            }`}
+                        className={`w-4 h-4 transition-transform ${
+                            isWalletDropdownOpen ? 'rotate-180' : ''
+                        }`}
                     />
                 </button>
 
@@ -127,8 +137,8 @@ const Header: React.FC = () => {
                                             {account}
                                         </p>
                                     </div>
-                                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                                     </div>
                                 </div>
                             </div>
@@ -154,7 +164,7 @@ const Header: React.FC = () => {
                             <div className="border-t pt-2">
                                 <button
                                     onClick={handleDisconnect}
-                                    className="modern-dropdown-item flex items-center gap-3 text-sm text-red-600 w-full"
+                                    className="modern-dropdown-item flex items-center gap-3 text-sm text-blue-600 w-full"
                                 >
                                     <LogOut className="w-4 h-4" />
                                     Disconnect Wallet
@@ -169,89 +179,97 @@ const Header: React.FC = () => {
 
     return (
         <>
-            <div
-                className={`fixed top-0 left-0 right-0 z-50 pb-3 transition-transform duration-300 ${isVisible ? 'translate-y-0' : '-translate-y-full'
-                    }`}
+            <header
+                className={`sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 transition-transform duration-300 ${
+                    isVisible ? 'translate-y-0' : '-translate-y-full'
+                }`}
             >
-                {/* Overlay */}
-                <div
-                    className={`fixed w-full h-screen bg-black/15 z-10 backdrop-blur-sm left-0 top-0 transition-opacity duration-300 ${isNavOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                        } lg:hidden`}
-                    onClick={toggleNav}
-                />
-
-                {/* Main Navigation */}
-                <nav
-                    className={`flex lg:flex-row flex-col lg:items-center bg-black text-white backdrop-blur-md px-4 py-2.5 lg:rounded-b-[12px] lg:static fixed top-0 right-0 lg:h-auto h-screen z-20 lg:gap-0 gap-8 w-full lg:max-w-full max-w-[300px] transition-transform duration-300 ease-in-out shadow-lg lg:shadow-md ${isNavOpen ? 'translate-x-0' : 'translate-x-full'
-                        } lg:translate-x-0`}
-                >
+                <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     {/* Logo */}
-                    <div className="lg:order-1 order-1 flex items-center justify-between gap-3">
-                        <Link to="/" className="flex items-center">
-                            <img
-                                alt="logo"
-                                className="w-[50px] max-w-[50px] hover:scale-75 transition-transform duration-200"
-                                src="/images/logo.svg"
-                            />
+                    <div className="flex items-center space-x-2">
+                        <Link to="/" className="flex items-center space-x-2">
+                            {/* <div className="h-8 w-8 rounded-full bg-blue-600"></div> */}
+                            <span className="text-xl font-bold text-gray-900">
+                                Dextrand
+                            </span>
                         </Link>
-
-                        {/* Close button for mobile */}
-                        <button
-                            className="lg:hidden p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-                            onClick={toggleNav}
-                            type="button"
-                            aria-label="Close navigation menu"
-                        >
-                            <X className="w-6 h-6" />
-                        </button>
                     </div>
 
-                    {/* Navigation Links */}
-                    <ul className="lg:order-2 order-2 flex lg:flex-row flex-col gap-6 font-normal text-sm lg:ml-8">
+                    {/* Desktop Navigation */}
+                    <nav className="hidden md:flex items-center space-x-8">
                         {navItems.map((item: NavItem, index: number) => (
-                            <li key={index} className="relative group">
-                                <Link
-                                    to={item.href}
-                                    className={`relative block transition-all duration-200 text-white ${isActiveLink(item.path)
-                                            ? 'text-[#333333] font-semibold'
-                                            : 'text-[#888888]'
-                                        }`}
-                                >
-                                    {item.name}
-                                    {/* Green dot indicator */}
-                                    <span
-                                        className={`absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-[#B91C1C] rounded-full transition-all duration-200 ${isActiveLink(item.path)
-                                                ? 'opacity-100'
-                                                : 'opacity-0 group-hover:opacity-100'
-                                            }`}
-                                    />
-                                </Link>
-                            </li>
+                            <Link
+                                key={index}
+                                to={item.href}
+                                className={`text-sm font-medium transition-colors relative ${
+                                    isActiveLink(item.path)
+                                        ? 'text-blue-600'
+                                        : 'text-gray-600 hover:text-gray-900'
+                                }`}
+                            >
+                                {item.name}
+                                {/* Active link indicator */}
+                                {isActiveLink(item.path) && (
+                                    <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-600 rounded-full" />
+                                )}
+                            </Link>
                         ))}
-                    </ul>
-
-                    {/* Spacer for desktop */}
-                    <div className="lg:order-3 order-3 lg:flex-1 hidden lg:block"></div>
+                    </nav>
 
                     {/* Right side controls */}
-                    <div className="lg:order-4 order-4 flex lg:flex-row flex-col lg:items-center xl:gap-[40px] lg:gap-5 gap-6">
+                    <div className="flex items-center space-x-4">
                         {/* Wallet Button */}
                         <WalletButton />
-                    </div>
-                </nav>
 
-                {/* Mobile Navigation Toggle */}
-                <div className="lg:hidden flex items-center justify-end gap-3 mt-2 px-4">
-                    <button
-                        className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-                        onClick={toggleNav}
-                        type="button"
-                        aria-label="Open navigation menu"
-                    >
-                        <Menu className="w-8 h-8" />
-                    </button>
+                        {/* Mobile menu button */}
+                        <button
+                            className="md:hidden p-2 text-gray-600 hover:text-gray-900 transition-colors"
+                            onClick={toggleNav}
+                            type="button"
+                            aria-label="Toggle navigation menu"
+                        >
+                            {isNavOpen ? (
+                                <X className="w-6 h-6" />
+                            ) : (
+                                <Menu className="w-6 h-6" />
+                            )}
+                        </button>
+                    </div>
                 </div>
-            </div>
+
+                {/* Mobile Navigation */}
+                {isNavOpen && (
+                    <>
+                        {/* Overlay */}
+                        <div
+                            className="fixed inset-0 z-10 bg-black/20 backdrop-blur-sm md:hidden"
+                            onClick={toggleNav}
+                        />
+
+                        {/* Mobile menu */}
+                        <div className="absolute top-full left-0 right-0 z-20 bg-white border-b border-gray-200 shadow-lg md:hidden">
+                            <nav className="container mx-auto px-4 py-4 space-y-4">
+                                {navItems.map(
+                                    (item: NavItem, index: number) => (
+                                        <Link
+                                            key={index}
+                                            to={item.href}
+                                            onClick={toggleNav}
+                                            className={`block text-sm font-medium transition-colors ${
+                                                isActiveLink(item.path)
+                                                    ? 'text-blue-600'
+                                                    : 'text-gray-600 hover:text-gray-900'
+                                            }`}
+                                        >
+                                            {item.name}
+                                        </Link>
+                                    )
+                                )}
+                            </nav>
+                        </div>
+                    </>
+                )}
+            </header>
 
             {/* Wallet Modal - Rendered outside header context */}
             <WalletModal />

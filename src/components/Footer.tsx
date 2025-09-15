@@ -1,13 +1,13 @@
 const Footer = () => (
     <footer>
         <div className="container mx-auto md:px-6 px-4 pb-[30px] pt-[56px]">
-            <h1 className="w-full text-center text-[20vw] leading-none font-bold text-[#B91C1C]">
-                NCOG
+            <h1 className="w-full text-center text-[20vw] leading-none font-bold text-[#2563EB] break-words">
+                Dextrand
             </h1>
             <div className="flex justify-between md:flex-row flex-col-reverse md:items-end mt-[90px] md:gap-4 gap-8">
                 <div className="flex gap-5 flex-col">
                     <p className="font-light text-xs leading-[13.2px] text-[#767676] md:text-start text-center">
-                        ©2025 Powered by Ncog.earth
+                        ©2025 Powered by Dextrand
                     </p>
                     <p className="font-light text-xs leading-[13.2px] text-[#767676] md:text-start text-center">
                         Charts powered by{' '}
@@ -39,18 +39,10 @@ const Footer = () => (
                         <a href="#" target="_blank" rel="noopener noreferrer">
                             Contact Us
                         </a>
-                        <a
-                            href="https://x.com/Ncog_Earth?t=DIlcGfcI8bBbp0BsG3p4TA&s=09"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
+                        <a href="#" target="_blank" rel="noopener noreferrer">
                             X
                         </a>
-                        <a
-                            href="https://t.me/NCOG_Earth"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
+                        <a href="#" target="_blank" rel="noopener noreferrer">
                             Telegram
                         </a>
                     </div>
