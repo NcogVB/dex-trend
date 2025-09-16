@@ -10,6 +10,7 @@ import {
     UNISWAP_V3_POOL_ABI,
 } from "./ABI";
 import { useWallet } from "./WalletContext";
+import { POOL_ADDRESS, POSITION_MANAGER_ADDRESS, USDCe_ADDRESS, WPOL_ADDRESS } from "../utils/Constants";
 
 interface LiquidityContextValue {
     addLiquidity: (opts: {
@@ -30,12 +31,7 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
     const [loading, setLoading] = useState(false);
     const { account, provider, signer } = useWallet();
 
-    // === Constants for WPOL/USDC.e 0.05% Pool on Polygon ===
-    const POSITION_MANAGER_ADDRESS =
-        "0xC36442b4a4522E871399CD717aBDD847Ab11FE88"; // official NFT position manager
-    const POOL_ADDRESS = "0xA374094527e1673A86dE625aa59517c5dE346d32"; // WPOL/USDC.e 0.05% Uniswap V3 pool on Polygon
-    const WPOL_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
-    const USDCe_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+ 
     console.log("WalletContext:", { account, signer, provider });
     console.log("Liquidity signer:", signer);
 
@@ -95,7 +91,6 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
 
                 const tokenObjA = new Token(chainId, WPOL_ADDRESS, Number(decimalsA), "WPOL", "Wrapped POL");
                 const tokenObjB = new Token(chainId, USDCe_ADDRESS, Number(decimalsB), "USDC.e", "USD Coin (bridged)");
-
 
                 // 3) Order tokens correctly
                 const [addr0] = [WPOL_ADDRESS, USDCe_ADDRESS].sort((a, b) =>
