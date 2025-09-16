@@ -41,10 +41,10 @@ const Header: React.FC = () => {
     } = useWallet()
 
     const navItems: NavItem[] = [
-        { name: 'Exchange', href: 'swap', path: '/swap' },
+        { name: 'Home', href: 'swap', path: '/home' },
         { name: 'Pool', href: 'pool', path: '/pool' },
         { name: 'Bridge', href: 'bridge', path: '/bridge' },
-        { name: 'Limit Order', href: 'limit', path: '/limit' },
+        { name: 'Exchange', href: 'limit', path: '/exchange' },
     ]
 
     // Handle scroll behavior

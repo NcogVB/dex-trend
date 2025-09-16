@@ -15,9 +15,9 @@ function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/swap" element={<Swap />} />
+        <Route path="/home" element={<Swap />} />
         <Route path="/bridge" element={<Bridge />} />
-        <Route path="/limit" element={<Limit />} />
+        <Route path="/exchange" element={<Limit />} />
         <Route path="/pool" element={<Pool />} />
         <Route path="/addlp" element={<ConverterPool />} />
         <Route path="/removeLp" element={<Converter1 />} />
