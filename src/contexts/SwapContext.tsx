@@ -2,61 +2,10 @@
 import React, { createContext, useContext, useState } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "./WalletContext"; // Adjust the import path as needed
-
-// Polygon mainnet addresses
-const SWAP_ROUTER_ADDRESS = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"; // SwapRouter02
-const QUOTER_ADDRESS = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"; // QuoterV2
-
-// Token configurations for Polygon mainnet
-const TOKENS = {
-    WPOL: {
-        address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
-        decimals: 18,
-        symbol: "WPOL",
-        name: "Wrapped Polygon"
-    },
-    "USDC.e": {
-        address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-        decimals: 6,
-        symbol: "USDC.e",
-        name: "USD Coin (Ethereum)"
-    },
-    "USDC POL": {
-        address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-        decimals: 6,
-        symbol: "USDC",
-        name: "USD Coin"
-    },
-    "USDC ARB": {
-        address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
-        decimals: 6,
-        symbol: "USDC",
-        name: "USD Coin"
-    }
-} as const;
+import { FEE_TIERS, QUOTER_ADDRESS, SWAP_ROUTER_ADDRESS, TOKENS } from "../utils/Constants";
+import { ERC20_ABI, QUOTER_ABI, SWAP_ROUTER_ABI } from "./ABI";
 
 // Fee tiers for Uniswap V3
-const FEE_TIERS = [100, 500, 3000, 10000]; // 0.01%, 0.05%, 0.3%, 1%
-
-// Contract ABIs
-const ERC20_ABI = [
-    "function approve(address spender, uint256 amount) external returns (bool)",
-    "function allowance(address owner, address spender) external view returns (uint256)",
-    "function balanceOf(address account) external view returns (uint256)",
-    "function symbol() external view returns (string)",
-    "function decimals() external view returns (uint8)",
-    "function name() external view returns (string)",
-];
-
-const QUOTER_ABI = [
-    "function quoteExactInputSingle((address tokenIn,address tokenOut,uint24 fee,uint256 amountIn,uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)",
-    "function quoteExactInput(bytes path,uint256 amountIn) external returns (uint256 amountOut,uint160[] memory sqrtPriceX96AfterList,uint32[] memory initializedTicksCrossedList,uint256 gasEstimate)"
-];
-
-
-const SWAP_ROUTER_ABI = [
-    "function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)"
-];
 
 interface SwapQuote {
     amountOut: string;
@@ -188,7 +137,6 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
             const quote = await getQuote({ fromSymbol, toSymbol, amountIn });
             const amountOutWei = ethers.parseUnits(quote.amountOut, tokenOut.decimals);
 
-            // Calculate minimum amount out with slippage
             const slippageMultiplier = (100 - slippageTolerance) / 100;
             const amountOutMin = BigInt(Math.floor(Number(amountOutWei) * slippageMultiplier));
 

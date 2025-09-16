@@ -413,9 +413,8 @@ const Limit = () => {
                                         {quote
                                             ? (
                                                   parseFloat(
-                                                      quote.outputAmount
-                                                  ) /
-                                                  1e18 /
+                                                   toAmount
+                                                  )/
                                                   parseFloat(fromAmount || '1')
                                               ).toFixed(8)
                                             : '0.00000000'}

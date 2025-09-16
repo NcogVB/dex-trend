@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import TradingDashboard from './TradingDashboard'
 import { useSwap } from '../contexts/SwapContext'
 import { useWallet } from '../contexts/WalletContext'
+import { TOKENS } from '../utils/SwapTokens'
 
 interface Token {
     symbol: string
@@ -24,24 +25,9 @@ const Converter = () => {
     console.log('Connection Status:', {
         account,
     })
-    const [tokens, setTokens] = useState<Token[]>([
-        {
-            symbol: 'WPOL',
-            name: 'Wrapped Polygon',
-            img: '/images/pol.png',
-            color: '#8247E5',
-            balance: 0,
-            realBalance: '0',
-        },
-        {
-            symbol: 'USDC.e',
-            name: 'USD Coin',
-            img: '/images/stock-5.png',
-            color: '#2775CA',
-            balance: 0,
-            realBalance: '0',
-        },
-    ])
+    const [tokens, setTokens] = useState<Token[]>(
+        TOKENS.map((t) => ({ ...t, balance: 0, realBalance: "0" }))
+    );
 
     const [fromToken, setFromToken] = useState<Token>(tokens[0])
     const [toToken, setToToken] = useState<Token>(tokens[1])
@@ -236,43 +222,32 @@ const Converter = () => {
                                         className={`transition-transform ${isFromDropdownOpen ? 'rotate-180' : ''}`}
                                     />
                                 </button>
+                                {/* FROM DROPDOWN */}
                                 {isFromDropdownOpen && (
                                     <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto">
                                         {tokens
-                                            .filter(
-                                                (t) =>
-                                                    t.symbol !== toToken.symbol
-                                            )
+                                            .filter((t) => t.symbol !== toToken.symbol) // ✅ exclude toToken
                                             .map((token) => (
                                                 <li
                                                     key={token.symbol}
                                                     onClick={() => {
-                                                        setFromToken(token)
-                                                        setIsFromDropdownOpen(
-                                                            false
-                                                        )
+                                                        setFromToken(token);
+                                                        setIsFromDropdownOpen(false);
                                                     }}
                                                     className="modern-dropdown-item flex items-center"
                                                 >
-                                                    <img
-                                                        src={token.img}
-                                                        alt={token.name}
-                                                        className="w-6 h-6 mr-2"
-                                                    />
+                                                    <img src={token.img} alt={token.name} className="w-6 h-6 mr-2" />
                                                     <div>
-                                                        <div>
-                                                            {token.symbol}
-                                                        </div>
+                                                        <div>{token.symbol}</div>
                                                         <div className="text-xs text-gray-500">
-                                                            {token.balance.toFixed(
-                                                                4
-                                                            )}
+                                                            {token.balance.toFixed(4)}
                                                         </div>
                                                     </div>
                                                 </li>
                                             ))}
                                     </ul>
                                 )}
+
                             </div>
                         </div>
                         <div className="mt-4 flex gap-3 percentage-redio-buttons">
@@ -360,34 +335,21 @@ const Converter = () => {
                                 {isToDropdownOpen && (
                                     <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto">
                                         {tokens
-                                             .filter(
-                                                (t) =>
-                                                    t.symbol !== toToken.symbol
-                                            )
+                                            .filter((t) => t.symbol !== fromToken.symbol) // ✅ exclude fromToken
                                             .map((token) => (
                                                 <li
                                                     key={token.symbol}
                                                     onClick={() => {
-                                                        setToToken(token)
-                                                        setIsToDropdownOpen(
-                                                            false
-                                                        )
+                                                        setToToken(token);
+                                                        setIsToDropdownOpen(false);
                                                     }}
                                                     className="modern-dropdown-item flex items-center"
                                                 >
-                                                    <img
-                                                        src={token.img}
-                                                        alt={token.name}
-                                                        className="w-6 h-6 mr-2"
-                                                    />
+                                                    <img src={token.img} alt={token.name} className="w-6 h-6 mr-2" />
                                                     <div>
-                                                        <div>
-                                                            {token.symbol}
-                                                        </div>
+                                                        <div>{token.symbol}</div>
                                                         <div className="text-xs text-gray-500">
-                                                            {token.balance.toFixed(
-                                                                4
-                                                            )}
+                                                            {token.balance.toFixed(4)}
                                                         </div>
                                                     </div>
                                                 </li>
