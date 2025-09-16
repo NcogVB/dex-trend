@@ -27,6 +27,7 @@ const TransferStatus = ({
     const duration = fillTime && depositTime ? fillTime - depositTime : 0
 
     const getStepIcon = (step: string, isActive: boolean, isCompleted: boolean) => {
+        console.log(step)
         if (error && isActive) {
             return <AlertCircle className="w-8 h-8 text-blue-400" />
         }
