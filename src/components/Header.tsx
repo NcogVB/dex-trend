@@ -186,12 +186,15 @@ const Header: React.FC = () => {
                     {/* Logo */}
                     <div className="flex items-center space-x-2">
                         <Link to="/" className="flex items-center space-x-2">
-                            {/* <div className="h-8 w-8 rounded-full bg-red-600"></div> */}
-                            <span className="text-xl font-bold text-gray-900">
-                                Dextrand
-                            </span>
+                            <img
+                                src="/images/dex.jpeg"
+                                alt="Dextrand Logo"
+                                className="h-8 w-8 rounded-full object-cover"
+                            />
+                            <span className="text-xl font-bold text-gray-900">Dextrand</span>
                         </Link>
                     </div>
+
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center space-x-8">
@@ -200,8 +203,8 @@ const Header: React.FC = () => {
                                 key={index}
                                 to={item.href}
                                 className={`text-sm font-medium transition-colors relative ${isActiveLink(item.path)
-                                        ? 'text-red-600'
-                                        : 'text-gray-600 hover:text-gray-900'
+                                    ? 'text-red-600'
+                                    : 'text-gray-600 hover:text-gray-900'
                                     }`}
                             >
                                 {item.name}
@@ -253,8 +256,8 @@ const Header: React.FC = () => {
                                             to={item.href}
                                             onClick={toggleNav}
                                             className={`block text-sm font-medium transition-colors ${isActiveLink(item.path)
-                                                    ? 'text-red-600'
-                                                    : 'text-gray-600 hover:text-gray-900'
+                                                ? 'text-red-600'
+                                                : 'text-gray-600 hover:text-gray-900'
                                                 }`}
                                         >
                                             {item.name}
