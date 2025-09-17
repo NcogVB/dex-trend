@@ -9,7 +9,7 @@ const SecurelyConnectsSection = () => (
             /> */}
             <div className="max-w-[1050px] lg:m-[100px_auto_150px_auto] md:m-[80px_auto_80px_auto] m-[50px_auto_50px_auto]">
                 <h2 className="lg:text-[64px] md:text-[42px] text-[22px] font-medium text-[#CFCFCF] mb-4 text-center lg:leading-[76.8px] break-words">
-                    Dextrand securely connects to your accounts to give a clear
+                    Dextrend securely connects to your accounts to give a clear
                     picture of your finances and help you lead a healthier
                     financial life.
                 </h2>

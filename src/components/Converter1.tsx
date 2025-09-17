@@ -247,7 +247,7 @@ const Converter1: React.FC = () => {
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <JoinCommunity />
-                     <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
+                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
                         <span className="text-[#B91C1C]"> Pool </span> Exchange
                         with DEX.
                     </h1>
@@ -628,7 +628,7 @@ const Converter1: React.FC = () => {
                     <span className="text-[#DC2626]">Pool </span>Exchange Works
                 </h2>
                 <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
-                    Remove liquidity with confidence. Dextrand guides you every
+                    Remove liquidity with confidence. Dextrend guides you every
                     step with clear controls, helpful context, and fast
                     execution designed for professional traders and newcomers
                     alike.

@@ -104,7 +104,7 @@ const Pool = () => {
                     <span className="text-[#DC2626]"> Pool </span>Exchange Works
                 </h2>
                 <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
-                    Provide liquidity on Dextrand and earn fees from every trade
+                    Provide liquidity on Dextrend and earn fees from every trade
                     in your pool. Manage positions with precise controls and
                     real-time stats.
                 </p>

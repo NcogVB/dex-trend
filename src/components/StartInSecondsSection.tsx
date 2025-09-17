@@ -25,7 +25,7 @@ const StartInSecondsSection = () => (
                             href="#"
                             className="bg-[#DC2626] border-[2px] border-transparent text-white md:text-base text-sm font-medium rounded-[33px] p-3"
                         >
-                            Buy Dextrand
+                            Buy Dextrend
                         </a>
                         <a
                             href="#"

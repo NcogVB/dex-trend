@@ -70,7 +70,7 @@ const Bridge = () => {
         {
             symbol: 'USDC POL',
             chainId: 137,
-            address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+            address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
             name: 'USD Coin',
             img: '/images/stock-5.png',
             color: '#2775CA',
@@ -80,7 +80,7 @@ const Bridge = () => {
         {
             symbol: 'USDC ARB',
             chainId: 42161,
-            address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+            address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
             name: 'USD Coin',
             img: '/images/stock-5.png',
             color: '#2775CA',
@@ -131,9 +131,9 @@ const Bridge = () => {
         toTokenType: 'USDC',
     })
     const RPC_URLS: Record<number, string> = {
-        [polygon.id]: "https://polygon-rpc.com",
-        [arbitrum.id]: "https://arbitrum.public.blockpi.network/v1/rpc/public",
-    };
+        [polygon.id]: 'https://polygon-rpc.com',
+        [arbitrum.id]: 'https://arbitrum.public.blockpi.network/v1/rpc/public',
+    }
     const getTokenBalance = async (
         tokenAddress: string,
         chainId: number,
@@ -141,17 +141,24 @@ const Bridge = () => {
         decimals: number
     ): Promise<string> => {
         try {
-            const rpc = RPC_URLS[chainId];
-            const chainProvider = new ethers.JsonRpcProvider(rpc); // 👈 correct provider for that chain
-            const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, chainProvider);
+            const rpc = RPC_URLS[chainId]
+            const chainProvider = new ethers.JsonRpcProvider(rpc) // 👈 correct provider for that chain
+            const tokenContract = new ethers.Contract(
+                tokenAddress,
+                ERC20_ABI,
+                chainProvider
+            )
 
-            const balance = await tokenContract.balanceOf(account);
-            return ethers.formatUnits(balance, decimals);
+            const balance = await tokenContract.balanceOf(account)
+            return ethers.formatUnits(balance, decimals)
         } catch (error) {
-            console.error(`Error getting balance for ${tokenAddress} on chain ${chainId}:`, error);
-            return "0";
+            console.error(
+                `Error getting balance for ${tokenAddress} on chain ${chainId}:`,
+                error
+            )
+            return '0'
         }
-    };
+    }
     const [slippageTolerance, setSlippageTolerance] = useState<number>(1)
 
     const [inputValues, setInputValues] = useState<InputValues>({
@@ -232,36 +239,38 @@ const Bridge = () => {
         }))
     }
     const updateBalances = useCallback(async () => {
-        if (!account) return;
+        if (!account) return
 
         const updated = await Promise.all(
             tokens.map(async (t) => {
                 try {
                     const realBalance = await getTokenBalance(
-                        t.address,      // ✅ pass token address
-                        t.chainId,      // ✅ pass chainId
+                        t.address, // ✅ pass token address
+                        t.chainId, // ✅ pass chainId
                         account,
-                        6               // ✅ decimals (for USDC always 6, or use t.decimals if you add it in Token type)
-                    );
+                        6 // ✅ decimals (for USDC always 6, or use t.decimals if you add it in Token type)
+                    )
                     return {
                         ...t,
                         realBalance,
                         balance: parseFloat(realBalance),
-                    };
+                    }
                 } catch (err) {
-                    console.error(`Balance fetch failed for ${t.symbol} on chain ${t.chainId}:`, err);
+                    console.error(
+                        `Balance fetch failed for ${t.symbol} on chain ${t.chainId}:`,
+                        err
+                    )
                     return {
                         ...t,
-                        realBalance: "0",
+                        realBalance: '0',
                         balance: 0,
-                    };
+                    }
                 }
             })
-        );
+        )
 
-        setTokens(updated);
-    }, [account, tokens]);
-
+        setTokens(updated)
+    }, [account, tokens])
 
     useEffect(() => {
         if (account) updateBalances()
@@ -377,8 +386,8 @@ const Bridge = () => {
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <JoinCommunity />
                     <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
-                        <span className="text-[#B91C1C]"> Bridge </span> Exchange
-                        with DEX.
+                        <span className="text-[#B91C1C]"> Bridge </span>{' '}
+                        Exchange with DEX.
                     </h1>
                     <p className="text-center font-normal md:text-[17.72px] md:leading-7 text-[#767676] max-w-[700px] mb-6">
                         At our cryptocurrency token exchange platform, we offer
@@ -421,10 +430,11 @@ const Bridge = () => {
                                                     </span>
                                                 </div>
                                                 <ChevronDown
-                                                    className={`ml-auto token-arrow transition-transform ${dropdownStates.fromChain
-                                                        ? 'rotate-180'
-                                                        : ''
-                                                        }`}
+                                                    className={`ml-auto token-arrow transition-transform ${
+                                                        dropdownStates.fromChain
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                    }`}
                                                 />
                                             </button>
                                             {dropdownStates.fromChain && (
@@ -502,29 +512,53 @@ const Bridge = () => {
                                                         }
                                                     </span>
                                                     <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform ${dropdownStates.fromTokenSelect
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                            }`}
+                                                        className={`ml-auto token-arrow transition-transform ${
+                                                            dropdownStates.fromTokenSelect
+                                                                ? 'rotate-180'
+                                                                : ''
+                                                        }`}
                                                     />
                                                 </button>
                                                 {dropdownStates.fromTokenSelect && (
                                                     <ul className="token-list absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-48 overflow-auto ring-1 ring-black ring-opacity-5 text-[13px] font-normal text-black">
                                                         {tokens
-                                                            .filter((t) => t.chainId === selectedFromChainId)
-                                                            .map((token, index) => (
-                                                                <li
-                                                                    key={index}
-                                                                    className="token-item cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center hover:bg-gray-100"
-                                                                    onClick={() =>
-                                                                        handleSelection('fromTokenType', token.symbol)
-                                                                    }
-                                                                >
-                                                                    <img alt="" className="w-6 h-6 mr-2" src={token.img} />
-                                                                    <span className="ml-auto text-xs text-gray-500">{token.realBalance}</span>
-                                                                </li>
-                                                            ))}
-
+                                                            .filter(
+                                                                (t) =>
+                                                                    t.chainId ===
+                                                                    selectedFromChainId
+                                                            )
+                                                            .map(
+                                                                (
+                                                                    token,
+                                                                    index
+                                                                ) => (
+                                                                    <li
+                                                                        key={
+                                                                            index
+                                                                        }
+                                                                        className="token-item cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center hover:bg-gray-100"
+                                                                        onClick={() =>
+                                                                            handleSelection(
+                                                                                'fromTokenType',
+                                                                                token.symbol
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <img
+                                                                            alt=""
+                                                                            className="w-6 h-6 mr-2"
+                                                                            src={
+                                                                                token.img
+                                                                            }
+                                                                        />
+                                                                        <span className="ml-auto text-xs text-gray-500">
+                                                                            {
+                                                                                token.realBalance
+                                                                            }
+                                                                        </span>
+                                                                    </li>
+                                                                )
+                                                            )}
                                                     </ul>
                                                 )}
                                             </div>
@@ -578,10 +612,11 @@ const Bridge = () => {
                                                     </span>
                                                 </div>
                                                 <ChevronDown
-                                                    className={`ml-auto token-arrow transition-transform ${dropdownStates.toChain
-                                                        ? 'rotate-180'
-                                                        : ''
-                                                        }`}
+                                                    className={`ml-auto token-arrow transition-transform ${
+                                                        dropdownStates.toChain
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                    }`}
                                                 />
                                             </button>
                                             {dropdownStates.toChain && (
@@ -662,29 +697,53 @@ const Bridge = () => {
                                                         }
                                                     </span>
                                                     <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform ${dropdownStates.toTokenSelect
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                            }`}
+                                                        className={`ml-auto token-arrow transition-transform ${
+                                                            dropdownStates.toTokenSelect
+                                                                ? 'rotate-180'
+                                                                : ''
+                                                        }`}
                                                     />
                                                 </button>
                                                 {dropdownStates.toTokenSelect && (
                                                     <ul className="token-list absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg max-h-48 overflow-auto ring-1 ring-black ring-opacity-5 text-[13px] font-normal text-black">
                                                         {tokens
-                                                            .filter((t) => t.chainId === selectedToChainId)
-                                                            .map((token, index) => (
-                                                                <li
-                                                                    key={index}
-                                                                    className="token-item cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center hover:bg-gray-100"
-                                                                    onClick={() =>
-                                                                        handleSelection('toTokenType', token.symbol)
-                                                                    }
-                                                                >
-                                                                    <img alt="" className="w-6 h-6 mr-2" src={token.img} />
-                                                                    <span className="ml-auto text-xs text-gray-500">{token.realBalance}</span>
-                                                                </li>
-                                                            ))}
-
+                                                            .filter(
+                                                                (t) =>
+                                                                    t.chainId ===
+                                                                    selectedToChainId
+                                                            )
+                                                            .map(
+                                                                (
+                                                                    token,
+                                                                    index
+                                                                ) => (
+                                                                    <li
+                                                                        key={
+                                                                            index
+                                                                        }
+                                                                        className="token-item cursor-pointer select-none relative py-2 pl-3 pr-9 flex items-center hover:bg-gray-100"
+                                                                        onClick={() =>
+                                                                            handleSelection(
+                                                                                'toTokenType',
+                                                                                token.symbol
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <img
+                                                                            alt=""
+                                                                            className="w-6 h-6 mr-2"
+                                                                            src={
+                                                                                token.img
+                                                                            }
+                                                                        />
+                                                                        <span className="ml-auto text-xs text-gray-500">
+                                                                            {
+                                                                                token.realBalance
+                                                                            }
+                                                                        </span>
+                                                                    </li>
+                                                                )
+                                                            )}
                                                     </ul>
                                                 )}
                                             </div>
@@ -786,7 +845,7 @@ const Bridge = () => {
                     Exchange Works
                 </h2>
                 <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
-                    Bridge assets across chains with Dextrand using a secure,
+                    Bridge assets across chains with Dextrend using a secure,
                     streamlined flow and clear status tracking. Low fees and
                     fast finality.
                 </p>

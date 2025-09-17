@@ -114,8 +114,9 @@ const Header: React.FC = () => {
                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                     <span>{formatAddress(account!)}</span>
                     <ChevronDown
-                        className={`w-4 h-4 transition-transform ${isWalletDropdownOpen ? 'rotate-180' : ''
-                            }`}
+                        className={`w-4 h-4 transition-transform ${
+                            isWalletDropdownOpen ? 'rotate-180' : ''
+                        }`}
                     />
                 </button>
 
@@ -179,8 +180,9 @@ const Header: React.FC = () => {
     return (
         <>
             <header
-                className={`sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 transition-transform duration-300 ${isVisible ? 'translate-y-0' : '-translate-y-full'
-                    }`}
+                className={`sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 transition-transform duration-300 ${
+                    isVisible ? 'translate-y-0' : '-translate-y-full'
+                }`}
             >
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     {/* Logo */}
@@ -188,13 +190,14 @@ const Header: React.FC = () => {
                         <Link to="/" className="flex items-center space-x-2">
                             <img
                                 src="/images/dex.jpeg"
-                                alt="Dextrand Logo"
+                                alt="Dextrend Logo"
                                 className="h-8 w-8 rounded-full object-cover"
                             />
-                            <span className="text-xl font-bold text-gray-900">Dextrand</span>
+                            <span className="text-xl font-bold text-gray-900">
+                                Dextrend
+                            </span>
                         </Link>
                     </div>
-
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center space-x-8">
@@ -202,10 +205,11 @@ const Header: React.FC = () => {
                             <Link
                                 key={index}
                                 to={item.href}
-                                className={`text-sm font-medium transition-colors relative ${isActiveLink(item.path)
-                                    ? 'text-red-600'
-                                    : 'text-gray-600 hover:text-gray-900'
-                                    }`}
+                                className={`text-sm font-medium transition-colors relative ${
+                                    isActiveLink(item.path)
+                                        ? 'text-red-600'
+                                        : 'text-gray-600 hover:text-gray-900'
+                                }`}
                             >
                                 {item.name}
                                 {/* Active link indicator */}
@@ -255,10 +259,11 @@ const Header: React.FC = () => {
                                             key={index}
                                             to={item.href}
                                             onClick={toggleNav}
-                                            className={`block text-sm font-medium transition-colors ${isActiveLink(item.path)
-                                                ? 'text-red-600'
-                                                : 'text-gray-600 hover:text-gray-900'
-                                                }`}
+                                            className={`block text-sm font-medium transition-colors ${
+                                                isActiveLink(item.path)
+                                                    ? 'text-red-600'
+                                                    : 'text-gray-600 hover:text-gray-900'
+                                            }`}
                                         >
                                             {item.name}
                                         </Link>

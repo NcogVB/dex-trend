@@ -5,7 +5,7 @@ const EarnPassiveIncomeSection = () => (
             <span className="text-[#DC2626]">crypto</span>
         </h2>
         <p className="font-normal md:text-xl text-base md:tracking-[-0.53px] text-center text-[#767676] max-w-[318px] mx-auto">
-            Dextrand make it easy to make your crypto work for you.
+            Dextrend make it easy to make your crypto work for you.
         </p>
         <h4 className="font-medium md:text-[17.6px] text-sm md:leading-[31.68px] md:tracking-[-0.53px] text-center text-[#DC2626] md:mt-[42px] mt-[15px] mb-[30px]">
             It&apos;s time to unlock the full potential of your money.
@@ -17,7 +17,6 @@ const EarnPassiveIncomeSection = () => (
             Start your journey
         </a>
     </section>
-
 )
 
 export default EarnPassiveIncomeSection

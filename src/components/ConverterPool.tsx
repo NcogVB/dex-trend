@@ -166,7 +166,7 @@ const ConverterPool: React.FC = () => {
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <JoinCommunity />
-                      <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
+                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
                         <span className="text-[#B91C1C]"> Pool </span> Exchange
                         with DEX.
                     </h1>
@@ -265,7 +265,7 @@ const ConverterPool: React.FC = () => {
                     <span className="text-[#DC2626]">Pool </span>Exchange Works
                 </h2>
                 <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#DC2626] max-w-[910px] mx-auto pt-[30px]">
-                    Dextrand provides intuitive liquidity tools and clear
+                    Dextrend provides intuitive liquidity tools and clear
                     insights so you can add, manage, and track your positions
                     with confidence. Built for speed and clarity, optimized for
                     all devices.

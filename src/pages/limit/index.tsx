@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-// import TradingDashboard from '../../components/TradingDashboard'
+import TradingDashboard from '../../components/TradingDashboard'
 import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
 import AskExpertsSection from '../../components/AskExpertsSection'
@@ -58,7 +58,7 @@ const Limit = () => {
             const handler = setTimeout(() => {
                 const decimals =
                     fromToken.address.toLowerCase() ===
-                        '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
+                    '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
                         ? 6 // USDC
                         : 18 // WPOL and others
 
@@ -144,7 +144,7 @@ const Limit = () => {
         try {
             const fromDecimals =
                 fromToken.address.toLowerCase() ===
-                    '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
+                '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
                     ? 6
                     : 18
 
@@ -186,7 +186,7 @@ const Limit = () => {
                     </p>
                     <WalletModal />
                     <div className="mt-[150px] mb-[150px] w-full max-w-7xl mx-auto px-4">
-                        {/* <TradingDashboard /> */}
+                        <TradingDashboard />
                         <div className="modern-card w-full px-[16px] sm:px-[20px] md:px-[40px] py-[20px] sm:py-[30px] md:py-[40px]">
                             <div className="flex flex-col lg:flex-row items-center gap-[20px] sm:gap-[25px] lg:gap-[51px]">
                                 {/* FROM TOKEN SECTION */}
@@ -230,10 +230,11 @@ const Limit = () => {
                                                         {fromToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`token-arrow transition-transform flex-shrink-0 ${isFromDropdownOpen
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                            }`}
+                                                        className={`token-arrow transition-transform flex-shrink-0 ${
+                                                            isFromDropdownOpen
+                                                                ? 'rotate-180'
+                                                                : ''
+                                                        }`}
                                                     />
                                                 </button>
                                                 {isFromDropdownOpen && (
@@ -348,10 +349,11 @@ const Limit = () => {
                                                         {toToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${isToDropdownOpen
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                            }`}
+                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${
+                                                            isToDropdownOpen
+                                                                ? 'rotate-180'
+                                                                : ''
+                                                        }`}
                                                     />
                                                 </button>
                                                 {isToDropdownOpen && (
@@ -412,11 +414,9 @@ const Limit = () => {
                                     <p className="text-[#333333] font-semibold text-[16px] sm:text-[18px] leading-[31.43px] mt-1 sm:mt-2 break-all">
                                         {quote
                                             ? (
-                                                parseFloat(
-                                                    toAmount
-                                                ) /
-                                                parseFloat(fromAmount || '1')
-                                            ).toFixed(8)
+                                                  parseFloat(toAmount) /
+                                                  parseFloat(fromAmount || '1')
+                                              ).toFixed(8)
                                             : '0.00000000'}
                                     </p>
                                 </div>
@@ -471,13 +471,14 @@ const Limit = () => {
                                     loading ||
                                     isCreatingOrder
                                 }
-                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${!fromAmount ||
+                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${
+                                    !fromAmount ||
                                     !toAmount ||
                                     loading ||
                                     isCreatingOrder
-                                    ? '!bg-[#E5E5E5] !text-[#888888]'
-                                    : ''
-                                    }`}
+                                        ? '!bg-[#E5E5E5] !text-[#888888]'
+                                        : ''
+                                }`}
                             >
                                 {isCreatingOrder
                                     ? 'Creating Order...'
@@ -493,7 +494,7 @@ const Limit = () => {
                     <span className="text-[#DC2626]">Pool </span>Exchange Works
                 </h2>
                 <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#DC2626] max-w-[910px] mx-auto pt-[30px]">
-                    Place limit orders on Dextrand to execute at your price,
+                    Place limit orders on Dextrend to execute at your price,
                     with smart routing, transparent fees, and a clean interface
                     that keeps you focused on the trade.
                 </p>

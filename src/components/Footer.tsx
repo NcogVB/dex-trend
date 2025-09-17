@@ -2,12 +2,12 @@ const Footer = () => (
     <footer>
         <div className="container mx-auto md:px-6 px-4 pb-[30px] pt-[56px]">
             <h1 className="w-full text-center text-[20vw] leading-none font-bold text-[#DC2626] break-words">
-                Dextrand
+                Dextrend
             </h1>
             <div className="flex justify-between md:flex-row flex-col-reverse md:items-end mt-[90px] md:gap-4 gap-8">
                 <div className="flex gap-5 flex-col">
                     <p className="font-light text-xs leading-[13.2px] text-[#767676] md:text-start text-center">
-                        ©2025 Powered by Dextrand
+                        ©2025 Powered by Dextrend
                     </p>
                     <p className="font-light text-xs leading-[13.2px] text-[#767676] md:text-start text-center">
                         Charts powered by{' '}

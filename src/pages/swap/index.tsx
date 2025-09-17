@@ -10,7 +10,7 @@ const Swap = () => {
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <JoinCommunity />
-                     <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
+                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
                         <span className="text-[#B91C1C]"> Pool </span> Exchange
                         with DEX.
                     </h1>
@@ -30,7 +30,7 @@ const Swap = () => {
                     <span className="text-[#DC2626]">Pool </span>Exchange Works
                 </h2>
                 <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
-                    Swap any supported token on Dextrand with a fast, intuitive
+                    Swap any supported token on Dextrend with a fast, intuitive
                     interface and transparent pricing. No sign‑up required.
                 </p>
                 <div className="flex justify-center gap-3 md:mt-[60px] mt-[40px] items-center">

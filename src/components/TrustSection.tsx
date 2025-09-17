@@ -7,19 +7,19 @@ const TrustSection = () => (
                 </h3>
                 <h2 className="md:text-[72px] text-[48px] font-medium text-[#DC2626] md:leading-[79.2px] my-2">
                     Trust in Our{' '}
-                    <span className="text-[#DC2626]">Dextrand</span>
+                    <span className="text-[#DC2626]">Dextrend</span>
                 </h2>
                 <p className="md:text-base text-xs font-normal text-[#767676]">
                     With its innovative features and unparalleled security
-                    measures, Dextrand is the ultimate choice for anyone
-                    seeking a reliable and efficient cryptocurrency.
+                    measures, Dextrend is the ultimate choice for anyone seeking
+                    a reliable and efficient cryptocurrency.
                 </p>
                 <div className="grid grid-cols-2 gap-2.5 text-center max-w-[320px] mx-auto mt-5">
                     <a
                         href="#"
                         className="bg-[#DC2626] border-[2px] border-transparent text-white md:text-base text-sm font-medium rounded-[33px] p-4"
                     >
-                        Buy Dextrand
+                        Buy Dextrend
                     </a>
                     <a
                         href="#"
