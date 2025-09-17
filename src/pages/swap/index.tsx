@@ -1,8 +1,8 @@
 import AskExpertsSection from '../../components/AskExpertsSection'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
 import Converter from '../../components/Converter'
-import WalletButton from '../../components/WalletButton'
 import JoinCommunity from '../../components/JoinCommunity'
+import WalletModal from '../../components/WalletModel'
 
 const Swap = () => {
     return (
@@ -20,7 +20,7 @@ const Swap = () => {
                         seamlessly exchange one type of token for another with
                         maximum efficiency.
                     </p>
-                    <WalletButton />
+                    <WalletModal />
                     <Converter />
                 </div>
             </div>
@@ -34,7 +34,7 @@ const Swap = () => {
                     interface and transparent pricing. No sign‑up required.
                 </p>
                 <div className="flex justify-center gap-3 md:mt-[60px] mt-[40px] items-center">
-                    <WalletButton />
+                    <WalletModal />
                     <a
                         href="#"
                         className="border-2 border-[#E9E9E9] md:px-[32px] px-[20px] py-[16px] rounded-[80px] font-medium text-base text-[#000000]"

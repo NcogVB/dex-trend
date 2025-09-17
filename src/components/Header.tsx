@@ -11,7 +11,7 @@ import {
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useWallet } from '../contexts/WalletContext'
-import WalletModal from './WalletButton'
+import WalletModal from './WalletModel'
 
 interface NavItem {
     name: string

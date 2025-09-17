@@ -1,5 +1,5 @@
 import JoinCommunity from './JoinCommunity'
-import WalletButton from './WalletButton'
+import WalletModal from './WalletModel'
 
 const HeroSection = () => (
     <div className="hero-section">
@@ -14,7 +14,7 @@ const HeroSection = () => (
                 easy-to-use token swap service that allows you to seamlessly
                 exchange one type of token for another with maximum efficiency.
             </p>
-            <WalletButton />
+            <WalletModal />
             <div className="modern-card mt-[105px] mb-[191px] w-full">
                 <div className="flex flex-col gap-[25px] md:gap-[40px] w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
                     <div className='w-full flex md:flex justify-between items-center gap-[25px] md:gap-[51px]">'>
