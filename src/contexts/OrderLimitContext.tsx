@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
-import { ethers } from "ethers";
 import { useWallet } from "./WalletContext";
 
 type QuoteResult = {
@@ -25,72 +24,80 @@ type OrderContextType = {
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { account } = useWallet();
+    const { account, signer } = useWallet();
     const [quote, setQuote] = useState<QuoteResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const TOKEN_DECIMALS: Record<string, number> = {
+        ["0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270".toLowerCase()]: 18,
+        ["0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174".toLowerCase()]: 6,
+    };
+
     // Alternative: Try direct call with different headers
-    const getQuote = useCallback(async (fromToken: string, toToken: string, amount: string) => {
-        setLoading(true);
-        setError(null);
+    const getQuote = useCallback(
+        async (fromToken: string, toToken: string, amount: string) => {
+            setLoading(true);
+            setError(null);
 
-        try {
-            const response = await fetch('http://localhost:3001/api/1inch-quote', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ src: fromToken, dst: toToken, amount })
-            });
+            try {
+                const response = await fetch("http://38.242.217.249:3001/api/1inch-quote", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ src: fromToken, dst: toToken, amount }),
+                });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(`Server error: ${response.status} - ${errorData.error || 'Unknown error'}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(
+                        `Server error: ${response.status} - ${errorData.error || "Unknown error"}`
+                    );
+                }
+
+                const data = await response.json();
+                if (!data.dstAmount) throw new Error("Invalid response from 1inch API");
+
+                // ✅ get decimals dynamically
+                const fromDecimals = TOKEN_DECIMALS[fromToken.toLowerCase()] ?? 18;
+                const toDecimals = TOKEN_DECIMALS[toToken.toLowerCase()] ?? 18;
+
+                const inputAmount = parseFloat(amount) / Math.pow(10, fromDecimals);
+                const outputAmount = parseFloat(data.dstAmount) / Math.pow(10, toDecimals);
+                const rate = outputAmount / inputAmount;
+
+                const quoteResult: QuoteResult = {
+                    dstAmount: data.dstAmount,
+                    rate,
+                    fromToken,
+                    toToken,
+                    fromDecimals,
+                    toDecimals,
+                    inputAmount,
+                    outputAmount,
+                    estimatedGas: data.estimatedGas || "21000",
+                    protocols: data.protocols || [],
+                    ...data,
+                };
+
+                setQuote(quoteResult);
+                return quoteResult;
+            } catch (error: any) {
+                console.error("Quote fetch failed:", error);
+                setError(`Failed to get quote: ${error.message}`);
+                throw error;
+            } finally {
+                setLoading(false);
             }
+        },
+        []
+    );
 
-            const data = await response.json();
-            if (!data.dstAmount) throw new Error('Invalid response from 1inch API');
-
-            const fromDecimals = 18;
-            const toDecimals = 6;
-            const inputAmount = parseFloat(amount) / Math.pow(10, fromDecimals);
-            const outputAmount = parseFloat(data.dstAmount) / Math.pow(10, toDecimals);
-            const rate = outputAmount / inputAmount;
-
-            const quoteResult: QuoteResult = {
-                dstAmount: data.dstAmount,
-                rate,
-                fromToken,
-                toToken,
-                fromDecimals,
-                toDecimals,
-                inputAmount,
-                outputAmount,
-                estimatedGas: data.estimatedGas || '21000',
-                protocols: data.protocols || [],
-                ...data
-            };
-
-            setQuote(quoteResult);
-            return quoteResult;
-
-        } catch (error: any) {
-            console.error('Quote fetch failed:', error);
-            setError(`Failed to get quote: ${error.message}`);
-            throw error;
-        } finally {
-            setLoading(false);
-        }
-    }, []);
     const createOrder = async ({
         makerToken,
         takerToken,
         makingAmount,
         takingAmount,
     }: CreateOrderParams): Promise<string> => {
-        const ethereum = (window as any).ethereum;
-        const providerInstance = new ethers.BrowserProvider(ethereum);
-        const signer = await providerInstance.getSigner();
-
         if (!signer || !account) {
             throw new Error("Wallet not connected");
         }
@@ -99,31 +106,31 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setError(null);
 
         try {
-            // Step 1: Create order on server
-            const createResponse = await fetch('http://localhost:3001/api/1inch-create-order-complete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            const making = BigInt(Math.floor(Number(makingAmount))).toString(); // already scaled before calling
+
+            const createResponse = await fetch("http://38.242.217.249:3001/api/1inch-create-order-complete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     makerToken,
                     takerToken,
-                    makingAmount: makingAmount.toString(),
+                    makingAmount: making,
                     takingAmount: takingAmount.toString(),
-                    maker: account
-                })
+                    maker: account,
+                }),
             });
 
             if (!createResponse.ok) {
-                throw new Error('Failed to create order on server');
+                throw new Error("Failed to create order on server");
             }
 
             const createResult = await createResponse.json();
             const { orderId, orderHash, typedData } = createResult;
 
-            console.log('=== ORDER CREATED ===');
-            console.log('Order ID:', orderId);
-            console.log('Order Hash:', orderHash);
+            console.log("=== ORDER CREATED ===");
+            console.log("Order ID:", orderId);
+            console.log("Order Hash:", orderHash);
 
-            // Step 2: Sign the order locally
             const signature = await signer.signTypedData(
                 typedData.domain,
                 { Order: typedData.types.Order },
@@ -132,27 +139,27 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             console.log("Generated signature:", signature);
 
-            // Step 3: Submit using the order ID
-            const submitResponse = await fetch('http://localhost:3001/api/1inch-submit-order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            const submitResponse = await fetch("http://38.242.217.249:3001/api/1inch-submit-order", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    orderId: orderId,    // Send the order ID
-                    signature: signature
-                })
+                    orderId,
+                    signature,
+                }),
             });
 
             if (!submitResponse.ok) {
                 const errorData = await submitResponse.json();
-                console.error('Submit error response:', errorData);
-                throw new Error(`Failed to submit order: ${errorData.details || errorData.error || errorData.message}`);
+                console.error("Submit error response:", errorData);
+                throw new Error(
+                    `Failed to submit order: ${errorData.details || errorData.error || errorData.message}`
+                );
             }
 
             const submitResult = await submitResponse.json();
             console.log("Order submitted successfully:", submitResult);
 
             return orderHash;
-
         } catch (e: any) {
             console.error("Order creation failed:", e);
             setError(e.message || "Failed to create order");
@@ -161,6 +168,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setLoading(false);
         }
     };
+
     const contextValue: OrderContextType = {
         quote,
         getQuote,

@@ -38,7 +38,6 @@ const Limit = () => {
         },
     ]
 
-    // State management with proper types
     const [fromToken, setFromToken] = useState<Token>(tokens[0])
     const [toToken, setToToken] = useState<Token>(tokens[1])
     const [fromAmount, setFromAmount] = useState<string>('')
@@ -47,13 +46,9 @@ const Limit = () => {
     const [isToDropdownOpen, setIsToDropdownOpen] = useState<boolean>(false)
     const [slippageTolerance, setSlippageTolerance] = useState<number>(1)
 
-    // Refs for dropdown management with proper types
     const fromDropdownRef = useRef<HTMLDivElement>(null)
     const toDropdownRef = useRef<HTMLDivElement>(null)
 
-    // Mock exchange rate (in real app, this would come from API)
-
-    // Fetch quote when amount changes
     useEffect(() => {
         if (
             fromAmount &&
@@ -61,9 +56,18 @@ const Limit = () => {
             parseFloat(fromAmount) > 0
         ) {
             const handler = setTimeout(() => {
-                const amountInWei = (parseFloat(fromAmount) * 1e18).toString()
-                getQuote(fromToken.address, toToken.address, amountInWei)
-            }, 500) // wait 500ms after typing stops
+                const decimals =
+                    fromToken.address.toLowerCase() ===
+                        '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
+                        ? 6 // USDC
+                        : 18 // WPOL and others
+
+                const amountInUnits = (
+                    parseFloat(fromAmount) * Math.pow(10, decimals)
+                ).toString()
+
+                getQuote(fromToken.address, toToken.address, amountInUnits)
+            }, 500)
 
             return () => clearTimeout(handler)
         } else {
@@ -71,7 +75,6 @@ const Limit = () => {
         }
     }, [fromAmount, fromToken, toToken, getQuote])
 
-    // Update toAmount when quote changes
     useEffect(() => {
         if (quote?.outputAmount) {
             console.log('quote', quote)
@@ -79,7 +82,6 @@ const Limit = () => {
         }
     }, [quote])
 
-    // Close dropdowns when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             const target = event.target as Node
@@ -131,7 +133,7 @@ const Limit = () => {
         // Remove the toAmount calculation - it's now handled by the quote
     }
     const handleCreateOrder = async (): Promise<void> => {
-        if (isCreatingOrder) return // prevent double-click or re-trigger
+        if (isCreatingOrder) return
 
         if (!fromAmount || !toAmount || !quote) {
             alert('Please enter valid amounts')
@@ -142,7 +144,7 @@ const Limit = () => {
         try {
             const fromDecimals =
                 fromToken.address.toLowerCase() ===
-                '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
+                    '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
                     ? 6
                     : 18
 
@@ -228,11 +230,10 @@ const Limit = () => {
                                                         {fromToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`token-arrow transition-transform flex-shrink-0 ${
-                                                            isFromDropdownOpen
-                                                                ? 'rotate-180'
-                                                                : ''
-                                                        }`}
+                                                        className={`token-arrow transition-transform flex-shrink-0 ${isFromDropdownOpen
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                            }`}
                                                     />
                                                 </button>
                                                 {isFromDropdownOpen && (
@@ -347,11 +348,10 @@ const Limit = () => {
                                                         {toToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${
-                                                            isToDropdownOpen
-                                                                ? 'rotate-180'
-                                                                : ''
-                                                        }`}
+                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${isToDropdownOpen
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                            }`}
                                                     />
                                                 </button>
                                                 {isToDropdownOpen && (
@@ -412,11 +412,11 @@ const Limit = () => {
                                     <p className="text-[#333333] font-semibold text-[16px] sm:text-[18px] leading-[31.43px] mt-1 sm:mt-2 break-all">
                                         {quote
                                             ? (
-                                                  parseFloat(
-                                                   toAmount
-                                                  )/
-                                                  parseFloat(fromAmount || '1')
-                                              ).toFixed(8)
+                                                parseFloat(
+                                                    toAmount
+                                                ) /
+                                                parseFloat(fromAmount || '1')
+                                            ).toFixed(8)
                                             : '0.00000000'}
                                     </p>
                                 </div>
@@ -471,14 +471,13 @@ const Limit = () => {
                                     loading ||
                                     isCreatingOrder
                                 }
-                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${
-                                    !fromAmount ||
+                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${!fromAmount ||
                                     !toAmount ||
                                     loading ||
                                     isCreatingOrder
-                                        ? '!bg-[#E5E5E5] !text-[#888888]'
-                                        : ''
-                                }`}
+                                    ? '!bg-[#E5E5E5] !text-[#888888]'
+                                    : ''
+                                    }`}
                             >
                                 {isCreatingOrder
                                     ? 'Creating Order...'
