@@ -247,8 +247,8 @@ const Converter1: React.FC = () => {
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <JoinCommunity />
-                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#2563EB] max-w-[720px] mx-auto">
-                        <span className="text-[#2563EB]"> Pool </span> Exchange
+                     <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
+                        <span className="text-[#B91C1C]"> Pool </span> Exchange
                         with DEX.
                     </h1>
                     <p className="text-center font-normal md:text-[17.72px] md:leading-7 text-[#767676] max-w-[700px] mb-6">
@@ -265,7 +265,7 @@ const Converter1: React.FC = () => {
                         {/* Tab Navigation */}
                         <button
                             onClick={() => navigate(-1)}
-                            className="flex items-center gap-1 rounded-[8px] font-normal text-sm leading-[100%] px-[16px] py-[10px] transition-colors text-black hover:text-[#2563EB]"
+                            className="flex items-center gap-1 rounded-[8px] font-normal text-sm leading-[100%] px-[16px] py-[10px] transition-colors text-black hover:text-[#DC2626]"
                         >
                             <ArrowLeft className="w-4 h-4" />
                             Back
@@ -586,7 +586,7 @@ const Converter1: React.FC = () => {
                                         ? 'text-gray-500 bg-gray-300 border-gray-300 cursor-not-allowed'
                                         : !tokenId
                                           ? 'text-gray-400 bg-gray-200 border-gray-200 cursor-not-allowed'
-                                          : 'text-white bg-[#2563EB] border-[#2563EB] hover:bg-[#1D4ED8]'
+                                          : 'text-white bg-[#DC2626] border-[#DC2626] hover:bg-[#DC2626]'
                                 }`}
                             >
                                 Enable
@@ -601,7 +601,7 @@ const Converter1: React.FC = () => {
                                 className={`rounded-[150px] px-[92px] py-[16px] font-semibold text-base leading-[17.6px] border-2 transition-colors cursor-pointer ${
                                     !isEnabled || !tokenId
                                         ? 'text-gray-400 border-gray-300 cursor-not-allowed disabled:opacity-50 disabled:cursor-not-allowed'
-                                        : 'text-[#2563EB] border-[#2563EB] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed'
+                                        : 'text-[#DC2626] border-[#DC2626] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed'
                                 }`}
                             >
                                 {isRemovingLiquidity
@@ -623,9 +623,9 @@ const Converter1: React.FC = () => {
                 </div>
             </div>
             <section className="md:py-[90px] py-[40px] px-4">
-                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#2563EB] max-w-[514px] mx-auto">
+                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#DC2626] max-w-[514px] mx-auto">
                     How
-                    <span className="text-[#2563EB]">Pool </span>Exchange Works
+                    <span className="text-[#DC2626]">Pool </span>Exchange Works
                 </h2>
                 <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
                     Remove liquidity with confidence. Dextrand guides you every

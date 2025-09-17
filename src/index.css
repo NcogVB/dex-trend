@@ -62,7 +62,7 @@ body {
 
 .marketTrend-btn.marketTrend-active {
     background-color: #ffffff;
-    color: #2563eb;
+    color: #DC2626;
     border-radius: 8px;
     font-weight: 600;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -144,7 +144,7 @@ body {
 
 .modern-input:focus {
     outline: none;
-    border-color: #2563eb;
+    border-color: #DC2626;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
@@ -154,7 +154,7 @@ body {
 
 /* Modern button styles */
 .modern-button {
-    background: #2563eb;
+    background: #DC2626;
     color: #ffffff;
     border: none;
     border-radius: 8px;
@@ -168,7 +168,7 @@ body {
 }
 
 .modern-button:hover {
-    background: #1d4ed8;
+    background: #DC2626;
     transform: translateY(-1px);
 }
 

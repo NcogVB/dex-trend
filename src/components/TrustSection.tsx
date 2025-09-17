@@ -2,12 +2,12 @@ const TrustSection = () => (
     <section>
         <div className="w-full max-w-[1500px] mx-auto px-4 relative">
             <div className="w-full max-w-[582px] mx-auto text-center xl:py-[300px] md:py-[200px]">
-                <h3 className="text-lg font-medium text-[#2563EB]">
+                <h3 className="text-lg font-medium text-[#DC2626]">
                     All in one place
                 </h3>
-                <h2 className="md:text-[72px] text-[48px] font-medium text-[#2563EB] md:leading-[79.2px] my-2">
+                <h2 className="md:text-[72px] text-[48px] font-medium text-[#DC2626] md:leading-[79.2px] my-2">
                     Trust in Our{' '}
-                    <span className="text-[#2563EB]">Dextrand</span>
+                    <span className="text-[#DC2626]">Dextrand</span>
                 </h2>
                 <p className="md:text-base text-xs font-normal text-[#767676]">
                     With its innovative features and unparalleled security
@@ -17,7 +17,7 @@ const TrustSection = () => (
                 <div className="grid grid-cols-2 gap-2.5 text-center max-w-[320px] mx-auto mt-5">
                     <a
                         href="#"
-                        className="bg-[#2563EB] border-[2px] border-transparent text-white md:text-base text-sm font-medium rounded-[33px] p-4"
+                        className="bg-[#DC2626] border-[2px] border-transparent text-white md:text-base text-sm font-medium rounded-[33px] p-4"
                     >
                         Buy Dextrand
                     </a>

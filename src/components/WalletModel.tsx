@@ -67,7 +67,7 @@ const WalletModal: React.FC = () => {
     if (connectionStep === 'connecting') {
       return (
         <div className="text-center py-4">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500 mb-2" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-red-500 mb-2" />
           <p className="text-sm text-gray-600">Connecting to {loadingWallet}...</p>
           <p className="text-xs text-gray-500 mt-1">Check your wallet for connection request</p>
         </div>
@@ -169,10 +169,10 @@ const WalletModal: React.FC = () => {
               <button
                 onClick={() => handleConnect('trust')}
                 disabled={isConnecting || !!connectionStep}
-                className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
+                className="w-full flex items-center justify-between p-4 border border-gray-200 rounded-xl hover:border-red-300 hover:bg-red-50/50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors duration-200">
+                  <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center group-hover:bg-red-100 transition-colors duration-200">
                     <img
                       src="/images/trust.png"
                       alt="Trust Wallet"
@@ -187,7 +187,7 @@ const WalletModal: React.FC = () => {
                   </div>
                 </div>
                 {loadingWallet === 'trust' && (
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                  <Loader2 className="w-5 h-5 animate-spin text-red-500" />
                 )}
                 {connectedWallet === 'trust' && !connectionStep && (
                   <CheckCircle className="w-5 h-5 text-green-500" />
@@ -207,11 +207,11 @@ const WalletModal: React.FC = () => {
               </div>
               <p className="text-xs text-gray-500 text-center">
                 By connecting a wallet, you agree to our{' '}
-                <span className="text-blue-600 hover:underline cursor-pointer">
+                <span className="text-red-600 hover:underline cursor-pointer">
                   Terms of Service
                 </span>{' '}
                 and{' '}
-                <span className="text-blue-600 hover:underline cursor-pointer">
+                <span className="text-red-600 hover:underline cursor-pointer">
                   Privacy Policy
                 </span>
               </p>

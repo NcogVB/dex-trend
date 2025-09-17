@@ -111,12 +111,11 @@ const Header: React.FC = () => {
                     onClick={toggleWalletDropdown}
                     className="flex items-center space-x-2 bg-[#F8F8F8] text-[#333333] font-medium px-[16px] py-4 rounded-[8px] border hover:bg-[#E5E5E5] transition"
                 >
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                     <span>{formatAddress(account!)}</span>
                     <ChevronDown
-                        className={`w-4 h-4 transition-transform ${
-                            isWalletDropdownOpen ? 'rotate-180' : ''
-                        }`}
+                        className={`w-4 h-4 transition-transform ${isWalletDropdownOpen ? 'rotate-180' : ''
+                            }`}
                     />
                 </button>
 
@@ -137,8 +136,8 @@ const Header: React.FC = () => {
                                             {account}
                                         </p>
                                     </div>
-                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                                     </div>
                                 </div>
                             </div>
@@ -164,7 +163,7 @@ const Header: React.FC = () => {
                             <div className="border-t pt-2">
                                 <button
                                     onClick={handleDisconnect}
-                                    className="modern-dropdown-item flex items-center gap-3 text-sm text-blue-600 w-full"
+                                    className="modern-dropdown-item flex items-center gap-3 text-sm text-red-600 w-full"
                                 >
                                     <LogOut className="w-4 h-4" />
                                     Disconnect Wallet
@@ -180,15 +179,14 @@ const Header: React.FC = () => {
     return (
         <>
             <header
-                className={`sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 transition-transform duration-300 ${
-                    isVisible ? 'translate-y-0' : '-translate-y-full'
-                }`}
+                className={`sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 transition-transform duration-300 ${isVisible ? 'translate-y-0' : '-translate-y-full'
+                    }`}
             >
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     {/* Logo */}
                     <div className="flex items-center space-x-2">
                         <Link to="/" className="flex items-center space-x-2">
-                            {/* <div className="h-8 w-8 rounded-full bg-blue-600"></div> */}
+                            {/* <div className="h-8 w-8 rounded-full bg-red-600"></div> */}
                             <span className="text-xl font-bold text-gray-900">
                                 Dextrand
                             </span>
@@ -201,16 +199,15 @@ const Header: React.FC = () => {
                             <Link
                                 key={index}
                                 to={item.href}
-                                className={`text-sm font-medium transition-colors relative ${
-                                    isActiveLink(item.path)
-                                        ? 'text-blue-600'
+                                className={`text-sm font-medium transition-colors relative ${isActiveLink(item.path)
+                                        ? 'text-red-600'
                                         : 'text-gray-600 hover:text-gray-900'
-                                }`}
+                                    }`}
                             >
                                 {item.name}
                                 {/* Active link indicator */}
                                 {isActiveLink(item.path) && (
-                                    <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-600 rounded-full" />
+                                    <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-red-600 rounded-full" />
                                 )}
                             </Link>
                         ))}
@@ -255,11 +252,10 @@ const Header: React.FC = () => {
                                             key={index}
                                             to={item.href}
                                             onClick={toggleNav}
-                                            className={`block text-sm font-medium transition-colors ${
-                                                isActiveLink(item.path)
-                                                    ? 'text-blue-600'
+                                            className={`block text-sm font-medium transition-colors ${isActiveLink(item.path)
+                                                    ? 'text-red-600'
                                                     : 'text-gray-600 hover:text-gray-900'
-                                            }`}
+                                                }`}
                                         >
                                             {item.name}
                                         </Link>

@@ -5,16 +5,16 @@ export default function HeroSection2() {
         <section className="relative overflow-hidden p-10 ">
             {/* Background accents */}
             <div className="pointer-events-none absolute inset-0 -z-10">
-                <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
-                <div className="absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-blue-300/10 blur-3xl" />
-                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 h-48 w-[60%] bg-gradient-to-r from-blue-500/10 via-blue-400/10 to-transparent rounded-full blur-2xl" />
+                <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-red-500/10 blur-3xl" />
+                <div className="absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-red-300/10 blur-3xl" />
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 h-48 w-[60%] bg-gradient-to-r from-red-500/10 via-red-400/10 to-transparent rounded-full blur-2xl" />
             </div>
 
             <div className="container mx-auto px-4">
                 <div className="grid lg:grid-cols-2 gap-12 items-center">
                     <div className="space-y-8">
                         <div className="space-y-5">
-                            <span className="inline-flex items-center rounded-full border border-blue-200 bg-white/70 px-3 py-1 text-xs font-medium text-blue-700 backdrop-blur">
+                            <span className="inline-flex items-center rounded-full border border-red-200 bg-white/70 px-3 py-1 text-xs font-medium text-red-700 backdrop-blur">
                                 Live crypto trading
                             </span>
 
@@ -24,10 +24,10 @@ export default function HeroSection2() {
                                     buy & sell
                                 </span>{' '}
                                 <span className="relative inline-block">
-                                    <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-700 bg-clip-text text-transparent">
+                                    <span className="bg-gradient-to-r from-red-600 via-red-500 to-red-700 bg-clip-text text-transparent">
                                         cryptocurrency
                                     </span>
-                                    <span className="absolute -bottom-2 left-0 h-[6px] w-9/12 rounded-full bg-blue-500/20" />
+                                    <span className="absolute -bottom-2 left-0 h-[6px] w-9/12 rounded-full bg-red-500/20" />
                                 </span>
                             </h1>
 
@@ -39,29 +39,29 @@ export default function HeroSection2() {
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                            <button className="bg-blue-600 text-white hover:bg-blue-700 px-8 py-3 text-base font-medium rounded-md transition-colors">
+                            <button className="bg-red-600 text-white hover:bg-red-700 px-8 py-3 text-base font-medium rounded-md transition-colors">
                                 Start Now
                             </button>
-                            <button className="px-8 py-3 text-base font-medium rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50 transition-colors">
+                            <button className="px-8 py-3 text-base font-medium rounded-md border border-red-200 text-red-700 hover:bg-red-50 transition-colors">
                                 Learn More
                             </button>
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-6 sm:gap-10 text-sm">
                             <div className="flex items-center gap-2 text-gray-700">
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700">
                                     ✓
                                 </span>
                                 Secure & non‑custodial
                             </div>
                             <div className="flex items-center gap-2 text-gray-700">
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700">
                                     ✓
                                 </span>
                                 Deep liquidity
                             </div>
                             <div className="flex items-center gap-2 text-gray-700">
-                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-700">
                                     ✓
                                 </span>
                                 24/7 markets
@@ -75,7 +75,7 @@ export default function HeroSection2() {
                 </div>
 
                 <div className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-6">
-                    <div className="rounded-xl border border-blue-100 bg-white/70 p-4 text-center backdrop-blur">
+                    <div className="rounded-xl border border-red-100 bg-white/70 p-4 text-center backdrop-blur">
                         <div className="text-sm text-gray-500">
                             Active Users
                         </div>
@@ -83,7 +83,7 @@ export default function HeroSection2() {
                             120k+
                         </div>
                     </div>
-                    <div className="rounded-xl border border-blue-100 bg-white/70 p-4 text-center backdrop-blur">
+                    <div className="rounded-xl border border-red-100 bg-white/70 p-4 text-center backdrop-blur">
                         <div className="text-sm text-gray-500">
                             Supported Chains
                         </div>
@@ -91,7 +91,7 @@ export default function HeroSection2() {
                             10+
                         </div>
                     </div>
-                    <div className="rounded-xl border border-blue-100 bg-white/70 p-4 text-center backdrop-blur">
+                    <div className="rounded-xl border border-red-100 bg-white/70 p-4 text-center backdrop-blur">
                         <div className="text-sm text-gray-500">
                             Avg. Swap Time
                         </div>
@@ -99,7 +99,7 @@ export default function HeroSection2() {
                             ~3s
                         </div>
                     </div>
-                    <div className="rounded-xl border border-blue-100 bg-white/70 p-4 text-center backdrop-blur">
+                    <div className="rounded-xl border border-red-100 bg-white/70 p-4 text-center backdrop-blur">
                         <div className="text-sm text-gray-500">Uptime</div>
                         <div className="mt-1 text-2xl font-semibold text-gray-900">
                             99.9%

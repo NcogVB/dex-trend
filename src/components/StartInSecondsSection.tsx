@@ -10,20 +10,20 @@ const StartInSecondsSection = () => (
                     />
                 </div>
                 <div className="lg:pt-[100px]">
-                    <h2 className="md:text-[64px] text-[38px] font-medium text-[#2563EB]">
+                    <h2 className="md:text-[64px] text-[38px] font-medium text-[#DC2626]">
                         Start <br className="md:block hidden" />
-                        in <span className="text-[#2563EB]">Seconds</span>
+                        in <span className="text-[#DC2626]">Seconds</span>
                     </h2>
-                    <p className="md:text-[22px] text-sm font-normal text-[#2563EB] md:mt-[54px] mt-[20px] md:mb-[32px] mb-[20px]">
+                    <p className="md:text-[22px] text-sm font-normal text-[#DC2626] md:mt-[54px] mt-[20px] md:mb-[32px] mb-[20px]">
                         Connect your crypto wallet to start using in seconds.
                     </p>
-                    <p className="md:text-[22px] text-sm font-normal text-[#2563EB]">
+                    <p className="md:text-[22px] text-sm font-normal text-[#DC2626]">
                         No registration needed.
                     </p>
                     <div className="grid grid-cols-2 gap-2.5 text-center max-w-[320px] md:mt-[54px] mt-[20px]">
                         <a
                             href="#"
-                            className="bg-[#2563EB] border-[2px] border-transparent text-white md:text-base text-sm font-medium rounded-[33px] p-3"
+                            className="bg-[#DC2626] border-[2px] border-transparent text-white md:text-base text-sm font-medium rounded-[33px] p-3"
                         >
                             Buy Dextrand
                         </a>

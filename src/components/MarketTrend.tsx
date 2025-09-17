@@ -131,25 +131,22 @@ const MarketTrend: React.FC = () => {
             </div>
             <div className="p-2.5 w-full max-w-[200px]">
                 <div
-                    className={`flex items-center gap-2 rounded-[33px] w-max p-[4px_8px] ${
-                        crypto.changeType === 'positive'
+                    className={`flex items-center gap-2 rounded-[33px] w-max p-[4px_8px] ${crypto.changeType === 'positive'
                             ? 'bg-[#FEF2F2]'
                             : 'bg-[#FEF3F2]'
-                    }`}
+                        }`}
                 >
                     <span
-                        className={`size-[6px] min-w-[6px] rounded-full ${
-                            crypto.changeType === 'positive'
+                        className={`size-[6px] min-w-[6px] rounded-full ${crypto.changeType === 'positive'
                                 ? 'bg-[#2563EB]'
                                 : 'bg-[#1E3A8A]'
-                        }`}
+                            }`}
                     ></span>
                     <h4
-                        className={`font-medium ${
-                            crypto.changeType === 'positive'
+                        className={`font-medium ${crypto.changeType === 'positive'
                                 ? 'text-[#2563EB]'
                                 : 'text-[#1E3A8A]'
-                        }`}
+                            }`}
                     >
                         {crypto.change}
                     </h4>
@@ -181,7 +178,7 @@ const MarketTrend: React.FC = () => {
         <section className="lg:py-[150px] md:py-[100px] py-[50px]">
             <div className="w-full max-w-[1300px] mx-auto px-4">
                 <div className="flex items-center justify-between gap-3 mb-12">
-                    <h2 className="md:text-[49px] text-base text-[#1d4ed8] font-medium">
+                    <h2 className="md:text-[49px] text-base text-[#DC2626] font-medium">
                         Market Trend
                     </h2>
                     <a
@@ -201,11 +198,10 @@ const MarketTrend: React.FC = () => {
                                         <button
                                             key={tab}
                                             onClick={() => setActiveTab(tab)}
-                                            className={`px-4 py-2 font-medium ${
-                                                activeTab === tab
+                                            className={`px-4 py-2 font-medium ${activeTab === tab
                                                     ? 'marketTrend-active marketTrend-btn px-2.5 py-1 cursor-pointer'
                                                     : 'marketTrend-btn px-2.5 py-1 cursor-pointer'
-                                            }`}
+                                                }`}
                                         >
                                             {tab}
                                         </button>

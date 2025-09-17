@@ -6,7 +6,7 @@ export default function MobileApp() {
           <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-gray-800 rounded-b-xl"></div>
   
           {/* App content */}
-          <div className="pt-8 px-6 h-full bg-blue-600 text-white">
+          <div className="pt-8 px-6 h-full bg-red-600 text-white">
             <div className="space-y-6">
               {/* Header */}
               <div className="flex items-center justify-between">
@@ -37,7 +37,7 @@ export default function MobileApp() {
   
               {/* Action buttons */}
               <div className="flex space-x-3">
-                <button className="flex-1 bg-white text-blue-600 py-3 rounded-lg font-medium">Buy</button>
+                <button className="flex-1 bg-white text-red-600 py-3 rounded-lg font-medium">Buy</button>
                 <button className="flex-1 bg-white/20 text-white py-3 rounded-lg font-medium">Sell</button>
               </div>
   

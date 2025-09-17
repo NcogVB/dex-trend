@@ -166,8 +166,8 @@ const ConverterPool: React.FC = () => {
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <JoinCommunity />
-                    <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#2563EB] max-w-[720px] mx-auto">
-                        <span className="text-[#2563EB]"> Pool </span> Exchange
+                      <h1 className="font-semibold text-[40px] leading-[48px] md:text-[80px] md:leading-[88px] text-center align-middle capitalize mb-3 text-[#DC2626] max-w-[720px] mx-auto">
+                        <span className="text-[#B91C1C]"> Pool </span> Exchange
                         with DEX.
                     </h1>
                     <p className="text-center font-normal md:text-[17.72px] md:leading-7 text-[#767676] max-w-[700px] mb-6">
@@ -183,7 +183,7 @@ const ConverterPool: React.FC = () => {
                     <div className="bg-white relative shadow-lg border border-gray-200 w-full md:rounded-[40px] rounded-[20px] px-[15px] md:px-[50px] py-[20px] md:py-[60px]">
                         <button
                             onClick={() => navigate(-1)}
-                            className="flex items-center gap-1 rounded-[8px] font-normal text-sm leading-[100%] px-[16px] py-[10px] transition-colors text-black hover:text-[#2563EB]"
+                            className="flex items-center gap-1 rounded-[8px] font-normal text-sm leading-[100%] px-[16px] py-[10px] transition-colors text-black hover:text-[#DC2626]"
                         >
                             <ArrowLeft className="w-4 h-4" />
                             Back
@@ -249,7 +249,7 @@ const ConverterPool: React.FC = () => {
                             <button
                                 onClick={handleAddLiquidity}
                                 disabled={isAddingLiquidity || loading}
-                                className="mt-10 w-full bg-[#2563EB] text-white rounded-full py-4 cursor-pointer font-semibold text-lg hover:bg-[#1D4ED8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="mt-10 w-full bg-[#DC2626] text-white rounded-full py-4 cursor-pointer font-semibold text-lg hover:bg-[#DC2626] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isAddingLiquidity
                                     ? 'Adding Liquidity...'
@@ -260,11 +260,11 @@ const ConverterPool: React.FC = () => {
                 </div>
             </div>
             <section className="md:py-[90px] py-[40px] px-4">
-                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#2563EB] max-w-[514px] mx-auto">
+                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#DC2626] max-w-[514px] mx-auto">
                     How
-                    <span className="text-[#2563EB]">Pool </span>Exchange Works
+                    <span className="text-[#DC2626]">Pool </span>Exchange Works
                 </h2>
-                <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
+                <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#DC2626] max-w-[910px] mx-auto pt-[30px]">
                     Dextrand provides intuitive liquidity tools and clear
                     insights so you can add, manage, and track your positions
                     with confidence. Built for speed and clarity, optimized for
