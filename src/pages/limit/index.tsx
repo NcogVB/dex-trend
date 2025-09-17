@@ -3,9 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
 import AskExpertsSection from '../../components/AskExpertsSection'
-import WalletButton from '../../components/WalletButton'
 import JoinCommunity from '../../components/JoinCommunity'
 import { useOrder } from '../../contexts/OrderLimitContext'
+import WalletModal from '../../components/WalletModel'
 
 interface Token {
     symbol: string
@@ -184,7 +184,7 @@ const Limit = () => {
                         seamlessly exchange one type of token for another with
                         maximum efficiency.
                     </p>
-                    <WalletButton />
+                    <WalletModal />
                     <div className="mt-[150px] mb-[150px] w-full max-w-7xl mx-auto px-4">
                         {/* <TradingDashboard /> */}
                         <div className="modern-card w-full px-[16px] sm:px-[20px] md:px-[40px] py-[20px] sm:py-[30px] md:py-[40px]">
@@ -498,7 +498,7 @@ const Limit = () => {
                     that keeps you focused on the trade.
                 </p>
                 <div className="flex justify-center gap-3 md:mt-[60px] mt-[40px] items-center">
-                    <WalletButton />
+                    <WalletModal />
                     <a
                         href="#"
                         className="border-2 border-[#E9E9E9] md:px-[32px] px-[20px] py-[16px] rounded-[80px] font-medium text-base text-[#000000]"

@@ -2,8 +2,8 @@ import { Wallet } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import AskExpertsSection from '../../components/AskExpertsSection'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
-import WalletButton from '../../components/WalletButton'
 import JoinCommunity from '../../components/JoinCommunity'
+import WalletModal from '../../components/WalletModel'
 
 const Pool = () => {
     return (
@@ -21,7 +21,7 @@ const Pool = () => {
                         seamlessly exchange one type of token for another with
                         maximum efficiency.
                     </p>
-                    <WalletButton />
+                    <WalletModal />
 
                     <div className="modern-card mt-[56px] w-full max-w-[690px] mx-auto px-4">
                         <div className="w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
@@ -107,7 +107,7 @@ const Pool = () => {
                     real‑time stats.
                 </p>
                 <div className="flex justify-center gap-3 md:mt-[60px] mt-[40px] items-center">
-                    <WalletButton />
+                    <WalletModal />
                     <a
                         href="#"
                         className="border-2 border-[#E9E9E9] md:px-[32px] px-[20px] py-[16px] rounded-[80px] font-medium text-base text-[#000000]"

@@ -2,7 +2,6 @@ import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 import AskExpertsSection from '../../components/AskExpertsSection'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
-import WalletButton from '../../components/WalletButton'
 import JoinCommunity from '../../components/JoinCommunity'
 import { useBridge } from '../../contexts/Bridge'
 import TransferStatus from './TransferStatus'
@@ -10,6 +9,7 @@ import { arbitrum, polygon } from 'viem/chains'
 import { useWallet } from '../../contexts/WalletContext'
 import { ethers } from 'ethers'
 import { ERC20_ABI } from '../../contexts/ABI'
+import WalletModal from '../../components/WalletModel'
 
 interface DropdownStates {
     fromToken: boolean
@@ -386,7 +386,7 @@ const Bridge = () => {
                         seamlessly exchange one type of token for another with
                         maximum efficiency.
                     </p>
-                    <WalletButton />
+                    <WalletModal />
 
                     <div className="modern-card mt-[100px] mb-[53px] w-full max-w-7xl mx-auto px-4">
                         <div className="w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
@@ -791,7 +791,7 @@ const Bridge = () => {
                     fast finality.
                 </p>
                 <div className="flex justify-center gap-3 md:mt-[60px] mt-[40px] items-center">
-                    <WalletButton />
+                    <WalletModal />
                     <a
                         href="#"
                         className="border-2 border-[#E9E9E9] md:px-[32px] px-[20px] py-[16px] rounded-[80px] font-medium text-base text-[#000000]"

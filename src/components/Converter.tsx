@@ -62,7 +62,9 @@ const Converter = () => {
             updated.find((t) => t.symbol === prev.symbol) || updated[1]
         )
     }, [account, getTokenBalance])
-
+    useEffect(() => {
+        updateBalances()
+    }, [account, updateBalances])
     // Fetch quote using context
     const fetchQuote = useCallback(
         async (amount: string) => {
@@ -132,14 +134,12 @@ const Converter = () => {
     }
 
     // Effects
-    useEffect(() => {
-        if (account) updateBalances()
-    }, [account, updateBalances])
+
+
     useEffect(() => {
         if (fromAmount && fromToken.symbol !== toToken.symbol) {
             fetchQuote(fromAmount)
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fromAmount, fromToken.symbol, toToken.symbol])
 
     // Dropdown close on outside click

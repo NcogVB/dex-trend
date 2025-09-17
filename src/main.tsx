@@ -26,21 +26,21 @@ const queryClient = new QueryClient();
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <BrowserRouter>
-            <WalletProvider>
-                <SwapProvider>
-                    <LiquidityProvider>
-                        <WagmiProvider config={config}>
-                            <QueryClientProvider client={queryClient}>
+            <WagmiProvider config={config}>
+                <QueryClientProvider client={queryClient}>
+                    <WalletProvider>
+                        <SwapProvider>
+                            <LiquidityProvider>
                                 <BridgeProvider>
                                     <OrderProvider>
                                         <App />
                                     </OrderProvider>
                                 </BridgeProvider>
-                            </QueryClientProvider>
-                        </WagmiProvider>
-                    </LiquidityProvider>
-                </SwapProvider>
-            </WalletProvider>
+                            </LiquidityProvider>
+                        </SwapProvider>
+                    </WalletProvider>
+                </QueryClientProvider>
+            </WagmiProvider>
         </BrowserRouter>
     </StrictMode>
 )
