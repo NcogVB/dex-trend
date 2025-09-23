@@ -41,7 +41,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setError(null);
 
             try {
-                const response = await fetch("http://38.242.217.249:3001/api/1inch-quote", {
+                const response = await fetch("https://api.dex-trend.com/api/1inch-quote", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ src: fromToken, dst: toToken, amount }),

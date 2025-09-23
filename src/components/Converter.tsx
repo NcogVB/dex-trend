@@ -1,7 +1,7 @@
 import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-// import TradingDashboard from './TradingDashboard'
+import TradingDashboard from './TradingDashboard'
 import { useSwap } from '../contexts/SwapContext'
 import { useWallet } from '../contexts/WalletContext'
 import { TOKENS } from '../utils/SwapTokens'
@@ -16,18 +16,14 @@ interface Token {
 }
 
 const Converter = () => {
-    const {
-        getQuote,
-        executeSwap,
-        getTokenBalance,
-    } = useSwap()
-    const { account } = useWallet();
+    const { getQuote, executeSwap, getTokenBalance } = useSwap()
+    const { account } = useWallet()
     console.log('Connection Status:', {
         account,
     })
     const [tokens, setTokens] = useState<Token[]>(
-        TOKENS.map((t) => ({ ...t, balance: 0, realBalance: "0" }))
-    );
+        TOKENS.map((t) => ({ ...t, balance: 0, realBalance: '0' }))
+    )
 
     const [fromToken, setFromToken] = useState<Token>(tokens[0])
     const [toToken, setToToken] = useState<Token>(tokens[1])
@@ -48,18 +44,20 @@ const Converter = () => {
         if (!account) return
         const updated = await Promise.all(
             tokens.map(async (t) => {
-                const realBalance = await getTokenBalance(t.symbol as any).catch(
-                    () => '0'
-                )
+                const realBalance = await getTokenBalance(
+                    t.symbol as any
+                ).catch(() => '0')
                 return { ...t, realBalance, balance: parseFloat(realBalance) }
             })
         )
         setTokens(updated)
-        setFromToken(prev =>
-            updated.find((t) => t.symbol === prev.symbol) || updated[0]
+        setFromToken(
+            (prev) =>
+                updated.find((t) => t.symbol === prev.symbol) || updated[0]
         )
-        setToToken(prev =>
-            updated.find((t) => t.symbol === prev.symbol) || updated[1]
+        setToToken(
+            (prev) =>
+                updated.find((t) => t.symbol === prev.symbol) || updated[1]
         )
     }, [account, getTokenBalance])
     useEffect(() => {
@@ -79,8 +77,8 @@ const Converter = () => {
 
             try {
                 const quote = await getQuote({
-                    fromSymbol: fromToken.symbol as "WPOL" | "USDC.e",
-                    toSymbol: toToken.symbol as "WPOL" | "USDC.e",
+                    fromSymbol: fromToken.symbol as 'WPOL' | 'USDC.e',
+                    toSymbol: toToken.symbol as 'WPOL' | 'USDC.e',
                     amountIn: amount,
                 })
 
@@ -113,8 +111,8 @@ const Converter = () => {
         setIsSwapping(true)
         try {
             const receipt = await executeSwap({
-                fromSymbol: fromToken.symbol as "WPOL" | "USDC.e",
-                toSymbol: toToken.symbol as "WPOL" | "USDC.e",
+                fromSymbol: fromToken.symbol as 'WPOL' | 'USDC.e',
+                toSymbol: toToken.symbol as 'WPOL' | 'USDC.e',
                 amountIn: fromAmount,
                 slippageTolerance: slippageTolerance,
             })
@@ -134,7 +132,6 @@ const Converter = () => {
     }
 
     // Effects
-
 
     useEffect(() => {
         if (fromAmount && fromToken.symbol !== toToken.symbol) {
@@ -163,8 +160,8 @@ const Converter = () => {
     }, [])
 
     return (
-        <div className="mt-[150px] mb-[150px] w-full p-[3.5px] md:rounded-[12px] rounded-[12px]">
-            {/* <TradingDashboard /> */}
+        <div className="w-full p-[3.5px] md:rounded-[12px] rounded-[12px]">
+            <TradingDashboard fullScreen showOrders />
             <div className="modern-card w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
                 {/* Top tabs */}
                 <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">
@@ -226,28 +223,40 @@ const Converter = () => {
                                 {isFromDropdownOpen && (
                                     <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto">
                                         {tokens
-                                            .filter((t) => t.symbol !== toToken.symbol) // ✅ exclude toToken
+                                            .filter(
+                                                (t) =>
+                                                    t.symbol !== toToken.symbol
+                                            ) // ✅ exclude toToken
                                             .map((token) => (
                                                 <li
                                                     key={token.symbol}
                                                     onClick={() => {
-                                                        setFromToken(token);
-                                                        setIsFromDropdownOpen(false);
+                                                        setFromToken(token)
+                                                        setIsFromDropdownOpen(
+                                                            false
+                                                        )
                                                     }}
                                                     className="modern-dropdown-item flex items-center"
                                                 >
-                                                    <img src={token.img} alt={token.name} className="w-6 h-6 mr-2" />
+                                                    <img
+                                                        src={token.img}
+                                                        alt={token.name}
+                                                        className="w-6 h-6 mr-2"
+                                                    />
                                                     <div>
-                                                        <div>{token.symbol}</div>
+                                                        <div>
+                                                            {token.symbol}
+                                                        </div>
                                                         <div className="text-xs text-gray-500">
-                                                            {token.balance.toFixed(4)}
+                                                            {token.balance.toFixed(
+                                                                4
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </li>
                                             ))}
                                     </ul>
                                 )}
-
                             </div>
                         </div>
                         <div className="mt-4 flex gap-3 percentage-redio-buttons">
@@ -255,8 +264,13 @@ const Converter = () => {
                                 <button
                                     key={pct}
                                     onClick={() => {
-                                        const bal = parseFloat(fromToken.realBalance || '0')
-                                        const calcAmt = ((bal * pct) / 100).toFixed(6)
+                                        const bal = parseFloat(
+                                            fromToken.realBalance || '0'
+                                        )
+                                        const calcAmt = (
+                                            (bal * pct) /
+                                            100
+                                        ).toFixed(6)
                                         setFromAmount(calcAmt)
                                     }}
                                     className="cursor-pointer w-full block bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-[8px] text-[14px] font-medium text-[#888888] text-center hover:bg-[#DC2626] hover:text-white transition-colors peer-checked:bg-[#DC2626] peer-checked:text-white"
@@ -329,21 +343,35 @@ const Converter = () => {
                                 {isToDropdownOpen && (
                                     <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto">
                                         {tokens
-                                            .filter((t) => t.symbol !== fromToken.symbol) // ✅ exclude fromToken
+                                            .filter(
+                                                (t) =>
+                                                    t.symbol !==
+                                                    fromToken.symbol
+                                            ) // ✅ exclude fromToken
                                             .map((token) => (
                                                 <li
                                                     key={token.symbol}
                                                     onClick={() => {
-                                                        setToToken(token);
-                                                        setIsToDropdownOpen(false);
+                                                        setToToken(token)
+                                                        setIsToDropdownOpen(
+                                                            false
+                                                        )
                                                     }}
                                                     className="modern-dropdown-item flex items-center"
                                                 >
-                                                    <img src={token.img} alt={token.name} className="w-6 h-6 mr-2" />
+                                                    <img
+                                                        src={token.img}
+                                                        alt={token.name}
+                                                        className="w-6 h-6 mr-2"
+                                                    />
                                                     <div>
-                                                        <div>{token.symbol}</div>
+                                                        <div>
+                                                            {token.symbol}
+                                                        </div>
                                                         <div className="text-xs text-gray-500">
-                                                            {token.balance.toFixed(4)}
+                                                            {token.balance.toFixed(
+                                                                4
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </li>
@@ -413,21 +441,24 @@ const Converter = () => {
                 {/* Swap button */}
                 <button
                     onClick={handleSwap}
-                    disabled={isSwapping || !fromAmount || parseFloat(fromAmount) <= 0}
+                    disabled={
+                        isSwapping || !fromAmount || parseFloat(fromAmount) <= 0
+                    }
                     className="modern-button mt-[25px] md:mt-[40px] w-full p-[16px] text-center disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                     {isSwapping ? (
-                        "Swapping..."
+                        'Swapping...'
                     ) : !account ? (
-                        "Connect Wallet"
+                        'Connect Wallet'
                     ) : (
                         <>
                             Exchange
-                            {isLoadingQuote && <span className="ml-2 animate-spin">⏳</span>}
+                            {isLoadingQuote && (
+                                <span className="ml-2 animate-spin">⏳</span>
+                            )}
                         </>
                     )}
                 </button>
-
             </div>
         </div>
     )

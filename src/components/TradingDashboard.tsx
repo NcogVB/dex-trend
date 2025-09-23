@@ -5,6 +5,8 @@ import { widget, type IChartingLibraryWidget } from '../charting_library'
 import BinanceDatafeed from '../utils/CryptoDatafeed'
 interface TradingDashboardProps {
     className?: string
+    fullScreen?: boolean
+    showOrders?: boolean
 }
 
 function getLanguageFromURL(): string | null {
@@ -17,6 +19,8 @@ function getLanguageFromURL(): string | null {
 
 const TradingDashboard: React.FC<TradingDashboardProps> = ({
     className = '',
+    fullScreen = false,
+    showOrders = true,
 }) => {
     const [activeTab, setActiveTab] = useState<'open' | 'history'>('open')
     const chartContainerRef = useRef<HTMLDivElement>(null)
@@ -180,12 +184,16 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
     )
 
     return (
-        <section className={`mt-[-70px] ${className} mb-5`}>
-            <div className="w-full container mx-auto">
-                <div className="flex lg:flex-row flex-col gap-3">
+        <section
+            className={`${className} w-full ${fullScreen ? 'min-h-screen py-0' : 'min-h-screen py-4'}`}
+        >
+            <div className={`container mx-auto`}>
+                <div className={`flex flex-col gap-3`}>
                     {/* Trading Chart Section */}
-                    <div className="modern-card flex-grow overflow-hidden">
-                        <div className="relative w-full lg:h-full h-[500px] overflow-hidden">
+                    <div className={`modern-card flex-grow overflow-hidden`}>
+                        <div
+                            className={`relative w-full ${fullScreen ? 'h-[100vh]' : 'h-[85vh] md:h-[88vh]'} overflow-hidden`}
+                        >
                             <div
                                 ref={chartContainerRef}
                                 className="TVChartContainer absolute top-0 left-0 w-full h-full"
@@ -195,45 +203,49 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
                     </div>
 
                     {/* Orders Panel Section */}
-                    <div className="modern-card">
-                        <div className="lg:min-w-[472px] lg:max-w-[472px] w-full md:p-[30px] p-[20px]">
-                            {/* Tab Navigation */}
-                            <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-[8px] px-2 py-1.5 text-sm w-max flex items-center gap-1 mb-[30px]">
-                                <button
-                                    className={`px-[20px] py-[10px] rounded-[6px] cursor-pointer transition-colors font-medium ${
-                                        activeTab === 'open'
-                                            ? 'active-orders'
-                                            : 'text-[#888888] hover:text-[#333333]'
-                                    }`}
-                                    onClick={() => setActiveTab('open')}
-                                >
-                                    Open Orders
-                                </button>
-                                <button
-                                    className={`px-[20px] py-[10px] rounded-[6px] cursor-pointer transition-colors font-medium ${
-                                        activeTab === 'history'
-                                            ? 'active-orders'
-                                            : 'text-[#888888] hover:text-[#333333]'
-                                    }`}
-                                    onClick={() => setActiveTab('history')}
-                                >
-                                    Orders History
-                                </button>
-                            </div>
+                    {showOrders && (
+                        <div className="flex justify-center items-center mb-5">
+                        <div className="modern-card w-fit flex">
+                            <div className="lg:min-w-[472px] lg:max-w-[472px] md:p-[30px] p-[20px]">
+                                {/* Tab Navigation */}
+                                <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-[8px] px-2 py-1.5 text-sm w-max flex items-center gap-1 mb-[30px]">
+                                    <button
+                                        className={`px-[20px] py-[10px] rounded-[6px] cursor-pointer transition-colors font-medium ${
+                                            activeTab === 'open'
+                                                ? 'active-orders'
+                                                : 'text-[#888888] hover:text-[#333333]'
+                                        }`}
+                                        onClick={() => setActiveTab('open')}
+                                    >
+                                        Open Orders
+                                    </button>
+                                    <button
+                                        className={`px-[20px] py-[10px] rounded-[6px] cursor-pointer transition-colors font-medium ${
+                                            activeTab === 'history'
+                                                ? 'active-orders'
+                                                : 'text-[#888888] hover:text-[#333333]'
+                                        }`}
+                                        onClick={() => setActiveTab('history')}
+                                    >
+                                        Orders History
+                                    </button>
+                                </div>
 
-                            {/* Orders Content */}
-                            <div className="bg-[#F8F8F8] rounded-[8px] border border-[#E5E5E5] min-h-[366px] flex items-center justify-center">
-                                <div className="">
-                                    <NoOrdersIcon />
-                                    <h2 className="text-[#333333] text-xl font-semibold mt-[32px] text-center">
-                                        {activeTab === 'open'
-                                            ? 'No Open Orders Yet'
-                                            : 'No Order History Yet'}
-                                    </h2>
+                                {/* Orders Content */}
+                                <div className="bg-[#F8F8F8] rounded-[8px] border border-[#E5E5E5] min-h-[366px] flex items-center justify-center">
+                                    <div className="">
+                                        <NoOrdersIcon />
+                                        <h2 className="text-[#333333] text-xl font-semibold mt-[32px] text-center">
+                                            {activeTab === 'open'
+                                                ? 'No Open Orders Yet'
+                                                : 'No Order History Yet'}
+                                        </h2>
+                                    </div>
+                                </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
         </section>

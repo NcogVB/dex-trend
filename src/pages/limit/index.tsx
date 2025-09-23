@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-// import TradingDashboard from '../../components/TradingDashboard'
+import TradingDashboard from '../../components/TradingDashboard'
 import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
 import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
 import AskExpertsSection from '../../components/AskExpertsSection'
@@ -185,8 +185,8 @@ const Limit = () => {
                         maximum efficiency.
                     </p>
                     <WalletModal />
-                    <div className="mt-[150px] mb-[150px] w-full max-w-7xl mx-auto px-4">
-                        {/* <TradingDashboard /> */}
+                    <div className="w-full">
+                        <TradingDashboard fullScreen showOrders />
                         <div className="modern-card w-full px-[16px] sm:px-[20px] md:px-[40px] py-[20px] sm:py-[30px] md:py-[40px]">
                             <div className="flex flex-col lg:flex-row items-center gap-[20px] sm:gap-[25px] lg:gap-[51px]">
                                 {/* FROM TOKEN SECTION */}
