@@ -106,7 +106,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     const formatAddress = (addr: string): string =>
         `${addr.slice(0, 6)}...${addr.slice(-4)}`
-
     const connect = async (walletType?: "metamask" | "trust") => {
         try {
             let connectorToUse = connectors[0]
@@ -119,13 +118,26 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
                 if (match) connectorToUse = match
                 setConnectedWallet(walletType)
             }
+
             if (!connectorToUse) throw new Error("No wallet connector available")
-            await connectAsync({ connector: connectorToUse })
+
+            // ✅ Force connect to Polygon
+            await connectAsync({
+                connector: connectorToUse,
+                chainId: polygon.id,  // ⬅ forces Polygon
+            })
+
+            // ✅ Immediately switch chain if wrong
+            if (chainId !== polygon.id) {
+                await switchChainAsync({ chainId: polygon.id })
+            }
+
         } catch (err) {
             console.error("Connection failed:", err)
             throw err
         }
     }
+
 
     const switchToPolygon = async () => {
         if (chainId !== polygon.id) {

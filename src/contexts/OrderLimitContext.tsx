@@ -108,7 +108,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
             const making = BigInt(Math.floor(Number(makingAmount))).toString(); // already scaled before calling
 
-            const createResponse = await fetch("http://38.242.217.249:3001/api/1inch-create-order-complete", {
+            const createResponse = await fetch("https://api.dex-trend.com/api/1inch-create-order-complete", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -139,7 +139,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             console.log("Generated signature:", signature);
 
-            const submitResponse = await fetch("http://38.242.217.249:3001/api/1inch-submit-order", {
+            const submitResponse = await fetch("https://api.dex-trend.com/api/1inch-submit-order", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
