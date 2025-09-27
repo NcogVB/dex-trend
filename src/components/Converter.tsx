@@ -159,7 +159,7 @@ const Converter = () => {
 
     return (
         <div className="w-full p-[3.5px] md:rounded-[12px] rounded-[12px]">
-            <TradingDashboard fullScreen showOrders />
+            <TradingDashboard fullScreen showOrders /> 
             <div className="modern-card w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
                 {/* Top tabs */}
                 <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">

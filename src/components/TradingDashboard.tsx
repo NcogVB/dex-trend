@@ -29,7 +29,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
         useState<IChartingLibraryWidget | null>(null)
 
     const defaultProps = {
-        symbol: 'BTCUSDT',
+        symbol: 'BNBUSDT',
         interval: '1D' as '1D',
         libraryPath: '/charting_library/',
         chartsStorageUrl: 'https://saveload.tradingview.com',
@@ -49,7 +49,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
         const datafeed = new BinanceDatafeed()
 
         const widgetOptions = {
-            symbol: 'BTCUSDT',
+            symbol: 'BNBUSDT',
             datafeed,
             interval: defaultProps.interval,
             container: chartContainerRef.current!,
