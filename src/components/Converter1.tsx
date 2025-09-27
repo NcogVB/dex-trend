@@ -4,7 +4,6 @@ import { Token } from '@uniswap/sdk-core'
 import { Pool, Position } from '@uniswap/v3-sdk'
 import { ethers } from 'ethers'
 import {
-    ERC20_ABI,
     POSITION_MANAGER_MINIMAL_ABI,
     UNISWAP_V3_POOL_ABI,
 } from '../contexts/ABI'
@@ -16,14 +15,14 @@ import EarnPassiveIncomeSection from './EarnPassiveIncomeSection'
 
 interface LiquidityData {
     poolTokens: number
-    WPOLAmount: number
-    USDCAmount: number
+    usdcAmount: number
+    usdtAmount: number
     shareOfPool: number
     reward: number | null
     totalPoolLiquidity: number
     currentPrice: number
-    priceWPOLtoUSDC: number
-    priceUSDCtoWPOL: number
+    priceUSDCtoUSDT: number
+    priceUSDTtoUSDC: number
 }
 
 const Converter1: React.FC = () => {
@@ -37,14 +36,14 @@ const Converter1: React.FC = () => {
     const [isEnabled, setIsEnabled] = useState<boolean>(false)
     const [liquidityData, setLiquidityData] = useState<LiquidityData>({
         poolTokens: 0,
-        WPOLAmount: 0,
-        USDCAmount: 0,
+        usdcAmount: 0,
+        usdtAmount: 0,
         shareOfPool: 0,
         reward: null,
         totalPoolLiquidity: 0,
         currentPrice: 0,
-        priceWPOLtoUSDC: 0,
-        priceUSDCtoWPOL: 0,
+        priceUSDCtoUSDT: 0,
+        priceUSDTtoUSDC: 0,
     })
 
     const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,146 +56,96 @@ const Converter1: React.FC = () => {
         else setSelectedPercentage(100)
     }
 
-    // Mock function to simulate fetching real Uniswap V3 position data
     const fetchPositionData = useCallback(async () => {
-        if (!tokenId || !(window as any).ethereum) return
+        if (!tokenId || !(window as any).ethereum) return;
 
         try {
-            const provider = new ethers.BrowserProvider(
-                (window as any).ethereum
-            )
-            const POSITION_MANAGER_ADDRESS =
-                '0xC36442b4a4522E871399CD717aBDD847Ab11FE88'
+            const provider = new ethers.BrowserProvider((window as any).ethereum);
 
             const positionManager = new ethers.Contract(
-                POSITION_MANAGER_ADDRESS,
+                "0xe4ae6F10ee1C8e2465D9975cb3325267A2025549",
                 POSITION_MANAGER_MINIMAL_ABI,
                 provider
-            )
+            );
 
-            // 1. Load position info
-            const pos = await positionManager.positions(tokenId)
+            const poolAddress = "0xc9e139Aa8eFAdBc814c5dD922f489875E309838a";
+            const poolContract = new ethers.Contract(poolAddress, UNISWAP_V3_POOL_ABI, provider);
 
-            const token0Address = pos[2]
-            const token1Address = pos[3]
-            const fee = Number(pos[4])
-            const tickLower = Number(pos[5])
-            const tickUpper = Number(pos[6])
-            const liquidity = pos[7]
-            const tokensOwed0 = pos[10]
-            const tokensOwed1 = pos[11]
+            // Fetch position and pool data
+            const [positionData, poolData] = await Promise.all([
+                positionManager.positions(tokenId),
+                Promise.all([
+                    poolContract.liquidity(),
+                    poolContract.slot0(),
+                    poolContract.fee(),
+                    poolContract.token0(),
+                    poolContract.token1(),
+                ]),
+            ]);
 
-            // 2. Pool contract (derive instead of hardcode if needed)
-            const poolContract = new ethers.Contract(
-                '0xA374094527e1673A86dE625aa59517c5dE346d32', // WMATIC/USDC.e 0.3% pool
-                UNISWAP_V3_POOL_ABI,
-                provider
-            )
+            const [poolLiquidity, slot0, fee, token0Address, token1Address] = poolData;
 
-            const [poolLiquidity, slot0] = await Promise.all([
-                poolContract.liquidity(),
-                poolContract.slot0(),
-            ])
+            // Build Token objects (get decimals properly in production, here assume 6 for USDC, 18 for USDT if ERC20 default)
+            const chainId = 11155111;
+            const token0 = new Token(chainId, token0Address, 18, "USDC", "USDC");
+            const token1 = new Token(chainId, token1Address, 18, "USDT", "USDT");
 
-            // 3. Token metadata
-            const token0Contract = new ethers.Contract(
-                token0Address,
-                ERC20_ABI,
-                provider
-            )
-            const token1Contract = new ethers.Contract(
-                token1Address,
-                ERC20_ABI,
-                provider
-            )
-
-            const [dec0, dec1] = await Promise.all([
-                token0Contract.decimals(),
-                token1Contract.decimals(),
-            ])
-
-            const WPOL_ADDRESS = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
-            const USDCe_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
-
-            const sym0 =
-                token0Address.toLowerCase() === WPOL_ADDRESS.toLowerCase()
-                    ? 'WPOL'
-                    : 'USDC.e'
-            const sym1 =
-                token1Address.toLowerCase() === USDCe_ADDRESS.toLowerCase()
-                    ? 'USDC.e'
-                    : 'WPOL'
-
-            const chainId = 137
-            const token0 = new Token(chainId, token0Address, Number(dec0), sym0)
-            const token1 = new Token(chainId, token1Address, Number(dec1), sym1)
-
-            // 4. Pool object
+            // Build Pool
             const pool = new Pool(
                 token0,
                 token1,
-                fee,
+                Number(fee),
                 slot0[0].toString(),
                 poolLiquidity.toString(),
                 Number(slot0[1])
-            )
+            );
 
-            // 5. Position object
+            // Build Position
+            const liquidity = positionData[7];
             const position = new Position({
                 pool,
                 liquidity: liquidity.toString(),
-                tickLower,
-                tickUpper,
-            })
+                tickLower: Number(positionData[5]),
+                tickUpper: Number(positionData[6]),
+            });
+            console.log("position", position)
+            // Calculate token amounts
+            const amount0 = Number(position.amount0.toSignificant(6));
+            const amount1 = Number(position.amount1.toSignificant(6));
 
-            // 6. Human-readable amounts
-            const amount0 = parseFloat(position.amount0.toExact())
-            const amount1 = parseFloat(position.amount1.toExact())
+            // Map correctly to USDC/USDT
+            const usdcAmount = token0.symbol === "USDC" ? amount0 : amount1;
+            const usdtAmount = token0.symbol === "USDT" ? amount0 : amount1;
 
-            const wpolAmount = token0.symbol === 'WPOL' ? amount0 : amount1
-            const usdcAmount = token0.symbol === 'USDC.e' ? amount0 : amount1
+            // Share of pool
+            const shareOfPool = (Number(liquidity) / Number(poolLiquidity)) * 100;
 
-            // 7. Prices (no /1e18!)
-            const priceWPOLtoUSDC = parseFloat(
-                pool.token0Price.toSignificant(6)
-            )
-            const priceUSDCtoWPOL = parseFloat(
-                pool.token1Price.toSignificant(6)
-            )
+            // Rewards (simplified)
+            const tokensOwed0 = positionData[9];
+            const tokensOwed1 = positionData[10];
+            const reward =
+                Number(tokensOwed0) / 1e6 + Number(tokensOwed1) / 1e18;
 
-            // 8. Rewards
-            const reward0 = Number(tokensOwed0) / 10 ** Number(dec0)
-            const reward1 = Number(tokensOwed1) / 10 ** Number(dec1)
-            const reward = reward0 + reward1
-
-            // 9. Pool share
-            const shareOfPool =
-                (Number(liquidity) / Number(poolLiquidity)) * 100
-
+            // Prices
+            const priceUSDCtoUSDT = Number(pool.token0Price.toSignificant(6));
+            const priceUSDTtoUSDC = Number(pool.token1Price.toSignificant(6));
+            console.log("Prices:", { priceUSDCtoUSDT, priceUSDTtoUSDC });
             setLiquidityData({
                 poolTokens: Number(liquidity) / 1e18,
-                WPOLAmount: wpolAmount,
-                USDCAmount: usdcAmount, // no divide by 1e18
+                usdcAmount,
+                usdtAmount,
                 shareOfPool,
                 reward: reward > 0 ? reward : null,
                 totalPoolLiquidity: Number(poolLiquidity) / 1e18,
-                currentPrice: priceWPOLtoUSDC,
-                priceWPOLtoUSDC,
-                priceUSDCtoWPOL,
-            })
-
-            console.log('Position data:', {
-                wpolAmount,
-                usdcAmount,
-                priceWPOLtoUSDC,
-                priceUSDCtoWPOL,
-                reward,
-                shareOfPool,
-            })
-        } catch (err) {
-            console.error('Error fetching position data:', err)
+                currentPrice: priceUSDCtoUSDT,
+                priceUSDCtoUSDT,
+                priceUSDTtoUSDC,
+            });
+            console.log("Fetched position data:", {}, liquidityData);
+        } catch (error) {
+            console.error("Error fetching position data:", error);
         }
-    }, [tokenId])
+    }, [tokenId]);
 
     useEffect(() => {
         if (tokenId) fetchPositionData()
@@ -235,11 +184,11 @@ const Converter1: React.FC = () => {
     }
 
     // Calculate amounts to receive
-    const wpolToReceive = (liquidityData.WPOLAmount * percentage) / 100
-    const usdcToReceive = (liquidityData.USDCAmount * percentage) / 100
+    const wpolToReceive = (liquidityData.usdtAmount * percentage) / 100
+    const usdcToReceive = (liquidityData.usdcAmount * percentage) / 100
     const totalValueUSD =
-        liquidityData.WPOLAmount * liquidityData.priceWPOLtoUSDC +
-        liquidityData.USDCAmount
+        liquidityData.usdtAmount * liquidityData.priceUSDTtoUSDC +
+        liquidityData.usdcAmount
     const navigate = useNavigate()
 
     return (
@@ -329,21 +278,20 @@ const Converter1: React.FC = () => {
                                                     onChange={() =>
                                                         handlePercentageSelect(
                                                             percent as
-                                                                | 25
-                                                                | 50
-                                                                | 75
-                                                                | 100
+                                                            | 25
+                                                            | 50
+                                                            | 75
+                                                            | 100
                                                         )
                                                     }
                                                 />
                                                 <label
                                                     htmlFor={`${percent}_percentage`}
-                                                    className={`cursor-pointer w-full block bg-[#FFFFFF66] border border-solid border-[#FFFFFF1A] rounded-[8px] py-[5px] lg:py-[11px] text-[16px] lg:text-base font-semibold text-center transition-colors ${
-                                                        selectedPercentage ===
+                                                    className={`cursor-pointer w-full block bg-[#FFFFFF66] border border-solid border-[#FFFFFF1A] rounded-[8px] py-[5px] lg:py-[11px] text-[16px] lg:text-base font-semibold text-center transition-colors ${selectedPercentage ===
                                                         percent
-                                                            ? 'border-white text-[#2a8576] bg-white'
-                                                            : 'text-[#80888A] lg:text-[#1D3B5E]'
-                                                    }`}
+                                                        ? 'border-white text-[#2a8576] bg-white'
+                                                        : 'text-[#80888A] lg:text-[#1D3B5E]'
+                                                        }`}
                                                 >
                                                     {percent}%
                                                 </label>
@@ -392,7 +340,7 @@ const Converter1: React.FC = () => {
                                                     ≈ $
                                                     {(
                                                         wpolToReceive *
-                                                        liquidityData.priceWPOLtoUSDC
+                                                        liquidityData.priceUSDTtoUSDC
                                                     ).toFixed(2)}
                                                 </div>
                                             </div>
@@ -425,7 +373,7 @@ const Converter1: React.FC = () => {
                                                     $
                                                     {(
                                                         wpolToReceive *
-                                                            liquidityData.priceWPOLtoUSDC +
+                                                        liquidityData.priceUSDTtoUSDC +
                                                         usdcToReceive
                                                     ).toFixed(2)}
                                                 </span>
@@ -450,7 +398,7 @@ const Converter1: React.FC = () => {
                                                 1 WPOL =
                                             </span>
                                             <span className="font-bold md:text-[20px] text-base leading-[100%]">
-                                                {liquidityData.priceWPOLtoUSDC.toFixed(
+                                                {liquidityData.priceUSDTtoUSDC.toFixed(
                                                     4
                                                 )}{' '}
                                                 USDC
@@ -461,7 +409,7 @@ const Converter1: React.FC = () => {
                                                 1 USDC =
                                             </span>
                                             <span className="font-bold md:text-[20px] text-base leading-[100%]">
-                                                {liquidityData.priceUSDCtoWPOL.toFixed(
+                                                {liquidityData.priceUSDCtoUSDT.toFixed(
                                                     4
                                                 )}{' '}
                                                 WPOL
@@ -533,7 +481,7 @@ const Converter1: React.FC = () => {
                                                     Pool WPOL:
                                                 </span>
                                                 <span className="font-semibold">
-                                                    {liquidityData.WPOLAmount.toFixed(
+                                                    {liquidityData.usdtAmount.toFixed(
                                                         6
                                                     )}
                                                 </span>
@@ -543,7 +491,7 @@ const Converter1: React.FC = () => {
                                                     Pool USDC:
                                                 </span>
                                                 <span className="font-semibold">
-                                                    {liquidityData.USDCAmount.toFixed(
+                                                    {liquidityData.usdcAmount.toFixed(
                                                         6
                                                     )}
                                                 </span>
@@ -581,13 +529,12 @@ const Converter1: React.FC = () => {
                             <button
                                 onClick={handleEnable}
                                 disabled={isEnabled || !tokenId}
-                                className={`rounded-[150px] px-[92px] py-[16px] font-semibold text-base leading-[17.6px] border-2 transition-colors ${
-                                    isEnabled
-                                        ? 'text-gray-500 bg-gray-300 border-gray-300 cursor-not-allowed'
-                                        : !tokenId
-                                          ? 'text-gray-400 bg-gray-200 border-gray-200 cursor-not-allowed'
-                                          : 'text-white bg-[#DC2626] border-[#DC2626] hover:bg-[#DC2626]'
-                                }`}
+                                className={`rounded-[150px] px-[92px] py-[16px] font-semibold text-base leading-[17.6px] border-2 transition-colors ${isEnabled
+                                    ? 'text-gray-500 bg-gray-300 border-gray-300 cursor-not-allowed'
+                                    : !tokenId
+                                        ? 'text-gray-400 bg-gray-200 border-gray-200 cursor-not-allowed'
+                                        : 'text-white bg-[#DC2626] border-[#DC2626] hover:bg-[#DC2626]'
+                                    }`}
                             >
                                 Enable
                             </button>
@@ -598,11 +545,10 @@ const Converter1: React.FC = () => {
                                     isRemovingLiquidity ||
                                     !tokenId
                                 }
-                                className={`rounded-[150px] px-[92px] py-[16px] font-semibold text-base leading-[17.6px] border-2 transition-colors cursor-pointer ${
-                                    !isEnabled || !tokenId
-                                        ? 'text-gray-400 border-gray-300 cursor-not-allowed disabled:opacity-50 disabled:cursor-not-allowed'
-                                        : 'text-[#DC2626] border-[#DC2626] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed'
-                                }`}
+                                className={`rounded-[150px] px-[92px] py-[16px] font-semibold text-base leading-[17.6px] border-2 transition-colors cursor-pointer ${!isEnabled || !tokenId
+                                    ? 'text-gray-400 border-gray-300 cursor-not-allowed disabled:opacity-50 disabled:cursor-not-allowed'
+                                    : 'text-[#DC2626] border-[#DC2626] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed'
+                                    }`}
                             >
                                 {isRemovingLiquidity
                                     ? 'Removing...'

@@ -16,11 +16,9 @@ interface Token {
 }
 
 const Converter = () => {
-    const { getQuote, executeSwap, getTokenBalance } = useSwap()
+    const { getQuote, swapExactInputSingle, getTokenBalance } = useSwap()
     const { account } = useWallet()
-    console.log('Connection Status:', {
-        account,
-    })
+
     const [tokens, setTokens] = useState<Token[]>(
         TOKENS.map((t) => ({ ...t, balance: 0, realBalance: '0' }))
     )
@@ -77,8 +75,8 @@ const Converter = () => {
 
             try {
                 const quote = await getQuote({
-                    fromSymbol: fromToken.symbol as 'WPOL' | 'USDC.e',
-                    toSymbol: toToken.symbol as 'WPOL' | 'USDC.e',
+                    fromSymbol: fromToken.symbol as 'USDC' | 'USDT',
+                    toSymbol: toToken.symbol as 'USDC' | 'USDT',
                     amountIn: amount,
                 })
 
@@ -110,9 +108,9 @@ const Converter = () => {
         }
         setIsSwapping(true)
         try {
-            const receipt = await executeSwap({
-                fromSymbol: fromToken.symbol as 'WPOL' | 'USDC.e',
-                toSymbol: toToken.symbol as 'WPOL' | 'USDC.e',
+            const receipt = await swapExactInputSingle({
+                fromSymbol: fromToken.symbol as 'USDC' | 'USDT',
+                toSymbol: toToken.symbol as 'USDC' | 'USDT',
                 amountIn: fromAmount,
                 slippageTolerance: slippageTolerance,
             })

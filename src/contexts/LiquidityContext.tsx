@@ -1,16 +1,10 @@
 // src/context/LiquidityContext.tsx
 import React, { createContext, useContext, useCallback, useState } from "react";
-import { ethers } from "ethers";
-import { MaxUint256 } from "ethers";
+import { ethers, MaxUint256 } from "ethers";
 import { Token } from "@uniswap/sdk-core";
 import { Pool, Position, nearestUsableTick } from "@uniswap/v3-sdk";
-import {
-    ERC20_ABI,
-    POSITION_MANAGER_MINIMAL_ABI,
-    UNISWAP_V3_POOL_ABI,
-} from "./ABI";
+import { ERC20_ABI, POSITION_MANAGER_MINIMAL_ABI, UNISWAP_V3_POOL_ABI } from "./ABI";
 import { useWallet } from "./WalletContext";
-import { POOL_ADDRESS, POSITION_MANAGER_ADDRESS, USDCe_ADDRESS, WPOL_ADDRESS } from "../utils/Constants";
 
 interface LiquidityContextValue {
     addLiquidity: (opts: {
@@ -21,38 +15,28 @@ interface LiquidityContextValue {
     removeLiquidity: (tokenId: number, percentage: number) => Promise<void>;
 }
 
-const LiquidityContext = createContext<LiquidityContextValue | undefined>(
-    undefined
-);
+const LiquidityContext = createContext<LiquidityContextValue | undefined>(undefined);
 
-export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
-    children,
-}) => {
+export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [loading, setLoading] = useState(false);
-    const { account, provider, signer } = useWallet();
+    const { account, provider, signer } = useWallet(); // ✅ from your WalletContext
 
- 
-    console.log("WalletContext:", { account, signer, provider });
-    console.log("Liquidity signer:", signer);
+    const POSITION_MANAGER_ADDRESS = "0xe4ae6F10ee1C8e2465D9975cb3325267A2025549";
 
     const addLiquidity = useCallback(
         async (opts: { amountA: string; amountB: string }) => {
             const { amountA, amountB } = opts;
             setLoading(true);
-
+            const tokenA = "0x654684135feea7fd632754d05e15f9886ec7bf28";
+            const tokenB = "0x8df8262960065c242c66efd42eacfb6ad971f962";
+            const poolAddress = "0xc9e139Aa8eFAdBc814c5dD922f489875E309838a"
             try {
-                if (!(window as any).ethereum)
-                    throw new Error("Wallet not connected (window.ethereum missing)");
-                if (!signer || !account) {
-                    throw new Error("Wallet not connected - signer or account missing");
+                if (!signer || !account || !provider) {
+                    throw new Error("Wallet not connected");
                 }
-                const poolContract = new ethers.Contract(
-                    POOL_ADDRESS,
-                    UNISWAP_V3_POOL_ABI,
-                    provider
-                );
 
                 // 1) Read pool state
+                const poolContract = new ethers.Contract(poolAddress, UNISWAP_V3_POOL_ABI, provider);
                 const [tickSpacingBN, feeBN, liquidityBN, slot0] = await Promise.all([
                     poolContract.tickSpacing(),
                     poolContract.fee(),
@@ -68,44 +52,22 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
                     tick: Number(slot0[1]),
                 };
 
-                console.log("Pool data:", poolData);
+                // 2) Build token objects
+                const decimalsA = await new ethers.Contract(tokenA, ERC20_ABI, provider).decimals();
+                const decimalsB = await new ethers.Contract(tokenB, ERC20_ABI, provider).decimals();
 
-                // 2) Fetch token decimals from ERC20
-                const tokenAContract = new ethers.Contract(
-                    WPOL_ADDRESS,
-                    ERC20_ABI,
-                    signer
-                );
-                const tokenBContract = new ethers.Contract(
-                    USDCe_ADDRESS,
-                    ERC20_ABI,
-                    signer
-                );
+                const chainId = (await provider.getNetwork()).chainId;
+                const tokenObjA = new Token(Number(chainId), tokenA, Number(decimalsA), "USDC", "USDC");
+                const tokenObjB = new Token(Number(chainId), tokenB, Number(decimalsB), "USDT", "USDT");
 
-
-                const chainId = 137; // Polygon mainnet
-                const [decimalsA, decimalsB] = await Promise.all([
-                    tokenAContract.decimals(),
-                    tokenBContract.decimals(),
-                ]);
-
-                const tokenObjA = new Token(chainId, WPOL_ADDRESS, Number(decimalsA), "WPOL", "Wrapped POL");
-                const tokenObjB = new Token(chainId, USDCe_ADDRESS, Number(decimalsB), "USDC.e", "USD Coin (bridged)");
-
-                // 3) Order tokens correctly
-                const [addr0] = [WPOL_ADDRESS, USDCe_ADDRESS].sort((a, b) =>
+                // 3) Determine token0/token1 ordering
+                const [addr0] = [tokenA, tokenB].sort((a, b) =>
                     a.toLowerCase() < b.toLowerCase() ? -1 : 1
                 );
-                const token0 =
-                    addr0.toLowerCase() === WPOL_ADDRESS.toLowerCase()
-                        ? tokenObjA
-                        : tokenObjB;
-                const token1 =
-                    addr0.toLowerCase() === WPOL_ADDRESS.toLowerCase()
-                        ? tokenObjB
-                        : tokenObjA;
+                const token0 = addr0.toLowerCase() === tokenA.toLowerCase() ? tokenObjA : tokenObjB;
+                const token1 = addr0.toLowerCase() === tokenA.toLowerCase() ? tokenObjB : tokenObjA;
 
-                // 4) Build pool object
+                // 4) Build Pool
                 const pool = new Pool(
                     token0,
                     token1,
@@ -114,31 +76,23 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
                     poolData.liquidity,
                     poolData.tick
                 );
-                // 5) Convert input amounts to raw units
+
+                // 5) Parse input amounts
                 const amountARaw = ethers.parseUnits(amountA, decimalsA);
                 const amountBRaw = ethers.parseUnits(amountB, decimalsB);
-
                 const amounts =
-                    addr0.toLowerCase() === WPOL_ADDRESS.toLowerCase()
+                    addr0.toLowerCase() === tokenA.toLowerCase()
                         ? { amount0: amountARaw.toString(), amount1: amountBRaw.toString() }
                         : { amount0: amountBRaw.toString(), amount1: amountARaw.toString() };
 
-                console.log("Parsed input amounts:", {
-                    amount0: ethers.formatUnits(amounts.amount0, token0.decimals),
-                    amount1: ethers.formatUnits(amounts.amount1, token1.decimals),
-                });
-
-
+                // 6) Choose tick range
                 const spacing = poolData.tickSpacing;
                 const currentTick = poolData.tick;
                 const baseTick = nearestUsableTick(currentTick, spacing);
-                const tickLower = baseTick - spacing * 10;
-                const tickUpper = baseTick + spacing * 10;
-                console.log("Current price:", pool.token0Price.toSignificant(6));
-                console.log("Inverse price:", pool.token1Price.toSignificant(6));
+                const tickLower = baseTick - spacing * 2;
+                const tickUpper = baseTick + spacing * 2;
 
-
-                // 7) Build Position
+                // 7) Build position
                 const position = Position.fromAmounts({
                     pool,
                     tickLower,
@@ -151,34 +105,31 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
                 const amount0Desired = position.mintAmounts.amount0;
                 const amount1Desired = position.mintAmounts.amount1;
 
-                // Map amounts back to WPOL/USDC.e order
-                const amountADesiredForCall =
-                    addr0.toLowerCase() === WPOL_ADDRESS.toLowerCase()
-                        ? BigInt(amount0Desired.toString())
-                        : BigInt(amount1Desired.toString());
-                const amountBDesiredForCall =
-                    addr0.toLowerCase() === WPOL_ADDRESS.toLowerCase()
-                        ? BigInt(amount1Desired.toString())
-                        : BigInt(amount0Desired.toString());
+                // Map back to A/B order
+                let amountADesiredForCall: bigint;
+                let amountBDesiredForCall: bigint;
+                if (addr0.toLowerCase() === tokenA.toLowerCase()) {
+                    amountADesiredForCall = BigInt(amount0Desired.toString());
+                    amountBDesiredForCall = BigInt(amount1Desired.toString());
+                } else {
+                    amountADesiredForCall = BigInt(amount1Desired.toString());
+                    amountBDesiredForCall = BigInt(amount0Desired.toString());
+                }
 
-                console.log("Desired amounts:", {
-                    amountADesiredForCall: amountADesiredForCall.toString(),
-                    amountBDesiredForCall: amountBDesiredForCall.toString(),
-                });
+                // 8) Approvals
+                const tokenAContract = new ethers.Contract(tokenA, ERC20_ABI, signer);
+                const tokenBContract = new ethers.Contract(tokenB, ERC20_ABI, signer);
 
-                // 8) Check allowances & approve
                 const [allowanceA, allowanceB] = await Promise.all([
                     tokenAContract.allowance(account, POSITION_MANAGER_ADDRESS),
                     tokenBContract.allowance(account, POSITION_MANAGER_ADDRESS),
                 ]);
 
                 if (BigInt(allowanceA.toString()) < amountADesiredForCall) {
-                    const tx = await tokenAContract.approve(POSITION_MANAGER_ADDRESS, MaxUint256);
-                    await tx.wait();
+                    await (await tokenAContract.approve(POSITION_MANAGER_ADDRESS, MaxUint256)).wait();
                 }
                 if (BigInt(allowanceB.toString()) < amountBDesiredForCall) {
-                    const tx = await tokenBContract.approve(POSITION_MANAGER_ADDRESS, MaxUint256);
-                    await tx.wait();
+                    await (await tokenBContract.approve(POSITION_MANAGER_ADDRESS, MaxUint256)).wait();
                 }
 
                 // 9) Mint params
@@ -195,12 +146,6 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
                     recipient: account,
                     deadline: Math.floor(Date.now() / 1000) + 600,
                 };
-                console.log("Mint params:", mintParams);
-
-                console.log("Formatted amounts:", {
-                    token0: ethers.formatUnits(mintParams.amount0Desired, token0.decimals),
-                    token1: ethers.formatUnits(mintParams.amount1Desired, token1.decimals),
-                });
 
                 const positionManager = new ethers.Contract(
                     POSITION_MANAGER_ADDRESS,
@@ -208,24 +153,18 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
                     signer
                 );
 
-                console.log("Minting with params:", mintParams);
-
-                const tx = await positionManager.mint(mintParams, {
-                    gasLimit: 1_500_000,
-                });
+                const tx = await positionManager.mint(mintParams, { gasLimit: 1_200_000 });
                 const receipt = await tx.wait();
-
                 if (receipt.status !== 1) {
                     throw new Error(`Mint failed: ${receipt.transactionHash}`);
                 }
 
-                console.log("Mint success:", receipt.transactionHash);
                 return { txHash: receipt.transactionHash };
             } finally {
                 setLoading(false);
             }
         },
-        [signer, account, provider]
+        [account, provider, signer]
     );
 
     const removeLiquidity = async (tokenId: number, percentage: number) => {
@@ -234,35 +173,36 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
         const user = await signer.getAddress();
 
         const positionManager = new ethers.Contract(
-            POSITION_MANAGER_ADDRESS,
+            "0xe4ae6F10ee1C8e2465D9975cb3325267A2025549",
             POSITION_MANAGER_MINIMAL_ABI,
             signer
         );
 
+        // 1. Fetch position info
         const pos = await positionManager.positions(tokenId);
-        const liquidity = pos[7];
+        const liquidity = pos[7]; // uint128 liquidity
         const liquidityToRemove = (liquidity * BigInt(percentage)) / BigInt(100);
 
+        // 2. Decrease liquidity
         const tx1 = await positionManager.decreaseLiquidity({
             tokenId,
             liquidity: liquidityToRemove,
             amount0Min: 0,
             amount1Min: 0,
-            deadline: Math.floor(Date.now() / 1000) + 600,
+            deadline: Math.floor(Date.now() / 1000) + 600
         });
         await tx1.wait();
-
         const MAX_UINT128 = (2n ** 128n - 1n).toString();
-
+        // 3. Collect tokens
         const tx2 = await positionManager.collect({
             tokenId,
             recipient: user,
             amount0Max: MAX_UINT128,
-            amount1Max: MAX_UINT128,
+            amount1Max: MAX_UINT128
         });
         await tx2.wait();
 
-        console.log("Liquidity removed & tokens collected");
+        console.log("Liquidity removed and tokens collected");
     };
 
     return (
@@ -274,7 +214,6 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const useLiquidity = () => {
     const ctx = useContext(LiquidityContext);
-    if (!ctx)
-        throw new Error("useLiquidity must be used within LiquidityProvider");
+    if (!ctx) throw new Error("useLiquidity must be used within LiquidityProvider");
     return ctx;
 };

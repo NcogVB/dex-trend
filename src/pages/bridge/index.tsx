@@ -97,7 +97,7 @@ const Bridge = () => {
         { id: number; name: string; explorer: string }
     > = {
         'Polygon Mainnet': {
-            id: polygon.id,
+            id: 1476,
             name: polygon.name,
             explorer: 'https://polygonscan.com',
         },

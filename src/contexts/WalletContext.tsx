@@ -11,7 +11,6 @@ import {
     useConnect,
     useChainId,
 } from "wagmi"
-import { polygon } from "wagmi/chains"
 
 type WalletType = "metamask" | "trust" | null
 
@@ -124,12 +123,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             // ✅ Force connect to Polygon
             await connectAsync({
                 connector: connectorToUse,
-                chainId: polygon.id,  // ⬅ forces Polygon
+                chainId: 1476,  // ⬅ forces Polygon
             })
 
             // ✅ Immediately switch chain if wrong
-            if (chainId !== polygon.id) {
-                await switchChainAsync({ chainId: polygon.id })
+            if (chainId !== 1476) {
+                await switchChainAsync({ chainId: 1476 })
             }
 
         } catch (err) {
@@ -140,8 +139,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
 
     const switchToPolygon = async () => {
-        if (chainId !== polygon.id) {
-            await switchChainAsync({ chainId: polygon.id })
+        if (chainId !== 1476) {
+            await switchChainAsync({ chainId: 1476 })
         }
     }
 

@@ -1,25 +1,14 @@
 export const TOKENS = {
-    WPOL: {
-        address: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
-        decimals: 18,
-        symbol: "WPOL",
-        name: "Wrapped Polygon"
-    },
-    "USDC.e": {
-        address: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-        decimals: 6,
-        symbol: "USDC.e",
-        name: "USD Coin (Ethereum)"
-    },
+  
     "USDT": {
-        address: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
-        decimals: 6,
+        address: "0x8df8262960065c242c66efd42eacfb6ad971f962",
+        decimals: 18,
         symbol: "USDT",
         name: "USDCT",
     },
-    "USDC POL": {
-        address: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
-        decimals: 6,
+    "USDC": {
+        address: "0x654684135feea7fd632754d05e15f9886ec7bf28",
+        decimals: 18,
         symbol: "USDC",
         name: "USD Coin"
     },
@@ -40,8 +29,11 @@ const QUOTER_ADDRESS = "0x61fFE014bA17989E743c5F6cB21bF9697530B21e"; // QuoterV2
 
 // === Constants for WPOL/USDC.e 0.05% Pool on Polygon ===
 const POSITION_MANAGER_ADDRESS = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88"; // official NFT position manager
-const POOL_ADDRESS = "0xA374094527e1673A86dE625aa59517c5dE346d32"; // WPOL/USDC.e 0.05% Uniswap V3 pool on Polygon
-const WPOL_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
-const USDCe_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+const POOL_ADDRESS = "0xc9e139Aa8eFAdBc814c5dD922f489875E309838a"; // WPOL/USDC.e 0.05% Uniswap V3 pool on Polygon
+const WPOL_ADDRESS = "0x8df8262960065c242c66efd42eacfb6ad971f962";
+const USDCe_ADDRESS = "0x654684135feea7fd632754d05e15f9886ec7bf28";
+
+const USDC_ADDRESS= "0x654684135feea7fd632754d05e15f9886ec7bf28";
+const USDT_ADDRESS= "0x8df8262960065c242c66efd42eacfb6ad971f962";
 
 export { SWAP_ROUTER_ADDRESS, QUOTER_ADDRESS, POSITION_MANAGER_ADDRESS, POOL_ADDRESS, WPOL_ADDRESS, USDCe_ADDRESS };
