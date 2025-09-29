@@ -1,9 +1,9 @@
 // src/context/SwapContext.tsx
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "./WalletContext"; // Adjust the import path as needed
-import { FEE_TIERS, QUOTER_ADDRESS, SWAP_ROUTER_ADDRESS, TOKENS } from "../utils/Constants";
-import { ERC20_ABI, QUOTER_ABI, SWAP_ROUTER_ABI } from "./ABI";
+import { FEE_TIERS, TOKENS } from "../utils/Constants";
+import { ERC20_ABI } from "./ABI";
 import SwapRouterABI from "../ABI/SwapRouter.json";
 
 // Fee tiers for Uniswap V3
@@ -36,7 +36,6 @@ interface SwapContextValue {
         slippageTolerance: number;
     }) => Promise<any>;
     getTokenBalance: (tokenSymbol: keyof typeof TOKENS) => Promise<string>;
-    isLoading: boolean;
 }
 
 const SwapContext = createContext<SwapContextValue | undefined>(undefined);
@@ -45,7 +44,6 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
     children,
 }) => {
     const { account, provider, signer } = useWallet();
-    const [isLoading, setIsLoading] = useState(false);
     const SWAP_ROUTER_ADDRESS = "0x459A438Fbe3Cb71f2F8e251F181576d5a035Faef";
     const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
     const FACTORY_ABI = [
@@ -246,7 +244,6 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
                 getQuote,
                 swapExactInputSingle,
                 getTokenBalance,
-                isLoading,
             }}
         >
             {children}
