@@ -17,6 +17,7 @@ interface NavItem {
     name: string
     href: string
     path: string
+    external?: boolean
 }
 
 const Header: React.FC = () => {
@@ -43,7 +44,7 @@ const Header: React.FC = () => {
     const navItems: NavItem[] = [
         { name: 'Home', href: 'home', path: '/home' },
         { name: 'Pool', href: 'pool', path: '/pool' },
-        { name: 'Bridge', href: 'bridge', path: '/bridge' },
+        { name: 'Bridge', href: 'https://bridge.skyhighblockchain.com/', path: '', external: true },
         { name: 'Exchange', href: 'exchange', path: '/exchange' },
     ]
 
@@ -114,9 +115,8 @@ const Header: React.FC = () => {
                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
                     <span>{formatAddress(account!)}</span>
                     <ChevronDown
-                        className={`w-4 h-4 transition-transform ${
-                            isWalletDropdownOpen ? 'rotate-180' : ''
-                        }`}
+                        className={`w-4 h-4 transition-transform ${isWalletDropdownOpen ? 'rotate-180' : ''
+                            }`}
                     />
                 </button>
 
@@ -180,9 +180,8 @@ const Header: React.FC = () => {
     return (
         <>
             <header
-                className={`sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 transition-transform duration-300 ${
-                    isVisible ? 'translate-y-0' : '-translate-y-full'
-                }`}
+                className={`sticky top-0 z-50 w-full border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 transition-transform duration-300 ${isVisible ? 'translate-y-0' : '-translate-y-full'
+                    }`}
             >
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     {/* Logo */}
@@ -201,24 +200,34 @@ const Header: React.FC = () => {
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center space-x-8">
-                        {navItems.map((item: NavItem, index: number) => (
-                            <Link
-                                key={index}
-                                to={item.href}
-                                className={`text-sm font-medium transition-colors relative ${
-                                    isActiveLink(item.path)
+                        {navItems.map((item: NavItem, index: number) =>
+                            item.external ? (
+                                <a
+                                    key={index}
+                                    href={item.href}
+                                    rel="noopener noreferrer"
+                                    className="text-sm font-medium transition-colors relative text-gray-600 hover:text-gray-900"
+                                >
+                                    {item.name}
+                                </a>
+                            ) : (
+                                <Link
+                                    key={index}
+                                    to={item.href}
+                                    className={`text-sm font-medium transition-colors relative ${isActiveLink(item.path)
                                         ? 'text-red-600'
                                         : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            >
-                                {item.name}
-                                {/* Active link indicator */}
-                                {isActiveLink(item.path) && (
-                                    <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-red-600 rounded-full" />
-                                )}
-                            </Link>
-                        ))}
+                                        }`}
+                                >
+                                    {item.name}
+                                    {isActiveLink(item.path) && (
+                                        <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-red-600 rounded-full" />
+                                    )}
+                                </Link>
+                            )
+                        )}
                     </nav>
+
 
                     {/* Right side controls */}
                     <div className="flex items-center space-x-4">
@@ -259,11 +268,10 @@ const Header: React.FC = () => {
                                             key={index}
                                             to={item.href}
                                             onClick={toggleNav}
-                                            className={`block text-sm font-medium transition-colors ${
-                                                isActiveLink(item.path)
-                                                    ? 'text-red-600'
-                                                    : 'text-gray-600 hover:text-gray-900'
-                                            }`}
+                                            className={`block text-sm font-medium transition-colors ${isActiveLink(item.path)
+                                                ? 'text-red-600'
+                                                : 'text-gray-600 hover:text-gray-900'
+                                                }`}
                                         >
                                             {item.name}
                                         </Link>
