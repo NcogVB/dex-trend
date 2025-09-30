@@ -1,21 +1,19 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useContext, useState } from "react";
+import { ethers, MaxUint256 } from "ethers";
 import { useWallet } from "./WalletContext";
-
-type QuoteResult = {
-    dstAmount: string;
-    [key: string]: any;
-};
+import ExecutorABI from "../ABI/LimitOrder.json" // ✅ ABI of LimitOrderExecutor
 
 type CreateOrderParams = {
-    makerToken: string;
-    takerToken: string;
-    makingAmount: string | bigint;
-    takingAmount: string | bigint;
+    tokenIn: string;
+    tokenOut: string;
+    amountIn: string;      // human-readable (e.g. "100")
+    amountOutMin: string;  // slippage-adjusted min
+    targetSqrtPriceX96: string; // computed off-chain (as decimal ratio like "1.001")
+    triggerAbove: boolean;
+    ttlSeconds: number;
 };
 
 type OrderContextType = {
-    quote: QuoteResult | null;
-    getQuote: (fromToken: string, toToken: string, amount: string) => Promise<QuoteResult>;
     createOrder: (params: CreateOrderParams) => Promise<string>;
     loading: boolean;
     error: string | null;
@@ -25,79 +23,34 @@ const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { account, signer } = useWallet();
-    const [quote, setQuote] = useState<QuoteResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const TOKEN_DECIMALS: Record<string, number> = {
-        ["0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270".toLowerCase()]: 18,
-        ["0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174".toLowerCase()]: 6,
+    // your deployed contract
+    const EXECUTOR_ADDRESS = "0xB25202f5748116bC5A5e9eB3fCaBC7d5b5777996";
+    const poolAddress = "0xc9e139Aa8eFAdBc814c5dD922f489875E309838a";
+
+    /**
+     * Convert a price ratio (e.g., 1.001) to targetPrice scaled by 1e18
+     * The contract expects targetPrice as: (token1/token0) * 10^(decimalsIn - decimalsOut) * 1e18
+     */
+    const calculateTargetPrice = (priceRatio: string, decimalsIn: number, decimalsOut: number): string => {
+        // Parse the price ratio
+        const ratio = parseFloat(priceRatio);
+
+        // Calculate decimal adjustment
+        const decimalAdjustment = decimalsIn - decimalsOut;
+        const decimalMultiplier = Math.pow(10, decimalAdjustment);
+
+        // Target price = ratio * decimalMultiplier * 1e18
+        // We use BigInt for precision
+        const ratioScaled = Math.floor(ratio * 1e18); // Scale ratio by 1e18
+        const targetPrice = BigInt(ratioScaled) * BigInt(decimalMultiplier);
+
+        return targetPrice.toString();
     };
 
-    // Alternative: Try direct call with different headers
-    const getQuote = useCallback(
-        async (fromToken: string, toToken: string, amount: string) => {
-            setLoading(true);
-            setError(null);
-
-            try {
-                const response = await fetch("https://api.dex-trend.com/api/1inch-quote", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ src: fromToken, dst: toToken, amount }),
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(
-                        `Server error: ${response.status} - ${errorData.error || "Unknown error"}`
-                    );
-                }
-
-                const data = await response.json();
-                if (!data.dstAmount) throw new Error("Invalid response from 1inch API");
-
-                // ✅ get decimals dynamically
-                const fromDecimals = TOKEN_DECIMALS[fromToken.toLowerCase()] ?? 18;
-                const toDecimals = TOKEN_DECIMALS[toToken.toLowerCase()] ?? 18;
-
-                const inputAmount = parseFloat(amount) / Math.pow(10, fromDecimals);
-                const outputAmount = parseFloat(data.dstAmount) / Math.pow(10, toDecimals);
-                const rate = outputAmount / inputAmount;
-
-                const quoteResult: QuoteResult = {
-                    dstAmount: data.dstAmount,
-                    rate,
-                    fromToken,
-                    toToken,
-                    fromDecimals,
-                    toDecimals,
-                    inputAmount,
-                    outputAmount,
-                    estimatedGas: data.estimatedGas || "21000",
-                    protocols: data.protocols || [],
-                    ...data,
-                };
-
-                setQuote(quoteResult);
-                return quoteResult;
-            } catch (error: any) {
-                console.error("Quote fetch failed:", error);
-                setError(`Failed to get quote: ${error.message}`);
-                throw error;
-            } finally {
-                setLoading(false);
-            }
-        },
-        []
-    );
-
-    const createOrder = async ({
-        makerToken,
-        takerToken,
-        makingAmount,
-        takingAmount,
-    }: CreateOrderParams): Promise<string> => {
+    const createOrder = async (params: CreateOrderParams): Promise<string> => {
         if (!signer || !account) {
             throw new Error("Wallet not connected");
         }
@@ -106,60 +59,71 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setError(null);
 
         try {
-            const making = BigInt(Math.floor(Number(makingAmount))).toString(); // already scaled before calling
+            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, signer);
 
-            const createResponse = await fetch("https://api.dex-trend.com/api/1inch-create-order-complete", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    makerToken,
-                    takerToken,
-                    makingAmount: making,
-                    takingAmount: takingAmount.toString(),
-                    maker: account,
-                }),
-            });
+            // Get token decimals (you should fetch these dynamically from token contracts)
+            const decimalsIn = 18; // USDT typically has 6 or 18 decimals - adjust accordingly
+            const decimalsOut = 18; // USDC typically has 6 or 18 decimals - adjust accordingly
 
-            if (!createResponse.ok) {
-                throw new Error("Failed to create order on server");
-            }
+            // Scale amounts properly
+            const amountIn = ethers.parseUnits(params.amountIn, decimalsIn);
+            const amountOutMin = ethers.parseUnits(params.amountOutMin, decimalsOut);
 
-            const createResult = await createResponse.json();
-            const { orderId, orderHash, typedData } = createResult;
-
-            console.log("=== ORDER CREATED ===");
-            console.log("Order ID:", orderId);
-            console.log("Order Hash:", orderHash);
-
-            const signature = await signer.signTypedData(
-                typedData.domain,
-                { Order: typedData.types.Order },
-                typedData.message
+            // Convert price ratio to targetPrice (scaled by 1e18)
+            const targetPrice = calculateTargetPrice(
+                params.targetSqrtPriceX96,
+                decimalsIn,
+                decimalsOut
             );
 
-            console.log("Generated signature:", signature);
-
-            const submitResponse = await fetch("https://api.dex-trend.com/api/1inch-submit-order", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    orderId,
-                    signature,
-                }),
+            console.log("📊 Order params:", {
+                tokenIn: params.tokenIn,
+                tokenOut: params.tokenOut,
+                amountIn: amountIn.toString(),
+                amountOutMin: amountOutMin.toString(),
+                targetPrice: targetPrice,
+                decimalsIn,
+                decimalsOut,
+                ttl: params.ttlSeconds
             });
 
-            if (!submitResponse.ok) {
-                const errorData = await submitResponse.json();
-                console.error("Submit error response:", errorData);
-                throw new Error(
-                    `Failed to submit order: ${errorData.details || errorData.error || errorData.message}`
-                );
+            // Approve token first
+            const tokenInContract = new ethers.Contract(
+                params.tokenIn,
+                ["function approve(address spender, uint256 amount) external returns (bool)",
+                    "function allowance(address owner, address spender) view returns (uint256)"],
+                signer
+            );
+
+            const currentAllowance = await tokenInContract.allowance(account, EXECUTOR_ADDRESS);
+
+            if (currentAllowance < amountIn) {
+                console.log("🔓 Approving token for unlimited allowance...");
+                const approveTx = await tokenInContract.approve(EXECUTOR_ADDRESS, MaxUint256);
+                await approveTx.wait();
+                console.log("✅ Unlimited approval granted");
+            } else {
+                console.log("👌 Already approved, skipping approval");
             }
 
-            const submitResult = await submitResponse.json();
-            console.log("Order submitted successfully:", submitResult);
+            const tx = await executor.depositAndCreateOrder(
+                params.tokenIn,
+                params.tokenOut,
+                500, // 0.05% fee tier
+                poolAddress,
+                amountIn,
+                amountOutMin,
+                targetPrice,
+                true,
+                params.ttlSeconds,
+                { gasLimit: 800000 }
+            );
 
-            return orderHash;
+            console.log("⛽ Sent tx:", tx.hash);
+            const receipt = await tx.wait();
+            console.log("✅ Order created:", receipt);
+
+            return tx.hash;
         } catch (e: any) {
             console.error("Order creation failed:", e);
             setError(e.message || "Failed to create order");
@@ -170,21 +134,14 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     const contextValue: OrderContextType = {
-        quote,
-        getQuote,
         createOrder,
         loading,
         error,
     };
 
-    return (
-        <OrderContext.Provider value={contextValue}>
-            {children}
-        </OrderContext.Provider>
-    );
+    return <OrderContext.Provider value={contextValue}>{children}</OrderContext.Provider>;
 };
 
-// Usage helper
 export function useOrder() {
     const ctx = useContext(OrderContext);
     if (!ctx) throw new Error("useOrder must be used within OrderProvider");

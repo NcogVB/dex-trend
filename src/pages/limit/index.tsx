@@ -6,6 +6,7 @@ import AskExpertsSection from '../../components/AskExpertsSection'
 import JoinCommunity from '../../components/JoinCommunity'
 import { useOrder } from '../../contexts/OrderLimitContext'
 import WalletModal from '../../components/WalletModel'
+import { useSwap } from '../../contexts/SwapContext'
 
 interface Token {
     symbol: string
@@ -17,24 +18,26 @@ interface Token {
 }
 
 const Limit = () => {
-    const { quote, getQuote, createOrder, loading } = useOrder()
+    const { createOrder, loading } = useOrder()
+    const { getQuote } = useSwap()
+
     const [isCreatingOrder, setIsCreatingOrder] = useState<boolean>(false)
     const tokens: Token[] = [
         {
-            symbol: 'WPOL',
-            name: 'Wrapped Polygon',
-            img: '/images/pol.png',
+            symbol: 'USDT',
+            name: 'USDT',
+            img: '/images/stock-3.png',
             color: '#8247E5',
             balance: 1000.5,
-            address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270',
+            address: '0x8df8262960065c242c66efd42eacfb6ad971f962',
         },
         {
-            symbol: 'USDC.e',
-            name: 'USD Coin (PoS)',
-            img: 'https://polygonscan.com/token/images/centre-usdc_28.png',
+            symbol: 'USDC',
+            name: 'USDC',
+            img: '/images/stock-5.png',
             color: '#2775CA',
             balance: 2500.75,
-            address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+            address: '0x654684135feea7fd632754d05e15f9886ec7bf28',
         },
     ]
 
@@ -42,10 +45,11 @@ const Limit = () => {
     const [toToken, setToToken] = useState<Token>(tokens[1])
     const [fromAmount, setFromAmount] = useState<string>('')
     const [toAmount, setToAmount] = useState<string>('')
+    const [targetPrice, setTargetPrice] = useState<string>("");
+    const [targetError, setTargetError] = useState<string>("");
     const [isFromDropdownOpen, setIsFromDropdownOpen] = useState<boolean>(false)
     const [isToDropdownOpen, setIsToDropdownOpen] = useState<boolean>(false)
     const [slippageTolerance, setSlippageTolerance] = useState<number>(1)
-
     const fromDropdownRef = useRef<HTMLDivElement>(null)
     const toDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -55,18 +59,15 @@ const Limit = () => {
             !isNaN(Number(fromAmount)) &&
             parseFloat(fromAmount) > 0
         ) {
-            const handler = setTimeout(() => {
-                const decimals =
-                    fromToken.address.toLowerCase() ===
-                    '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
-                        ? 6 // USDC
-                        : 18 // WPOL and others
+            const handler = setTimeout(async () => {
 
-                const amountInUnits = (
-                    parseFloat(fromAmount) * Math.pow(10, decimals)
-                ).toString()
-
-                getQuote(fromToken.address, toToken.address, amountInUnits)
+                const quote = await getQuote({
+                    fromSymbol: fromToken.symbol as 'USDC' | 'USDT',
+                    toSymbol: toToken.symbol as 'USDC' | 'USDT',
+                    amountIn: fromAmount,
+                })
+                console.log("quote amount", quote.amountOut)
+                setToAmount(quote.amountOut)
             }, 500)
 
             return () => clearTimeout(handler)
@@ -75,12 +76,6 @@ const Limit = () => {
         }
     }, [fromAmount, fromToken, toToken, getQuote])
 
-    useEffect(() => {
-        if (quote?.outputAmount) {
-            console.log('quote', quote)
-            setToAmount(quote?.outputAmount)
-        }
-    }, [quote])
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -135,40 +130,39 @@ const Limit = () => {
     const handleCreateOrder = async (): Promise<void> => {
         if (isCreatingOrder) return
 
-        if (!fromAmount || !toAmount || !quote) {
+        if (!fromAmount || !toAmount) {
             alert('Please enter valid amounts')
             return
         }
 
         setIsCreatingOrder(true)
         try {
-            const fromDecimals =
-                fromToken.address.toLowerCase() ===
-                '0x2791bca1f2de4661ed88a30c99a7a9449aa84174'.toLowerCase()
-                    ? 6
-                    : 18
-
-            const makingAmount = (
-                parseFloat(fromAmount) * Math.pow(10, fromDecimals)
-            ).toString()
-
-            const takingAmount = quote.dstAmount || quote.toAmount || '0'
 
             await createOrder({
-                makerToken: fromToken.address,
-                takerToken: toToken.address,
-                makingAmount,
-                takingAmount,
+                tokenIn: fromToken.address,
+                tokenOut: toToken.address,
+                amountIn: fromAmount,
+                amountOutMin: (parseFloat(toAmount) * (1 - slippageTolerance / 100)).toFixed(6), // Apply slippage
+                targetSqrtPriceX96: targetPrice, // Pass the ratio, not sqrt price
+                triggerAbove: true,
+                ttlSeconds: 86400, // 24 hours
             })
+
+            alert('Order created successfully!')
+
+            // Reset form
+            setFromAmount('')
+            setToAmount('')
+
         } catch (err: unknown) {
             const errorMessage =
                 err instanceof Error ? err.message : String(err)
             alert(`Failed to create order: ${errorMessage}`)
+            console.error('Order creation error:', err)
         } finally {
             setIsCreatingOrder(false)
         }
     }
-
     return (
         <div>
             <div className="hero-section">
@@ -230,11 +224,10 @@ const Limit = () => {
                                                         {fromToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`token-arrow transition-transform flex-shrink-0 ${
-                                                            isFromDropdownOpen
-                                                                ? 'rotate-180'
-                                                                : ''
-                                                        }`}
+                                                        className={`token-arrow transition-transform flex-shrink-0 ${isFromDropdownOpen
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                            }`}
                                                     />
                                                 </button>
                                                 {isFromDropdownOpen && (
@@ -349,11 +342,10 @@ const Limit = () => {
                                                         {toToken.symbol}
                                                     </span>
                                                     <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${
-                                                            isToDropdownOpen
-                                                                ? 'rotate-180'
-                                                                : ''
-                                                        }`}
+                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${isToDropdownOpen
+                                                            ? 'rotate-180'
+                                                            : ''
+                                                            }`}
                                                     />
                                                 </button>
                                                 {isToDropdownOpen && (
@@ -412,11 +404,11 @@ const Limit = () => {
                                 <div className="w-full lg:flex-1 font-normal text-xs sm:text-sm leading-[18.86px] text-[#888888] text-center lg:text-left">
                                     <span>Exchange Rate</span>
                                     <p className="text-[#333333] font-semibold text-[16px] sm:text-[18px] leading-[31.43px] mt-1 sm:mt-2 break-all">
-                                        {quote
+                                        {toAmount
                                             ? (
-                                                  parseFloat(toAmount) /
-                                                  parseFloat(fromAmount || '1')
-                                              ).toFixed(8)
+                                                parseFloat(toAmount) /
+                                                parseFloat(fromAmount || '1')
+                                            ).toFixed(8)
                                             : '0.00000000'}
                                     </p>
                                 </div>
@@ -432,6 +424,35 @@ const Limit = () => {
                                         {fromToken.symbol} - {toToken.symbol}
                                     </p>
                                 </div>
+                                <div className="w-full lg:flex-1 font-normal text-xs sm:text-sm leading-[18.86px] text-[#888888] text-center">
+                                    <span>Target Price</span>
+                                    <input
+                                        type="number"
+                                        step="0.00000001"
+                                        value={targetPrice}
+                                        onChange={(e) => {
+                                            const input = e.target.value;
+                                            setTargetPrice(input);
+
+                                            const currentRate = toAmount
+                                                ? parseFloat(toAmount) / parseFloat(fromAmount || "1")
+                                                : 0;
+
+                                            if (parseFloat(input) < currentRate) {
+                                                setTargetError(`Target must be ≥ ${currentRate.toFixed(8)}`);
+                                            } else {
+                                                setTargetError("");
+                                            }
+                                        }}
+                                        className={`mt-1 sm:mt-2 w-full border rounded-md px-2 py-1 text-center text-[#333333] font-semibold text-[16px] sm:text-[18px] ${targetError ? "border-red-500" : "border-[#E5E5E5]"
+                                            }`}
+                                        placeholder="Set target rate"
+                                    />
+                                    {targetError && (
+                                        <p className="text-red-500 text-xs mt-1">{targetError}</p>
+                                    )}
+                                </div>
+
                                 <div className="w-full lg:flex-1">
                                     <span className="flex items-center gap-2 justify-center lg:justify-end text-[#888888] text-xs sm:text-sm">
                                         Slippage Tolerance
@@ -471,14 +492,13 @@ const Limit = () => {
                                     loading ||
                                     isCreatingOrder
                                 }
-                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${
-                                    !fromAmount ||
+                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${!fromAmount ||
                                     !toAmount ||
                                     loading ||
                                     isCreatingOrder
-                                        ? '!bg-[#E5E5E5] !text-[#888888]'
-                                        : ''
-                                }`}
+                                    ? '!bg-[#E5E5E5] !text-[#888888]'
+                                    : ''
+                                    }`}
                             >
                                 {isCreatingOrder
                                     ? 'Creating Order...'

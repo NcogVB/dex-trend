@@ -123,30 +123,35 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
         const tokenInInfo = TOKENS[fromSymbol];
         const tokenOutInfo = TOKENS[toSymbol];
         if (!tokenInInfo || !tokenOutInfo) throw new Error("Token not configured");
-        console.log("Getting quote for:", { fromSymbol, toSymbol, amountIn });
-        console.log("Token info:", { tokenInInfo, tokenOutInfo });
-        const pools = await getAllPoolsForPair(
-            tokenInInfo.address,
-            tokenOutInfo.address
-        );
 
+        const pools = await getAllPoolsForPair(tokenInInfo.address, tokenOutInfo.address);
         if (pools.length === 0) throw new Error("No liquidity pools found");
 
         const bestPool = pools[0];
         const sqrtPriceX96 = BigInt(bestPool.sqrtPriceX96);
-        const priceX192 = sqrtPriceX96 * sqrtPriceX96;
-        const price = Number(priceX192 >> 192n);
 
+        // ✅ Convert sqrtPriceX96 to price with decimals adjustment
+        const numerator = sqrtPriceX96 * sqrtPriceX96; // Q128.192
+        const denominator = 1n << 192n;
+
+        const rawPrice = Number(numerator) / Number(denominator);
+        const price =
+            bestPool.token0.toLowerCase() === tokenInInfo.address.toLowerCase()
+                ? rawPrice * 10 ** (tokenInInfo.decimals - tokenOutInfo.decimals)
+                : (1 / rawPrice) * 10 ** (tokenInInfo.decimals - tokenOutInfo.decimals);
+
+        // Calculate output amount
         const inputAmount = parseFloat(amountIn);
-        const outputAmount = inputAmount * (price === 0 ? 1 : price);
+        const outputAmount = inputAmount * price;
 
         return {
             amountOut: outputAmount.toString(),
-            priceImpact: 0.1,
+            priceImpact: 0.0, // you can later compute real impact from pool reserves
             route: [fromSymbol, toSymbol],
             fee: bestPool.fee,
         };
     };
+
 
     const swapExactInputSingle = async ({
         fromSymbol,
