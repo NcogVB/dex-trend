@@ -21,12 +21,12 @@ export const TOKENS: Token[] = [
         chainId: 1476,
     },
     {
-        symbol: "USDC",
-        name: "USD Coin",
-        address: "0x654684135feea7fd632754d05e15f9886ec7bf28", // ✅  Polygon USDC
+        symbol: "skybnb",
+        name: "skybnb",
+        address: "0x54f6bf8d07240c4b353d70cb6d15fa47745db3c2",
         chainId: 1476,
         decimals: 6,
-        img: "/images/stock-5.png",
+        img: "/images/stock-6.png",
         color: "#2775CA",
     },
 ];

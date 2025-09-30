@@ -27,9 +27,9 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         async (opts: { amountA: string; amountB: string }) => {
             const { amountA, amountB } = opts;
             setLoading(true);
-            const tokenA = "0x654684135feea7fd632754d05e15f9886ec7bf28";
+            const tokenA = "0x54f6bf8d07240c4b353d70cb6d15fa47745db3c2";
             const tokenB = "0x8df8262960065c242c66efd42eacfb6ad971f962";
-            const poolAddress = "0xc9e139Aa8eFAdBc814c5dD922f489875E309838a"
+            const poolAddress = "0x8d58183fE3b84d62bbd2d633b1980604a2368ee5"
             try {
                 if (!signer || !account || !provider) {
                     throw new Error("Wallet not connected");
@@ -57,7 +57,7 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 const decimalsB = await new ethers.Contract(tokenB, ERC20_ABI, provider).decimals();
 
                 const chainId = (await provider.getNetwork()).chainId;
-                const tokenObjA = new Token(Number(chainId), tokenA, Number(decimalsA), "USDC", "USDC");
+                const tokenObjA = new Token(Number(chainId), tokenA, Number(decimalsA), "skybnb", "skybnb");
                 const tokenObjB = new Token(Number(chainId), tokenB, Number(decimalsB), "USDT", "USDT");
 
                 // 3) Determine token0/token1 ordering

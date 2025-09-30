@@ -62,8 +62,8 @@ const Limit = () => {
             const handler = setTimeout(async () => {
 
                 const quote = await getQuote({
-                    fromSymbol: fromToken.symbol as 'USDC' | 'USDT',
-                    toSymbol: toToken.symbol as 'USDC' | 'USDT',
+                    fromSymbol: fromToken.symbol as 'skybnb' | 'USDT',
+                    toSymbol: toToken.symbol as 'skybnb' | 'USDT',
                     amountIn: fromAmount,
                 })
                 console.log("quote amount", quote.amountOut)

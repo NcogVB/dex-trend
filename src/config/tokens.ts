@@ -25,10 +25,10 @@ export const MAINNET_TOKENS: Record<string, TokenConfig> = {
         symbol: "WETH",
         name: "Wrapped Ether"
     },
-    USDC: {
-        address: "0xA0b86a33E6441E9b8ED6d9Cc5B9E3B8c3a6Eb7E9",
+    skybnb: {
+        address: "0x54f6bf8d07240c4b353d70cb6d15fa47745db3c2",
         decimals: 6,
-        symbol: "USDC",
+        symbol: "skybnb",
         name: "USD Coin"
     },
     USDT: {

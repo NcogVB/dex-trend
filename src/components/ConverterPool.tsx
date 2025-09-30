@@ -25,7 +25,7 @@ interface LiquidityData {
 
 // Polygon constants
 const POSITION_MANAGER_ADDRESS = '0xe4ae6F10ee1C8e2465D9975cb3325267A2025549'
-const POOL_ADDRESS = '0xc9e139Aa8eFAdBc814c5dD922f489875E309838a'
+const POOL_ADDRESS = '0x8d58183fE3b84d62bbd2d633b1980604a2368ee5'
 const chainId = 137
 
 const ConverterPool: React.FC = () => {
@@ -206,13 +206,13 @@ const ConverterPool: React.FC = () => {
                                 {liquidityData.poolTokens.toFixed(4)}
                             </div>
                             <div className="flex justify-between mb-2">
-                                <span>Wpol</span>
+                                <span>skyBNB</span>
                                 <span>
                                     {liquidityData.token0Amount.toFixed(5)}
                                 </span>
                             </div>
                             <div className="flex justify-between mb-2">
-                                <span>USDC.e</span>
+                                <span>USDT</span>
                                 <span>
                                     {liquidityData.token1Amount.toFixed(5)}
                                 </span>

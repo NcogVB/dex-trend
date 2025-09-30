@@ -68,7 +68,7 @@ const Converter1: React.FC = () => {
                 provider
             );
 
-            const poolAddress = "0xc9e139Aa8eFAdBc814c5dD922f489875E309838a";
+            const poolAddress = "0x8d58183fE3b84d62bbd2d633b1980604a2368ee5";
             const poolContract = new ethers.Contract(poolAddress, UNISWAP_V3_POOL_ABI, provider);
 
             // Fetch position and pool data
@@ -222,10 +222,10 @@ const Converter1: React.FC = () => {
 
                         {/* Header */}
                         <h2 className="mb-4 font-bold text-xl sm:text-3xl leading-[100%] text-black">
-                            Remove WPOL/USDC Liquidity
+                            Remove skyBNB/USDC Liquidity
                         </h2>
                         <p className="text-black font-normal text-xl leading-[18.86px] mb-6">
-                            To Receive WPOL and USDC
+                            To Receive skyBNB and USDC
                         </p>
 
                         {/* Position ID Input */}
@@ -329,7 +329,7 @@ const Converter1: React.FC = () => {
                                                     W
                                                 </div>
                                                 <span className="font-normal text-lg leading-[100%]">
-                                                    WPOL
+                                                    skyBNB
                                                 </span>
                                             </div>
                                             <div className="text-right">
@@ -395,7 +395,7 @@ const Converter1: React.FC = () => {
                                     <div className="space-y-[20px]">
                                         <div className="flex justify-between items-center">
                                             <span className="font-normal text-lg leading-[100%]">
-                                                1 WPOL =
+                                                1 skyBNB =
                                             </span>
                                             <span className="font-bold md:text-[20px] text-base leading-[100%]">
                                                 {liquidityData.priceUSDTtoUSDC.toFixed(
@@ -412,7 +412,7 @@ const Converter1: React.FC = () => {
                                                 {liquidityData.priceUSDCtoUSDT.toFixed(
                                                     4
                                                 )}{' '}
-                                                WPOL
+                                                skyBNB
                                             </span>
                                         </div>
                                         <div className="border-t pt-4">
@@ -457,7 +457,7 @@ const Converter1: React.FC = () => {
                                                     $
                                                 </div>
                                                 <span className="font-bold md:text-lg text-base leading-[100%]">
-                                                    WPOL/USDC LP
+                                                    skyBNB/USDC LP
                                                 </span>
                                             </div>
                                             <span className="font-bold md:text-[18px] text-base leading-[100%]">
@@ -478,7 +478,7 @@ const Converter1: React.FC = () => {
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="font-normal text-gray-700">
-                                                    Pool WPOL:
+                                                    Pool skyBNB:
                                                 </span>
                                                 <span className="font-semibold">
                                                     {liquidityData.usdtAmount.toFixed(

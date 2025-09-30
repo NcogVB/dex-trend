@@ -75,8 +75,8 @@ const Converter = () => {
 
             try {
                 const quote = await getQuote({
-                    fromSymbol: fromToken.symbol as 'USDC' | 'USDT',
-                    toSymbol: toToken.symbol as 'USDC' | 'USDT',
+                    fromSymbol: fromToken.symbol as 'skybnb' | 'USDT',
+                    toSymbol: toToken.symbol as 'skybnb' | 'USDT',
                     amountIn: amount,
                 })
 
@@ -109,8 +109,8 @@ const Converter = () => {
         setIsSwapping(true)
         try {
             const receipt = await swapExactInputSingle({
-                fromSymbol: fromToken.symbol as 'USDC' | 'USDT',
-                toSymbol: toToken.symbol as 'USDC' | 'USDT',
+                fromSymbol: fromToken.symbol as 'skybnb' | 'USDT',
+                toSymbol: toToken.symbol as 'skybnb' | 'USDT',
                 amountIn: fromAmount,
                 slippageTolerance: slippageTolerance,
             })
