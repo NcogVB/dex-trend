@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import TradingDashboard from '../../components/TradingDashboard'
-import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useOrder } from '../../contexts/OrderLimitContext'
 import { useSwap } from '../../contexts/SwapContext'
 
@@ -45,7 +45,6 @@ const Limit = () => {
     const [targetError, setTargetError] = useState<string>("");
     const [isFromDropdownOpen, setIsFromDropdownOpen] = useState<boolean>(false)
     const [isToDropdownOpen, setIsToDropdownOpen] = useState<boolean>(false)
-    const [slippageTolerance, setSlippageTolerance] = useState<number>(1)
     const fromDropdownRef = useRef<HTMLDivElement>(null)
     const toDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -138,7 +137,7 @@ const Limit = () => {
                 tokenIn: fromToken.address,
                 tokenOut: toToken.address,
                 amountIn: fromAmount,
-                amountOutMin: (parseFloat(toAmount) * (1 - slippageTolerance / 100)).toFixed(6), // Apply slippage
+                amountOutMin: parseFloat(toAmount).toFixed(6), // Apply slippage
                 targetSqrtPriceX96: targetPrice, // Pass the ratio, not sqrt price
                 triggerAbove: true,
                 ttlSeconds: 86400, // 24 hours
@@ -165,118 +164,57 @@ const Limit = () => {
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <div className="w-full">
                         <TradingDashboard fullScreen showOrders />
-                        <div className="modern-card w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px] ">
-                            <div className="flex flex-col lg:flex-row items-center gap-[20px] sm:gap-[25px] lg:gap-[51px]">
-                                {/* FROM TOKEN SECTION */}
-                                <div className="w-full lg:flex-1">
-                                    <div className="modern-input px-[12px] sm:px-[16px] py-[12px] sm:py-[16px]">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <input
-                                                type="number"
-                                                value={fromAmount}
-                                                onChange={(e) =>
-                                                    handleAmountChange(
-                                                        e.target.value
-                                                    )
-                                                }
-                                                placeholder="0.000"
-                                                className="text-[#333333] font-semibold text-[16px] sm:text-[18px] md:text-[20px] leading-[31.43px] bg-transparent border-none outline-none flex-1 mr-2 sm:mr-4 placeholder-[#888888] min-w-0"
-                                            />
-                                            <div
-                                                className="relative min-w-[80px] sm:min-w-[95px] flex-shrink-0"
-                                                ref={fromDropdownRef}
+                        <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                            {/* === Left: Limit Order Form === */}
+                            <div className="modern-card px-6 py-6 flex flex-col gap-6 ">
+                                <h2 className="text-lg sm:text-xl font-semibold text-[#111]">Create Order</h2>
+
+                                {/* From Token Section */}
+                                <div className="modern-input px-3 py-2 w-full">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            value={fromAmount}
+                                            onChange={(e) => handleAmountChange(e.target.value)}
+                                            placeholder="0.000"
+                                            className="flex-1 font-semibold text-lg bg-transparent border-none outline-none placeholder-[#888]"
+                                        />
+                                        <div className="relative" ref={fromDropdownRef}>
+                                            <button
+                                                onClick={() => setIsFromDropdownOpen(!isFromDropdownOpen)}
+                                                className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-gray-100"
                                             >
-                                                <button
-                                                    onClick={() =>
-                                                        setIsFromDropdownOpen(
-                                                            !isFromDropdownOpen
-                                                        )
-                                                    }
-                                                    aria-expanded={
-                                                        isFromDropdownOpen
-                                                    }
-                                                    aria-haspopup="listbox"
-                                                    className="w-full flex items-center cursor-pointer select-none hover:bg-[#F8F8F8] rounded-[6px] p-1 sm:p-2 transition-colors"
-                                                    type="button"
-                                                >
-                                                    <img
-                                                        className="token-img rounded-full shadow-[0px_6px_10px_0px_#00000013] size-[20px] sm:size-[23px] min-w-[20px] sm:min-w-[23px]"
-                                                        alt={fromToken.name}
-                                                        src={fromToken.img}
-                                                    />
-                                                    <span className="token-label text-[#000000] text-[14px] sm:text-[16px] font-normal text-left flex-grow ml-2 sm:ml-3 mr-2 sm:mr-8 truncate">
-                                                        {fromToken.symbol}
-                                                    </span>
-                                                    <ChevronDown
-                                                        className={`token-arrow transition-transform flex-shrink-0 ${isFromDropdownOpen
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                            }`}
-                                                    />
-                                                </button>
-                                                {isFromDropdownOpen && (
-                                                    <ul
-                                                        className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto text-[13px] font-normal"
-                                                        role="listbox"
-                                                        tabIndex={-1}
-                                                    >
-                                                        {tokens
-                                                            .filter(
-                                                                (token) =>
-                                                                    token.symbol !==
-                                                                    toToken.symbol
-                                                            )
-                                                            .map((token) => (
-                                                                <li
-                                                                    key={
-                                                                        token.symbol
-                                                                    }
-                                                                    onClick={() =>
-                                                                        handleTokenSelect(
-                                                                            token,
-                                                                            true
-                                                                        )
-                                                                    }
-                                                                    className="modern-dropdown-item flex items-center"
-                                                                    role="option"
-                                                                    tabIndex={0}
-                                                                >
-                                                                    <img
-                                                                        alt={
-                                                                            token.name
-                                                                        }
-                                                                        className="w-6 h-6 mr-2"
-                                                                        height="24"
-                                                                        src={
-                                                                            token.img
-                                                                        }
-                                                                        width="24"
-                                                                    />
-                                                                    {
-                                                                        token.symbol
-                                                                    }
-                                                                </li>
-                                                            ))}
-                                                    </ul>
-                                                )}
-                                            </div>
+                                                <img src={fromToken.img} alt={fromToken.symbol} className="w-6 h-6 rounded-full" />
+                                                <span>{fromToken.symbol}</span>
+                                                <ChevronDown className={`transition-transform ${isFromDropdownOpen ? "rotate-180" : ""}`} />
+                                            </button>
+                                            {isFromDropdownOpen && (
+                                                <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto text-sm">
+                                                    {tokens
+                                                        .filter((t) => t.symbol !== toToken.symbol)
+                                                        .map((t) => (
+                                                            <li
+                                                                key={t.symbol}
+                                                                onClick={() => handleTokenSelect(t, true)}
+                                                                className="modern-dropdown-item flex items-center"
+                                                            >
+                                                                <img src={t.img} className="w-5 h-5 mr-2" alt={t.symbol} />
+                                                                {t.symbol}
+                                                            </li>
+                                                        ))}
+                                                </ul>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* SWAP BUTTON */}
-                                <div className="flex justify-center lg:justify-start">
+                                {/* Swap Button */}
+                                <div className="flex justify-center">
                                     <button
                                         onClick={handleSwapTokens}
-                                        className="hover:bg-gray-100 p-2 sm:p-3 rounded-full transition-colors"
+                                        className="p-2 rounded-full hover:bg-gray-100 transition"
                                     >
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            width="24"
-                                            height="25"
-                                            className="sm:w-7 sm:h-7"
-                                            fill="none"
-                                        >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="25" fill="none">
                                             <path
                                                 fill="#000"
                                                 d="M19.876.5H8.138C3.04.5 0 3.538 0 8.634v11.718c0 5.11 3.04 8.148 8.138 8.148h11.724C24.96 28.5 28 25.462 28 20.366V8.634C28.014 3.538 24.974.5 19.876.5Zm-7.284 21c0 .14-.028.266-.084.406a1.095 1.095 0 0 1-.574.574 1.005 1.005 0 0 1-.406.084 1.056 1.056 0 0 1-.743-.308l-4.132-4.13a1.056 1.056 0 0 1 0-1.484 1.057 1.057 0 0 1 1.485 0l2.34 2.338V7.5c0-.574.476-1.05 1.05-1.05.574 0 1.064.476 1.064 1.05v14Zm8.755-9.128a1.04 1.04 0 0 1-.743.308 1.04 1.04 0 0 1-.742-.308l-2.34-2.338V21.5c0 .574-.475 1.05-1.05 1.05-.574 0-1.05-.476-1.05-1.05v-14c0-.14.028-.266.084-.406.112-.252.308-.462.574-.574a.99.99 0 0 1 .798 0c.127.056.238.126.337.224l4.132 4.13c.406.42.406 1.092 0 1.498Z"
@@ -285,210 +223,139 @@ const Limit = () => {
                                     </button>
                                 </div>
 
-                                {/* TO TOKEN SECTION */}
-                                <div className="w-full lg:flex-1">
-                                    <div className="modern-input px-[12px] sm:px-[16px] py-[12px] sm:py-[16px]">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <input
-                                                type="number"
-                                                value={toAmount}
-                                                onChange={(e) =>
-                                                    handleAmountChange(
-                                                        e.target.value
-                                                    )
-                                                }
-                                                placeholder="0.000"
-                                                className="text-[#333333] font-semibold text-[16px] sm:text-[18px] md:text-[20px] leading-[31.43px] bg-transparent border-none outline-none flex-1 mr-2 sm:mr-4 placeholder-[#888888] min-w-0"
-                                            />
-                                            <div
-                                                className="relative min-w-[80px] sm:min-w-[95px] flex-shrink-0"
-                                                ref={toDropdownRef}
+                                {/* To Token Section */}
+                                <div className="modern-input px-3 py-2 w-full">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="number"
+                                            value={toAmount}
+                                            onChange={(e) => handleAmountChange(e.target.value)}
+                                            placeholder="0.000"
+                                            className="flex-1 font-semibold text-lg bg-transparent border-none outline-none placeholder-[#888]"
+                                        />
+                                        <div className="relative" ref={toDropdownRef}>
+                                            <button
+                                                onClick={() => setIsToDropdownOpen(!isToDropdownOpen)}
+                                                className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-gray-100"
                                             >
-                                                <button
-                                                    onClick={() =>
-                                                        setIsToDropdownOpen(
-                                                            !isToDropdownOpen
-                                                        )
-                                                    }
-                                                    aria-expanded={
-                                                        isToDropdownOpen
-                                                    }
-                                                    aria-haspopup="listbox"
-                                                    className="w-full flex items-center cursor-pointer select-none hover:bg-[#F8F8F8] rounded-[6px] p-1 sm:p-2 transition-colors"
-                                                    type="button"
-                                                >
-                                                    <img
-                                                        className="token-img rounded-full shadow-[0px_6px_10px_0px_#00000013] size-[20px] sm:size-[23px] min-w-[20px] sm:min-w-[23px]"
-                                                        alt={toToken.name}
-                                                        src={toToken.img}
-                                                    />
-                                                    <span className="token-label text-[#000000] text-[14px] sm:text-[16px] font-normal text-left flex-grow ml-2 sm:ml-3 mr-2 sm:mr-8 truncate">
-                                                        {toToken.symbol}
-                                                    </span>
-                                                    <ChevronDown
-                                                        className={`ml-auto token-arrow transition-transform flex-shrink-0 ${isToDropdownOpen
-                                                            ? 'rotate-180'
-                                                            : ''
-                                                            }`}
-                                                    />
-                                                </button>
-                                                {isToDropdownOpen && (
-                                                    <ul
-                                                        className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto text-[13px] font-normal"
-                                                        role="listbox"
-                                                        tabIndex={-1}
-                                                    >
-                                                        {tokens
-                                                            .filter(
-                                                                (token) =>
-                                                                    token.symbol !==
-                                                                    fromToken.symbol
-                                                            )
-                                                            .map((token) => (
-                                                                <li
-                                                                    key={
-                                                                        token.symbol
-                                                                    }
-                                                                    onClick={() =>
-                                                                        handleTokenSelect(
-                                                                            token,
-                                                                            false
-                                                                        )
-                                                                    }
-                                                                    className="modern-dropdown-item flex items-center"
-                                                                    role="option"
-                                                                    tabIndex={0}
-                                                                >
-                                                                    <img
-                                                                        alt={
-                                                                            token.name
-                                                                        }
-                                                                        className="w-6 h-6 mr-2"
-                                                                        height="24"
-                                                                        src={
-                                                                            token.img
-                                                                        }
-                                                                        width="24"
-                                                                    />
-                                                                    {
-                                                                        token.symbol
-                                                                    }
-                                                                </li>
-                                                            ))}
-                                                    </ul>
-                                                )}
-                                            </div>
+                                                <img src={toToken.img} alt={toToken.symbol} className="w-6 h-6 rounded-full" />
+                                                <span>{toToken.symbol}</span>
+                                                <ChevronDown className={`transition-transform ${isToDropdownOpen ? "rotate-180" : ""}`} />
+                                            </button>
+                                            {isToDropdownOpen && (
+                                                <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto text-sm">
+                                                    {tokens
+                                                        .filter((t) => t.symbol !== fromToken.symbol)
+                                                        .map((t) => (
+                                                            <li
+                                                                key={t.symbol}
+                                                                onClick={() => handleTokenSelect(t, false)}
+                                                                className="modern-dropdown-item flex items-center"
+                                                            >
+                                                                <img src={t.img} className="w-5 h-5 mr-2" alt={t.symbol} />
+                                                                {t.symbol}
+                                                            </li>
+                                                        ))}
+                                                </ul>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* PRICE AND SLIPPAGE INFO */}
-                            <div className="mt-[24px] sm:mt-[36px] modern-card px-[16px] sm:px-[20px] py-[16px] sm:py-[20px] flex flex-col lg:flex-row items-center justify-between gap-4">
-                                <div className="w-full lg:flex-1 font-normal text-xs sm:text-sm leading-[18.86px] text-[#888888] text-center lg:text-left">
-                                    <span>Exchange Rate</span>
-                                    <p className="text-[#333333] font-semibold text-[16px] sm:text-[18px] leading-[31.43px] mt-1 sm:mt-2 break-all">
-                                        {toAmount
-                                            ? (
-                                                parseFloat(toAmount) /
-                                                parseFloat(fromAmount || '1')
-                                            ).toFixed(8)
-                                            : '0.00000000'}
-                                    </p>
-                                </div>
-
-                                <div className="w-full lg:flex-1 font-normal text-xs sm:text-sm leading-[18.86px] text-[#888888] text-center">
-                                    <span>
-                                        Expiration Date:{' '}
-                                        {new Date(
-                                            Date.now() + 24 * 60 * 60 * 1000
-                                        ).toLocaleDateString()}
-                                    </span>
-                                    <p className="text-[#333333] font-semibold text-[16px] sm:text-[18px] leading-[31.43px] mt-1 sm:mt-2">
-                                        {fromToken.symbol} - {toToken.symbol}
-                                    </p>
-                                </div>
-                                <div className="w-full lg:flex-1 font-normal text-xs sm:text-sm leading-[18.86px] text-[#888888] text-center">
-                                    <span>Target Price</span>
-                                    <input
-                                        type="number"
-                                        step="0.00000001"
-                                        value={targetPrice}
-                                        onChange={(e) => {
-                                            const input = e.target.value;
-                                            setTargetPrice(input);
-
-                                            const currentRate = toAmount
-                                                ? parseFloat(toAmount) / parseFloat(fromAmount || "1")
-                                                : 0;
-
-                                            if (parseFloat(input) < currentRate) {
-                                                setTargetError(`Target must be ≥ ${currentRate.toFixed(8)}`);
-                                            } else {
-                                                setTargetError("");
-                                            }
-                                        }}
-                                        className={`mt-1 sm:mt-2 w-full border rounded-md px-2 py-1 text-center text-[#333333] font-semibold text-[16px] sm:text-[18px] ${targetError ? "border-red-500" : "border-[#E5E5E5]"
-                                            }`}
-                                        placeholder="Set target rate"
-                                    />
-                                    {targetError && (
-                                        <p className="text-red-500 text-xs mt-1">{targetError}</p>
-                                    )}
-                                </div>
-
-                                <div className="w-full lg:flex-1">
-                                    <span className="flex items-center gap-2 justify-center lg:justify-end text-[#888888] text-xs sm:text-sm">
-                                        Slippage Tolerance
-                                        <CircleQuestionMarkIcon
-                                            size={14}
-                                            className="sm:w-4 sm:h-4"
-                                        />
-                                    </span>
-                                    <div className="flex items-center justify-center lg:justify-end mt-1 sm:mt-2">
+                                {/* Target / Expiration / Current Rate */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="flex flex-col text-center">
+                                        <span className="text-xs text-gray-500">Target Price</span>
                                         <input
                                             type="number"
-                                            value={slippageTolerance}
-                                            onChange={(e) =>
-                                                setSlippageTolerance(
-                                                    parseFloat(
-                                                        e.target.value
-                                                    ) || 1
-                                                )
-                                            }
-                                            className="font-semibold text-[16px] sm:text-[18px] leading-[31.43px] text-[#DC2626] bg-transparent border-none outline-none w-10 sm:w-12 text-right"
-                                            min="0.1"
-                                            max="50"
-                                            step="0.1"
+                                            step="0.00000001"
+                                            value={targetPrice}
+                                            onChange={(e) => {
+                                                const input = e.target.value;
+                                                setTargetPrice(input);
+                                                const currentRate = toAmount
+                                                    ? parseFloat(toAmount) / parseFloat(fromAmount || "1")
+                                                    : 0;
+                                                if (parseFloat(input) < currentRate) {
+                                                    setTargetError(`Target must be ≥ ${currentRate.toFixed(8)}`);
+                                                } else {
+                                                    setTargetError("");
+                                                }
+                                            }}
+                                            placeholder="Set target"
+                                            className={`mt-1 border rounded-md px-2 py-2 text-center font-semibold ${targetError ? "border-red-500 text-red-600" : "border-gray-300"
+                                                }`}
                                         />
-                                        <span className="font-semibold text-[16px] sm:text-[18px] leading-[31.43px] text-[#DC2626]">
-                                            %
-                                        </span>
+                                        {targetError && <p className="text-xs text-red-500 mt-1">{targetError}</p>}
+                                    </div>
+
+                                    <div className="flex flex-col text-center">
+                                        <span className="text-xs text-gray-500">Expiration</span>
+                                        <p className="mt-1 font-semibold text-[16px]">
+                                            {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString()}
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-col text-center">
+                                        <span className="text-xs text-gray-500">Current Rate</span>
+                                        <p className="mt-1 font-semibold text-[16px]">
+                                            {toAmount
+                                                ? (parseFloat(toAmount) / parseFloat(fromAmount || "1")).toFixed(8)
+                                                : "0.00000000"}
+                                        </p>
                                     </div>
                                 </div>
+
+                                {/* Place Order */}
+                                <button
+                                    onClick={handleCreateOrder}
+                                    disabled={!fromAmount || !toAmount || loading || isCreatingOrder}
+                                    className={`w-full py-3 rounded-lg font-semibold transition ${!fromAmount || !toAmount || loading || isCreatingOrder
+                                        ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                                        }`}
+                                >
+                                    {isCreatingOrder ? "Placing Order..." : "Place Limit Order"}
+                                </button>
                             </div>
 
-                            <button
-                                onClick={handleCreateOrder}
-                                disabled={
-                                    !fromAmount ||
-                                    !toAmount ||
-                                    loading ||
-                                    isCreatingOrder
-                                }
-                                className={`modern-button mt-[20px] sm:mt-[25px] md:mt-[40px] w-full p-[12px] sm:p-[16px] text-center text-sm sm:text-base font-semibold ${!fromAmount ||
-                                    !toAmount ||
-                                    loading ||
-                                    isCreatingOrder
-                                    ? '!bg-[#E5E5E5] !text-[#888888]'
-                                    : ''
-                                    }`}
-                            >
-                                {isCreatingOrder
-                                    ? 'Creating Order...'
-                                    : 'Create Limit Order'}
-                            </button>
+                            {/* === Right: Active Orders === */}
+                            <div className="modern-card px-6 py-6 flex flex-col h-full">
+                                <h2 className="text-lg sm:text-xl font-semibold text-[#111] mb-3">Active Orders</h2>
+                                <div className="bg-[#F9FAFB] border border-[#E5E5E5] rounded-lg p-4 flex-1 overflow-y-auto max-h-[70vh]">
+                                    <ul className="space-y-3">
+                                        <li className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm">
+                                            <div>
+                                                <p className="text-sm font-medium">#1 USDC → USDT</p>
+                                                <p className="text-xs text-gray-500">1.5 USDC in | min 2200 USDT out</p>
+                                            </div>
+                                            <button className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200">
+                                                Cancel
+                                            </button>
+                                        </li>
+                                        <li className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm">
+                                            <div>
+                                                <p className="text-sm font-medium">#2 BTC → USDC</p>
+                                                <p className="text-xs text-gray-500">0.2 BTC in | min 3.2 USDC out</p>
+                                            </div>
+                                            <button className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200">
+                                                Cancel
+                                            </button>
+                                        </li>
+                                        <li className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm">
+                                            <div>
+                                                <p className="text-sm font-medium">#3 USDC → MATIC</p>
+                                                <p className="text-xs text-gray-500">500 USDC in | min 800 MATIC out</p>
+                                            </div>
+                                            <button className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200">
+                                                Cancel
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
+
                     </div>
                 </div>
             </div>
