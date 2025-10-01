@@ -144,18 +144,20 @@ const Limit = () => {
     return (
         <div>
             <div className="hero-section">
-                <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
+                <div className="flex-grow flex flex-col items-center w-full p-3">
                     <div className="w-full">
                         <TradingDashboard fullScreen showOrders pair={`${fromToken.symbol}${toToken.symbol}`} // 👈 build pair dynamically
                         />
-                        <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                    </div>
+                    <div className="w-full">
+                        <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-3 items-start mt-3">
                             {/* === Left: Limit Order Form === */}
-                            <div className="modern-card px-6 py-6 flex flex-col gap-6 ">
-                                <h2 className="text-lg sm:text-xl font-semibold text-[#111]">Create Order</h2>
+                            <div className="modern-card p-6 flex flex-col gap-5">
+                                <h2 className="text-xl font-semibold text-[#111] mb-1">Create Order</h2>
 
                                 {/* From Token Section */}
-                                <div className="modern-input px-3 py-2 w-full">
-                                    <div className="flex items-center gap-2">
+                                <div className="modern-input px-4 py-3 w-full">
+                                    <div className="flex items-center gap-3">
                                         <input
                                             type="number"
                                             value={fromAmount}
@@ -166,40 +168,57 @@ const Limit = () => {
                                         <div className="relative" ref={fromDropdownRef}>
                                             <button
                                                 onClick={() => setIsFromDropdownOpen(!isFromDropdownOpen)}
-                                                className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-gray-100"
+                                                className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors"
                                             >
                                                 <img src={fromToken.img} alt={fromToken.symbol} className="w-6 h-6 rounded-full" />
-                                                <span>{fromToken.symbol}</span>
-                                                <ChevronDown className={`transition-transform ${isFromDropdownOpen ? "rotate-180" : ""}`} />
+                                                <span className="font-medium">{fromToken.symbol}</span>
+                                                <ChevronDown className={`w-4 h-4 transition-transform ${isFromDropdownOpen ? "rotate-180" : ""}`} />
                                             </button>
                                             {isFromDropdownOpen && (
                                                 <ul
-                                                    className="absolute left-0 right-0 mt-1 w-full max-h-48 overflow-y-auto bg-white rounded shadow-lg z-50 text-sm
-scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
+                                                    className="absolute right-0 mt-2 w-48 max-h-48 overflow-y-auto bg-white rounded-lg shadow-lg z-50 text-sm border border-gray-200 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
                                                     role="listbox"
-                                                >                                                    {tokens
-                                                    .filter((t) => t.symbol !== toToken.symbol)
-                                                    .map((t) => (
-                                                        <li
-                                                            key={t.symbol}
-                                                            onClick={() => handleTokenSelect(t, true)}
-                                                            className="modern-dropdown-item flex items-center"
-                                                        >
-                                                            <img src={t.img} className="w-5 h-5 mr-2" alt={t.symbol} />
-                                                            {t.symbol}
-                                                        </li>
-                                                    ))}
+                                                >
+                                                    {tokens
+                                                        .filter((t) => t.symbol !== toToken.symbol)
+                                                        .map((t) => (
+                                                            <li
+                                                                key={t.symbol}
+                                                                onClick={() => handleTokenSelect(t, true)}
+                                                                className="flex items-center cursor-pointer px-3 py-2.5 hover:bg-gray-50 transition-colors"
+                                                            >
+                                                                <img src={t.img} className="w-5 h-5 mr-2.5 rounded-full" alt={t.symbol} />
+                                                                <span className="font-medium">{t.symbol}</span>
+                                                            </li>
+                                                        ))}
                                                 </ul>
                                             )}
                                         </div>
                                     </div>
                                 </div>
 
+                                {/* Percentage Buttons */}
+                                <div className="flex gap-2">
+                                    {[25, 50, 75, 100].map((pct) => (
+                                        <button
+                                            key={pct}
+                                            onClick={() => {
+                                                const bal = fromToken.balance
+                                                const calcAmt = ((bal * pct) / 100).toFixed(6)
+                                                setFromAmount(calcAmt)
+                                            }}
+                                            className="cursor-pointer w-full bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-2 text-sm font-medium text-[#888888] hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors"
+                                        >
+                                            {pct === 100 ? 'MAX' : `${pct}%`}
+                                        </button>
+                                    ))}
+                                </div>
+
                                 {/* Swap Button */}
                                 <div className="flex justify-center">
                                     <button
                                         onClick={handleSwapTokens}
-                                        className="p-2 rounded-full hover:bg-gray-100 transition"
+                                        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="25" fill="none">
                                             <path
@@ -211,35 +230,34 @@ scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
                                 </div>
 
                                 {/* To Token Section */}
-                                <div className="modern-input px-3 py-2 w-full">
-                                    <div className="flex items-center gap-2">
+                                <div className="modern-input px-4 py-3 w-full">
+                                    <div className="flex items-center gap-3">
                                         <input
                                             type="number"
                                             value={toAmount}
-                                            onChange={(e) => handleAmountChange(e.target.value)}
+                                            readOnly
                                             placeholder="0.000"
                                             className="flex-1 font-semibold text-lg bg-transparent border-none outline-none placeholder-[#888]"
                                         />
                                         <div className="relative overflow-visible" ref={toDropdownRef}>
                                             <button
                                                 onClick={() => setIsToDropdownOpen(!isToDropdownOpen)}
-                                                className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-gray-100"
+                                                className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 transition-colors"
                                             >
                                                 <img
                                                     src={toToken.img}
                                                     alt={toToken.symbol}
                                                     className="w-6 h-6 rounded-full"
                                                 />
-                                                <span>{toToken.symbol}</span>
+                                                <span className="font-medium">{toToken.symbol}</span>
                                                 <ChevronDown
-                                                    className={`transition-transform ${isToDropdownOpen ? "rotate-180" : ""}`}
+                                                    className={`w-4 h-4 transition-transform ${isToDropdownOpen ? "rotate-180" : ""}`}
                                                 />
                                             </button>
 
                                             {isToDropdownOpen && (
                                                 <ul
-                                                    className="absolute left-0 right-0 mt-1 w-full max-h-48 overflow-y-auto bg-white rounded shadow-lg z-50 text-sm
-                 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
+                                                    className="absolute right-0 mt-2 w-48 max-h-48 overflow-y-auto bg-white rounded-lg shadow-lg z-50 text-sm border border-gray-200 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
                                                     role="listbox"
                                                 >
                                                     {tokens
@@ -248,23 +266,22 @@ scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
                                                             <li
                                                                 key={t.symbol}
                                                                 onClick={() => handleTokenSelect(t, false)}
-                                                                className="flex items-center cursor-pointer px-3 py-2 hover:bg-gray-100 rounded"
+                                                                className="flex items-center cursor-pointer px-3 py-2.5 hover:bg-gray-50 transition-colors"
                                                             >
-                                                                <img src={t.img} className="w-5 h-5 mr-2" alt={t.symbol} />
-                                                                <span>{t.symbol}</span>
+                                                                <img src={t.img} className="w-5 h-5 mr-2.5 rounded-full" alt={t.symbol} />
+                                                                <span className="font-medium">{t.symbol}</span>
                                                             </li>
                                                         ))}
                                                 </ul>
                                             )}
                                         </div>
-
                                     </div>
                                 </div>
 
                                 {/* Target / Expiration / Current Rate */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="flex flex-col text-center">
-                                        <span className="text-xs text-gray-500">Target Price</span>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-medium text-gray-500 mb-2">Target Price</span>
                                         <input
                                             type="number"
                                             step="0.00000001"
@@ -282,26 +299,32 @@ scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
                                                 }
                                             }}
                                             placeholder="Set target"
-                                            className={`mt-1 border rounded-md px-2 py-2 text-center font-semibold ${targetError ? "border-red-500 text-red-600" : "border-gray-300"
-                                                }`}
+                                            className={`border rounded-lg px-3 py-2.5 text-center font-semibold focus:outline-none focus:ring-2 ${targetError
+                                                ? "border-red-500 text-red-600 focus:ring-red-200"
+                                                : "border-gray-300 focus:ring-blue-200"
+                                            }`}
                                         />
-                                        {targetError && <p className="text-xs text-red-500 mt-1">{targetError}</p>}
+                                        {targetError && <p className="text-xs text-red-500 mt-1.5">{targetError}</p>}
                                     </div>
 
-                                    <div className="flex flex-col text-center">
-                                        <span className="text-xs text-gray-500">Expiration</span>
-                                        <p className="mt-1 font-semibold text-[16px]">
-                                            {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString()}
-                                        </p>
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-medium text-gray-500 mb-2">Expiration</span>
+                                        <div className="border border-gray-300 rounded-lg px-3 py-2.5 text-center">
+                                            <p className="font-semibold text-[15px]">
+                                                {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString()}
+                                            </p>
+                                        </div>
                                     </div>
 
-                                    <div className="flex flex-col text-center">
-                                        <span className="text-xs text-gray-500">Current Rate</span>
-                                        <p className="mt-1 font-semibold text-[16px]">
-                                            {toAmount
-                                                ? (parseFloat(toAmount) / parseFloat(fromAmount || "1")).toFixed(8)
-                                                : "0.00000000"}
-                                        </p>
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-medium text-gray-500 mb-2">Current Rate</span>
+                                        <div className="border border-gray-300 rounded-lg px-3 py-2.5 text-center bg-gray-50">
+                                            <p className="font-semibold text-[15px]">
+                                                {toAmount
+                                                    ? (parseFloat(toAmount) / parseFloat(fromAmount || "1")).toFixed(8)
+                                                    : "0.00000000"}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -309,44 +332,44 @@ scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
                                 <button
                                     onClick={handleCreateOrder}
                                     disabled={!fromAmount || !toAmount || loading || isCreatingOrder || !targetPrice}
-                                    className={`w-full py-3 rounded-lg font-semibold transition ${!fromAmount || !toAmount || loading || isCreatingOrder || !targetPrice
+                                    className={`w-full py-3.5 rounded-lg font-semibold transition-all ${!fromAmount || !toAmount || loading || isCreatingOrder || !targetPrice
                                         ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                                        : "bg-blue-600 hover:bg-blue-700 text-white"
-                                        }`}
+                                        : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md"
+                                    }`}
                                 >
                                     {isCreatingOrder ? "Placing Order..." : "Place Limit Order"}
                                 </button>
                             </div>
 
                             {/* === Right: Active Orders === */}
-                            <div className="modern-card px-6 py-6 flex flex-col h-full">
-                                <h2 className="text-lg sm:text-xl font-semibold text-[#111] mb-3">Active Orders</h2>
+                            <div className="modern-card p-6 flex flex-col h-full">
+                                <h2 className="text-xl font-semibold text-[#111] mb-4">Active Orders</h2>
                                 <div className="bg-[#F9FAFB] border border-[#E5E5E5] rounded-lg p-4 flex-1 overflow-y-auto max-h-[70vh]">
                                     <ul className="space-y-3">
-                                        <li className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm">
+                                        <li className="flex justify-between items-center bg-white rounded-lg p-4 shadow-sm border border-gray-100">
                                             <div>
-                                                <p className="text-sm font-medium">#1 USDC → USDT</p>
+                                                <p className="text-sm font-semibold mb-1">#1 USDC → USDT</p>
                                                 <p className="text-xs text-gray-500">1.5 USDC in | min 2200 USDT out</p>
                                             </div>
-                                            <button className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200">
+                                            <button className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-100 text-red-600 hover:bg-red-200 transition-colors">
                                                 Cancel
                                             </button>
                                         </li>
-                                        <li className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm">
+                                        <li className="flex justify-between items-center bg-white rounded-lg p-4 shadow-sm border border-gray-100">
                                             <div>
-                                                <p className="text-sm font-medium">#2 BTC → USDC</p>
+                                                <p className="text-sm font-semibold mb-1">#2 BTC → USDC</p>
                                                 <p className="text-xs text-gray-500">0.2 BTC in | min 3.2 USDC out</p>
                                             </div>
-                                            <button className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200">
+                                            <button className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-100 text-red-600 hover:bg-red-200 transition-colors">
                                                 Cancel
                                             </button>
                                         </li>
-                                        <li className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm">
+                                        <li className="flex justify-between items-center bg-white rounded-lg p-4 shadow-sm border border-gray-100">
                                             <div>
-                                                <p className="text-sm font-medium">#3 USDC → MATIC</p>
+                                                <p className="text-sm font-semibold mb-1">#3 USDC → MATIC</p>
                                                 <p className="text-xs text-gray-500">500 USDC in | min 800 MATIC out</p>
                                             </div>
-                                            <button className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200">
+                                            <button className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-100 text-red-600 hover:bg-red-200 transition-colors">
                                                 Cancel
                                             </button>
                                         </li>
@@ -354,7 +377,6 @@ scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
             </div>
