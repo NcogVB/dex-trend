@@ -32,7 +32,7 @@ const ConverterPool: React.FC = () => {
         setIsAdding(true)
         try {
             const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider)
-            const poolAddress = await factory.getPool(fromToken.address, toToken.address, 3000)
+            const poolAddress = await factory.getPool(fromToken.address, toToken.address, 500)
             if (poolAddress === ethers.ZeroAddress) {
                 alert("No pool exists for this pair. Create pool first.")
                 setIsAdding(false)

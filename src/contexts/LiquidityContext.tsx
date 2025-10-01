@@ -33,7 +33,7 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     ];
     const addLiquidity = useCallback(
         async (opts: AddLiquidityOpts) => {
-            const { tokenA, tokenB, amountA, amountB, fee = 3000 } = opts;
+            const { tokenA, tokenB, amountA, amountB, fee = 500 } = opts;
             setLoading(true);
 
             try {

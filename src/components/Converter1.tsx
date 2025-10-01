@@ -9,6 +9,7 @@ import {
 } from '../contexts/ABI'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
+import { tokens } from '../pages/limit/Tokens'
 
 interface LiquidityData {
     poolTokens: number
@@ -42,7 +43,11 @@ const Converter1: React.FC = () => {
         priceUSDCtoUSDT: 0,
         priceUSDTtoUSDC: 0,
     })
-
+    const [tokenIn, setTokenIn] = useState<string>(tokens[0].symbol);
+    const [tokenOut, setTokenOut] = useState<string>(tokens[1].symbol);
+    const getTokenAddress = (symbol: string): string | undefined => {
+        return tokens.find(token => token.symbol === symbol)?.address;
+    };
     const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = Number(e.target.value)
         setPercentage(value)
@@ -65,7 +70,36 @@ const Converter1: React.FC = () => {
                 provider
             );
 
-            const poolAddress = "0x8d58183fE3b84d62bbd2d633b1980604a2368ee5";
+            const FACTORY_ABI = [
+                "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)"
+            ];
+            const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
+
+            const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
+
+            const tokenInAddress = getTokenAddress(tokenIn);
+            const tokenOutAddress = getTokenAddress(tokenOut);
+
+            if (!tokenInAddress || !tokenOutAddress) {
+                console.error("Token address not found for:", tokenIn, tokenOut);
+                return;
+            }
+
+            // Ensure addresses are properly formatted
+            const token0Addr = ethers.getAddress(tokenInAddress);
+            const token1Addr = ethers.getAddress(tokenOutAddress);
+
+            // Sort tokens before calling factory (Uniswap requires token0 < token1)
+            const [t0, t1] = token0Addr.toLowerCase() < token1Addr.toLowerCase()
+                ? [token0Addr, token1Addr]
+                : [token1Addr, token0Addr];
+            const poolAddress = await factory.getPool(t0, t1, 500); // 500 = 0.05% fee tier
+
+            if (poolAddress === ethers.ZeroAddress) {
+                console.error("No pool found for selected token pair");
+                return;
+            }
+
             const poolContract = new ethers.Contract(poolAddress, UNISWAP_V3_POOL_ABI, provider);
 
             // Fetch position and pool data
@@ -83,7 +117,7 @@ const Converter1: React.FC = () => {
             const [poolLiquidity, slot0, fee, token0Address, token1Address] = poolData;
 
             // Build Token objects (get decimals properly in production, here assume 6 for USDC, 18 for USDT if ERC20 default)
-            const chainId = 11155111;
+            const chainId = 1476;
             const token0 = new Token(chainId, token0Address, 18, "USDC", "USDC");
             const token1 = new Token(chainId, token1Address, 18, "USDT", "USDT");
 
@@ -203,12 +237,36 @@ const Converter1: React.FC = () => {
                         </button>
 
                         {/* Header */}
-                        <h2 className="mb-4 font-bold text-xl sm:text-3xl leading-[100%] text-black">
-                            Remove skyBNB/USDC Liquidity
-                        </h2>
-                        <p className="text-black font-normal text-xl leading-[18.86px] mb-6">
-                            To Receive skyBNB and USDC
-                        </p>
+                        {/* Token Selection */}
+                        <div className="mb-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Select Token Pair
+                            </label>
+                            <div className="flex gap-3">
+                                <select
+                                    value={tokenIn}
+                                    onChange={(e) => setTokenIn(e.target.value)}
+                                    className="flex-1 p-3 rounded-[8px] border border-gray-300 bg-white text-black"
+                                >
+                                    {tokens.map((t) => (
+                                        <option key={t.address} value={t.symbol}>
+                                            {t.symbol}
+                                        </option>
+                                    ))}
+                                </select>
+                                <span className="flex items-center font-semibold text-gray-600">→</span>
+                                <select
+                                    value={tokenOut}
+                                    onChange={(e) => setTokenOut(e.target.value)}
+                                    className="flex-1 p-3 rounded-[8px] border border-gray-300 bg-white text-black"
+                                > {tokens.map((t) => (
+                                    <option key={t.address} value={t.symbol}>
+                                        {t.symbol}
+                                    </option>
+                                ))}
+                                </select>
+                            </div>
+                        </div>
 
                         {/* Position ID Input */}
                         <div className="mb-6">
@@ -308,10 +366,10 @@ const Converter1: React.FC = () => {
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center space-x-2">
                                                 <div className="size-[30px] bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                                    W
+
                                                 </div>
                                                 <span className="font-normal text-lg leading-[100%]">
-                                                    skyBNB
+                                                    {tokenIn}
                                                 </span>
                                             </div>
                                             <div className="text-right">
@@ -330,10 +388,10 @@ const Converter1: React.FC = () => {
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center space-x-2">
                                                 <div className="size-[30px] bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                                    $
+
                                                 </div>
                                                 <span className="font-normal text-lg leading-[100%]">
-                                                    USDC
+                                                    {tokenOut}
                                                 </span>
                                             </div>
                                             <div className="text-right">
@@ -377,24 +435,24 @@ const Converter1: React.FC = () => {
                                     <div className="space-y-[20px]">
                                         <div className="flex justify-between items-center">
                                             <span className="font-normal text-lg leading-[100%]">
-                                                1 skyBNB =
+                                                1 {tokenIn} =
                                             </span>
                                             <span className="font-bold md:text-[20px] text-base leading-[100%]">
                                                 {liquidityData.priceUSDTtoUSDC.toFixed(
                                                     4
                                                 )}{' '}
-                                                USDC
+                                                {tokenOut}
                                             </span>
                                         </div>
                                         <div className="flex justify-between items-center">
                                             <span className="font-normal text-lg leading-[100%]">
-                                                1 USDC =
+                                                1 {tokenOut} =
                                             </span>
                                             <span className="font-bold md:text-[20px] text-base leading-[100%]">
                                                 {liquidityData.priceUSDCtoUSDT.toFixed(
                                                     4
                                                 )}{' '}
-                                                skyBNB
+                                                {tokenIn}
                                             </span>
                                         </div>
                                         <div className="border-t pt-4">
@@ -433,13 +491,13 @@ const Converter1: React.FC = () => {
                                         <div className="flex justify-between items-center mb-4">
                                             <div className="flex items-center space-x-2">
                                                 <div className="size-[24px] bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                                    W
+
                                                 </div>
                                                 <div className="size-[24px] bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
-                                                    $
+
                                                 </div>
                                                 <span className="font-bold md:text-lg text-base leading-[100%]">
-                                                    skyBNB/USDC LP
+                                                    {tokenIn}/{tokenOut} LP
                                                 </span>
                                             </div>
                                             <span className="font-bold md:text-[18px] text-base leading-[100%]">
@@ -460,7 +518,7 @@ const Converter1: React.FC = () => {
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="font-normal text-gray-700">
-                                                    Pool skyBNB:
+                                                    Pool {tokenIn}:
                                                 </span>
                                                 <span className="font-semibold">
                                                     {liquidityData.usdtAmount.toFixed(
@@ -470,7 +528,7 @@ const Converter1: React.FC = () => {
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="font-normal text-gray-700">
-                                                    Pool USDC:
+                                                    Pool {tokenOut}:
                                                 </span>
                                                 <span className="font-semibold">
                                                     {liquidityData.usdcAmount.toFixed(

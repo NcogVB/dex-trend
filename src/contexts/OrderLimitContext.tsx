@@ -13,8 +13,12 @@ type CreateOrderParams = {
     ttlSeconds: number;
 };
 
+type cancelParams = {
+    orderId: number
+}
 type OrderContextType = {
     createOrder: (params: CreateOrderParams) => Promise<string>;
+    cancelOrder: (params: cancelParams) => Promise<string>;
     loading: boolean;
     error: string | null;
 };
@@ -33,7 +37,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const EXECUTOR_ADDRESS = "0xB25202f5748116bC5A5e9eB3fCaBC7d5b5777996";
+    const EXECUTOR_ADDRESS = "0x10e9c43B9Fbf78ca0d83515AE36D360110e4331d";
     const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
     const FACTORY_ABI = [
         "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
@@ -42,17 +46,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     /**
      * Fetch token decimals dynamically
      */
-    async function getBestPool(factory: ethers.Contract, tokenIn: string, tokenOut: string): Promise<{ address: string, fee: number }> {
-        const feeTiers = [3000, 500, 100]; // check in order of preference
-        for (const fee of feeTiers) {
-            const pool = await factory.getPool(tokenIn, tokenOut, fee);
-            if (pool !== ethers.ZeroAddress) {
-                return { address: pool, fee };
-            }
-        }
-        throw new Error("No pool found for this token pair at supported fee tiers");
-    }
-
     const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
         if (!signer) throw new Error("Signer not available");
         try {
@@ -139,8 +132,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // Fetch pool address from factory
             const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
-            const { address: poolAddress, fee: poolFee } = await getBestPool(factory, params.tokenIn, params.tokenOut);
-            console.log("✅ Found pool:", poolAddress, "with fee tier:", poolFee);
+            const poolAddress = await factory.getPool(params.tokenIn, params.tokenOut, 3000);
 
             if (!poolAddress || poolAddress === ethers.ZeroAddress) {
                 throw new Error("Pool does not exist for this token pair");
@@ -199,8 +191,26 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     };
 
+    const cancelOrder = async (params: cancelParams) => {
+        if (!signer || !account) {
+            throw new Error("Wallet not connected");
+        }
+        setLoading(true);
+        const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, signer);
+
+        try {
+            const tx = await executor.cancelOrder(params.orderId)
+            console.log("⛽ Sent tx:", tx.hash);
+            const receipt = await tx.wait();
+            console.log("✅ Order cancelled in block:", receipt.blockNumber);
+            return tx.hash;
+        } catch (error) {
+            console.log(error)
+        }
+    }
     const contextValue: OrderContextType = {
         createOrder,
+        cancelOrder,
         loading,
         error,
     };

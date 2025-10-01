@@ -4,6 +4,9 @@ import { ChevronDown } from 'lucide-react'
 import { useOrder } from '../../contexts/OrderLimitContext'
 import { useSwap } from '../../contexts/SwapContext'
 import { tokens } from './Tokens'
+import ExecutorABI from "../../ABI/LimitOrder.json";
+import { ethers } from 'ethers'
+import { useWallet } from '../../contexts/WalletContext'
 
 interface Token {
     symbol: string
@@ -15,8 +18,9 @@ interface Token {
 }
 
 const Limit = () => {
-    const { createOrder, loading } = useOrder()
+    const { createOrder, cancelOrder, loading } = useOrder()
     const { getQuote } = useSwap()
+    const { account } = useWallet()
 
     const [isCreatingOrder, setIsCreatingOrder] = useState<boolean>(false)
 
@@ -141,6 +145,134 @@ const Limit = () => {
             setIsCreatingOrder(false)
         }
     }
+    const MIN_ERC20_ABI = ["function decimals() view returns (uint8)"];
+    function getReadProvider() {
+        try {
+            if (typeof (window as any).ethereum !== "undefined") {
+                return new ethers.BrowserProvider((window as any).ethereum);
+            } else {
+                return new ethers.JsonRpcProvider("https://api.skyhighblockchain.com");
+            }
+        } catch (e) {
+            console.warn("Failed to create provider, falling back to JsonRpcProvider:", e);
+            return new ethers.JsonRpcProvider("https://api.skyhighblockchain.com");
+        }
+    }
+    const EXECUTOR_ADDRESS = "0x10e9c43B9Fbf78ca0d83515AE36D360110e4331d";
+    const [openOrders, setOpenOrders] = useState<any[]>([]);
+
+    const fetchOrders = async () => {
+
+        try {
+            const provider = getReadProvider();
+            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
+
+            // fetch next order id (total +1)
+            const nextIdBN = await executor.nextOrderId();
+            const nextId = Number(nextIdBN || 0);
+
+            if (nextId <= 1) {
+                setOpenOrders([]);
+                return;
+            }
+
+            // token decimals cache
+            const decimalsCache: Record<string, number> = {};
+
+            const open: any[] = [];
+            const history: any[] = [];
+
+            // fetch all orders up to nextId - 1
+            const batch = [];
+            for (let id = 1; id < nextId; id++) {
+                batch.push(executor.getOrder(id).then((ord) => ({ id, ord })));
+            }
+
+            const results = await Promise.allSettled(batch);
+
+            for (const res of results) {
+                if (res.status !== "fulfilled") continue;
+                const { id, ord } = res.value;
+                if (!account) {
+                    console.log("not initialize")
+                    return
+                }
+                // only include orders for this account
+                if (ord.maker.toLowerCase() !== account.toLowerCase()) continue;
+
+                const tokenIn = ord.tokenIn;
+                const tokenOut = ord.tokenOut;
+
+                // decimals lookup
+                if (!(tokenIn.toLowerCase() in decimalsCache)) {
+                    try {
+                        const erc20 = new ethers.Contract(tokenIn, MIN_ERC20_ABI, provider);
+                        decimalsCache[tokenIn.toLowerCase()] = Number(await erc20.decimals());
+                    } catch {
+                        decimalsCache[tokenIn.toLowerCase()] = 18;
+                    }
+                }
+                if (!(tokenOut.toLowerCase() in decimalsCache)) {
+                    try {
+                        const erc20 = new ethers.Contract(tokenOut, MIN_ERC20_ABI, provider);
+                        decimalsCache[tokenOut.toLowerCase()] = Number(await erc20.decimals());
+                    } catch {
+                        decimalsCache[tokenOut.toLowerCase()] = 18;
+                    }
+                }
+
+                const decimalsIn = decimalsCache[tokenIn.toLowerCase()];
+                const decimalsOut = decimalsCache[tokenOut.toLowerCase()];
+
+                // format
+                const amountIn = ethers.formatUnits(ord.amountIn, decimalsIn);
+                const minOut = ethers.formatUnits(ord.amountOutMin, decimalsOut);
+
+                const orderData = {
+                    id,
+                    maker: ord.maker,
+                    tokenIn,
+                    tokenOut,
+                    poolFee: Number(ord.poolFee),
+                    pool: ord.pool,
+                    amountIn,
+                    minOut,
+                    targetSqrt: ord.targetSqrtPriceX96.toString(),
+                    triggerAbove: ord.triggerAbove,
+                    expiry: Number(ord.expiry),
+                    filled: ord.filled,
+                    cancelled: ord.cancelled,
+                };
+
+                const isExpired = orderData.expiry <= Math.floor(Date.now() / 1000);
+
+                if (!orderData.filled && !orderData.cancelled && !isExpired) {
+                    open.push(orderData);
+                } else {
+                    history.push(orderData);
+                }
+            }
+
+            open.sort((a, b) => b.id - a.id);
+            setOpenOrders(open);
+        } catch (err: any) {
+            console.error("Failed to fetch orders:", err?.message ?? err);
+        }
+    };
+
+
+    const handleCancel = async (orderId: number) => {
+        await cancelOrder({ orderId })
+        console.log("Cancel order:", orderId);
+    };
+
+    // fetch on mount + poll every 15s
+    useEffect(() => {
+        fetchOrders();
+        const t = setInterval(fetchOrders, 15000);
+        return () => clearInterval(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     return (
         <div>
             <div className="hero-section">
@@ -322,37 +454,44 @@ scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
                             <div className="modern-card px-6 py-6 flex flex-col h-full">
                                 <h2 className="text-lg sm:text-xl font-semibold text-[#111] mb-3">Active Orders</h2>
                                 <div className="bg-[#F9FAFB] border border-[#E5E5E5] rounded-lg p-4 flex-1 overflow-y-auto max-h-[70vh]">
-                                    <ul className="space-y-3">
-                                        <li className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm">
-                                            <div>
-                                                <p className="text-sm font-medium">#1 USDC → USDT</p>
-                                                <p className="text-xs text-gray-500">1.5 USDC in | min 2200 USDT out</p>
-                                            </div>
-                                            <button className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200">
-                                                Cancel
-                                            </button>
-                                        </li>
-                                        <li className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm">
-                                            <div>
-                                                <p className="text-sm font-medium">#2 BTC → USDC</p>
-                                                <p className="text-xs text-gray-500">0.2 BTC in | min 3.2 USDC out</p>
-                                            </div>
-                                            <button className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200">
-                                                Cancel
-                                            </button>
-                                        </li>
-                                        <li className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm">
-                                            <div>
-                                                <p className="text-sm font-medium">#3 USDC → MATIC</p>
-                                                <p className="text-xs text-gray-500">500 USDC in | min 800 MATIC out</p>
-                                            </div>
-                                            <button className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200">
-                                                Cancel
-                                            </button>
-                                        </li>
-                                    </ul>
+                                    {openOrders.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center h-full">
+                                            <h2 className="text-[#333333] text-xl font-semibold mt-[32px] text-center">
+                                                No Open Orders Yet
+                                            </h2>
+                                        </div>
+                                    ) : (
+                                        <ul className="space-y-3">
+                                            {openOrders.map((o) => (
+                                                <li
+                                                    key={o.id}
+                                                    className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm"
+                                                >
+                                                    <div>
+                                                        <p className="text-sm font-medium">
+                                                            #{o.id} {o.tokenIn.slice(0, 6)}… → {o.tokenOut.slice(0, 6)}…
+                                                        </p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {o.amountIn} in | min {o.minOut} out
+                                                        </p>
+                                                        <p className="text-xs text-gray-400">
+                                                            {o.triggerAbove ? "Above" : "Below"} •{" "}
+                                                            {new Date(o.expiry * 1000).toLocaleString()}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleCancel(o.id)}
+                                                        className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
                             </div>
+
                         </div>
 
                     </div>

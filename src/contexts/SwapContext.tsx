@@ -2,7 +2,7 @@
 import React, { createContext, useContext } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "./WalletContext"; // Adjust the import path as needed
-import { FEE_TIERS, TOKENS } from "../utils/Constants";
+import { TOKENS } from "../utils/Constants";
 import { ERC20_ABI } from "./ABI";
 import SwapRouterABI from "../ABI/SwapRouter.json";
 
@@ -98,11 +98,9 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
         tokenB: string
     ): Promise<PoolInfo[]> => {
         const pools: PoolInfo[] = [];
-        for (const fee of FEE_TIERS) {
-            const poolInfo = await getPoolInfo(tokenA, tokenB, fee);
-            if (poolInfo && BigInt(poolInfo.liquidity) > 0n) {
-                pools.push(poolInfo);
-            }
+        const poolInfo = await getPoolInfo(tokenA, tokenB, 500);
+        if (poolInfo && BigInt(poolInfo.liquidity) > 0n) {
+            pools.push(poolInfo);
         }
         return pools.sort(
             (a, b) => Number(BigInt(b.liquidity) - BigInt(a.liquidity))

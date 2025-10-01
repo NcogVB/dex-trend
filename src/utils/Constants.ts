@@ -51,7 +51,7 @@ export const TOKENS = {
 } as const;
 
 
-export const FEE_TIERS = [100, 500, 3000, 10000];
+export const FEE_TIERS = [500];
 
 
 // Polygon mainnet addresses
