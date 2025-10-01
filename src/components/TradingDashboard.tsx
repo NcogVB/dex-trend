@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { widget, type IChartingLibraryWidget } from "../charting_library";
 import BinanceDatafeed from "../utils/CryptoDatafeed";
 import { ethers } from "ethers";
-import ExecutorABI from "../ABI/LimitOrder.json"; 
+import ExecutorABI from "../ABI/LimitOrder.json";
 
 interface TradingDashboardProps {
     className?: string;
@@ -329,102 +329,106 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
             className={`${className} w-full ${fullScreen ? "min-h-screen py-0" : "min-h-screen py-4"}`}
         >
             <div className={`container mx-auto`}>
-                <div className={`flex flex-col gap-3`}>
+                <div className="flex flex-row gap-3 h-[85vh] md:h-[88vh]">
                     {/* Trading Chart Section */}
-                    <div className={`modern-card flex-grow overflow-hidden`}>
-                        <div
-                            className={`relative w-full ${fullScreen ? "h-[100vh]" : "h-[85vh] md:h-[88vh]"} overflow-hidden`}
-                        >
+                    <div className="modern-card w-[60%] overflow-hidden">
+                        <div className="relative w-full h-full overflow-hidden">
                             <div
                                 ref={chartContainerRef}
                                 className="TVChartContainer absolute top-0 left-0 w-full h-full"
-                                style={{ height: "100%", width: "100%" }}
                             />
                         </div>
                     </div>
-
                     {/* Orders Panel Section */}
                     {showOrders && (
-                        <div className="flex justify-center items-center mb-5">
-                            <div className="modern-card w-fit flex">
-                                <div className="lg:min-w-[472px] lg:max-w-[472px] md:p-[30px] p-[20px]">
-                                    {/* Tab Navigation */}
-                                    <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-[8px] px-2 py-1.5 text-sm w-max flex items-center gap-1 mb-[30px]">
-                                        <button
-                                            className={`px-[20px] py-[10px] rounded-[6px] cursor-pointer transition-colors font-medium ${activeTab === "open"
-                                                ? "active-orders"
-                                                : "text-[#888888] hover:text-[#333333]"
-                                                }`}
-                                            onClick={() => setActiveTab("open")}
-                                        >
-                                            Open Orders
-                                        </button>
-                                        <button
-                                            className={`px-[20px] py-[10px] rounded-[6px] cursor-pointer transition-colors font-medium ${activeTab === "history"
-                                                ? "active-orders"
-                                                : "text-[#888888] hover:text-[#333333]"
-                                                }`}
-                                            onClick={() => setActiveTab("history")}
-                                        >
-                                            Orders History
-                                        </button>
-                                    </div>
+                        <div className="modern-card w-[40%] flex flex-col">
+                            <div className="md:p-[20px] p-[16px] flex flex-col flex-1">
+                                {/* Tab Navigation */}
+                                <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-[8px] px-2 py-1.5 text-sm w-full flex items-center gap-1 mb-[20px]">
+                                    <button
+                                        className={`flex-1 px-[10px] py-[8px] rounded-[6px] cursor-pointer transition-colors font-medium ${activeTab === "open"
+                                            ? "active-orders"
+                                            : "text-[#888888] hover:text-[#333333]"
+                                            }`}
+                                        onClick={() => setActiveTab("open")}
+                                    >
+                                        Open Orders
+                                    </button>
+                                    <button
+                                        className={`flex-1 px-[10px] py-[8px] rounded-[6px] cursor-pointer transition-colors font-medium ${activeTab === "history"
+                                            ? "active-orders"
+                                            : "text-[#888888] hover:text-[#333333]"
+                                            }`}
+                                        onClick={() => setActiveTab("history")}
+                                    >
+                                        Orders History
+                                    </button>
+                                </div>
 
-                                    {/* Orders Content (UI box preserved) */}
-                                    <div className="bg-[#F8F8F8] rounded-[8px] border border-[#E5E5E5] min-h-[366px] p-4 overflow-auto">
-                                        {activeTab === "open" ? (
-                                            openOrders.length === 0 ? (
-                                                <div className="flex flex-col items-center justify-center h-full">
-                                                    <NoOrdersIcon />
-                                                    <h2 className="text-[#333333] text-xl font-semibold mt-[32px] text-center">
-                                                        No Open Orders Yet
-                                                    </h2>
-                                                </div>
-                                            ) : (
-                                                <ul className="space-y-3">
-                                                    {openOrders.map((o) => (
-                                                        <li key={o.id} className="flex justify-between bg-white rounded-md p-3 shadow-sm">
-                                                            <span className="text-sm font-medium">
-                                                                #{o.id} {o.tokenIn.slice(0, 6)}… → {o.tokenOut.slice(0, 6)}…
-                                                            </span>
-                                                            <span className="text-sm">
-                                                                {o.amountIn} in | min {o.minOut} out
-                                                            </span>
-                                                            <span className="text-xs text-gray-500">
-                                                                {o.triggerAbove ? "Above" : "Below"} • {new Date(o.expiry * 1000).toLocaleString()}
-                                                            </span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            )
-                                        ) : orderHistory.length === 0 ? (
+                                {/* Orders Content */}
+                                <div className="bg-[#F8F8F8] rounded-[8px] border border-[#E5E5E5] flex-1 p-4 overflow-y-auto max-h-[75vh]">
+                                    {activeTab === "open" ? (
+                                        openOrders.length === 0 ? (
                                             <div className="flex flex-col items-center justify-center h-full">
                                                 <NoOrdersIcon />
                                                 <h2 className="text-[#333333] text-xl font-semibold mt-[32px] text-center">
-                                                    No Order History Yet
+                                                    No Open Orders Yet
                                                 </h2>
                                             </div>
                                         ) : (
                                             <ul className="space-y-3">
-                                                {orderHistory.map((o) => (
-                                                    <li key={o.id} className="flex justify-between bg-white rounded-md p-3 shadow-sm">
+                                                {openOrders.map((o) => (
+                                                    <li
+                                                        key={o.id}
+                                                        className="flex justify-between bg-white rounded-md p-3 shadow-sm"
+                                                    >
                                                         <span className="text-sm font-medium">
                                                             #{o.id} {o.tokenIn.slice(0, 6)}… → {o.tokenOut.slice(0, 6)}…
                                                         </span>
-                                                        <span className="text-sm">{o.amountIn} in</span>
+                                                        <span className="text-sm">
+                                                            {o.amountIn} in | min {o.minOut} out
+                                                        </span>
                                                         <span className="text-xs text-gray-500">
-                                                            {o.filled ? "Filled" : o.cancelled ? "Cancelled" : "Expired"}
+                                                            {o.triggerAbove ? "Above" : "Below"} •{" "}
+                                                            {new Date(o.expiry * 1000).toLocaleString()}
                                                         </span>
                                                     </li>
                                                 ))}
                                             </ul>
-                                        )}
-                                    </div>
+                                        )
+                                    ) : orderHistory.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center h-full">
+                                            <NoOrdersIcon />
+                                            <h2 className="text-[#333333] text-xl font-semibold mt-[32px] text-center">
+                                                No Order History Yet
+                                            </h2>
+                                        </div>
+                                    ) : (
+                                        <ul className="space-y-3">
+                                            {orderHistory.map((o) => (
+                                                <li
+                                                    key={o.id}
+                                                    className="flex justify-between bg-white rounded-md p-3 shadow-sm"
+                                                >
+                                                    <span className="text-sm font-medium">
+                                                        #{o.id} {o.tokenIn.slice(0, 6)}… → {o.tokenOut.slice(0, 6)}…
+                                                    </span>
+                                                    <span className="text-sm">{o.amountIn} in</span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {o.filled ? "Filled" : o.cancelled ? "Cancelled" : "Expired"}
+                                                    </span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     )}
+
                 </div>
+
+
             </div>
         </section>
     );

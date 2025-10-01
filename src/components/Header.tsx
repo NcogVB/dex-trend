@@ -42,7 +42,7 @@ const Header: React.FC = () => {
     } = useWallet()
 
     const navItems: NavItem[] = [
-        { name: 'Home', href: 'home', path: '/home' },
+        { name: 'Swap', href: 'home', path: '/home' },
         { name: 'Pool', href: 'pool', path: '/pool' },
         { name: 'Bridge', href: 'https://bridge.skyhighblockchain.com/', path: '', external: true },
         { name: 'Exchange', href: 'exchange', path: '/exchange' },

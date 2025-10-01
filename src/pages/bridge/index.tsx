@@ -1,7 +1,5 @@
 import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
-import AskExpertsSection from '../../components/AskExpertsSection'
-import EarnPassiveIncomeSection from '../../components/EarnPassiveIncomeSection'
 import JoinCommunity from '../../components/JoinCommunity'
 import { useBridge } from '../../contexts/Bridge'
 import TransferStatus from './TransferStatus'
@@ -838,30 +836,6 @@ const Bridge = () => {
                     </div>
                 </div>
             </div>
-
-            <section className="md:py-[90px] py-[40px] px-4">
-                <h2 className="font-medium lg:text-[64px] sm:text-[48px] text-[32px] md:leading-[70.4px] leading-[50px] text-center text-[#DC2626] max-w-[514px] mx-auto">
-                    How <span className="text-[#DC2626]">Cross Chain</span>{' '}
-                    Exchange Works
-                </h2>
-                <p className="font-normal md:text-base text-xs md:leading-[25px] text-center text-[#767676] max-w-[910px] mx-auto pt-[30px]">
-                    Bridge assets across chains with Dextrend using a secure,
-                    streamlined flow and clear status tracking. Low fees and
-                    fast finality.
-                </p>
-                <div className="flex justify-center gap-3 md:mt-[60px] mt-[40px] items-center">
-                    <WalletModal />
-                    <a
-                        href="#"
-                        className="border-2 border-[#E9E9E9] md:px-[32px] px-[20px] py-[16px] rounded-[80px] font-medium text-base text-[#000000]"
-                    >
-                        Learn More
-                    </a>
-                </div>
-            </section>
-
-            <AskExpertsSection />
-            <EarnPassiveIncomeSection />
         </>
     )
 }
