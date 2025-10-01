@@ -1,245 +1,160 @@
-import React, { useState, useEffect } from 'react'
-import { useLiquidity } from '../contexts/LiquidityContext'
-import { useWallet } from '../contexts/WalletContext'
-import { ethers } from 'ethers'
-import { Token } from '@uniswap/sdk-core'
-import { Pool, Position } from '@uniswap/v3-sdk'
-import {
-    ERC20_ABI,
-    POSITION_MANAGER_MINIMAL_ABI,
-    UNISWAP_V3_POOL_ABI,
-} from '../contexts/ABI'
-import { ArrowLeft } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-
-interface LiquidityData {
-    poolTokens: number
-    token0Amount: number
-    token1Amount: number
-    shareOfPool: number
-    reward: number | null
-}
-
-// Polygon constants
-const POSITION_MANAGER_ADDRESS = '0xe4ae6F10ee1C8e2465D9975cb3325267A2025549'
-const POOL_ADDRESS = '0x8d58183fE3b84d62bbd2d633b1980604a2368ee5'
-const chainId = 137
+import React, { useState } from "react"
+import { useLiquidity } from "../contexts/LiquidityContext"
+import { useWallet } from "../contexts/WalletContext"
+import { ethers } from "ethers"
+import { ArrowLeft, ChevronDown } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { tokens } from "../pages/limit/Tokens"
 
 const ConverterPool: React.FC = () => {
     const { addLiquidity, loading } = useLiquidity()
     const { provider } = useWallet()
+    const navigate = useNavigate()
 
-    const [tokenId, setTokenId] = useState<string>('')
-    const [AddingAmount, setAddingAmount] = useState<number>(100)
-    const [liquidityData, setLiquidityData] = useState<LiquidityData>({
-        poolTokens: 0,
-        token0Amount: 0,
-        token1Amount: 0,
-        shareOfPool: 0,
-        reward: null,
-    })
-    const [isAddingLiquidity, setIsAddingLiquidity] = useState(false)
+    const [fromToken, setFromToken] = useState(tokens[0])
+    const [toToken, setToToken] = useState(tokens[1])
+    const [amount, setAmount] = useState<string>("")
+    const [isAdding, setIsAdding] = useState(false)
 
-    // === Fetch position data from chain ===
-    useEffect(() => {
-        if (!tokenId || !provider) return
+    const [showFromDropdown, setShowFromDropdown] = useState(false)
+    const [showToDropdown, setShowToDropdown] = useState(false)
 
-        const fetchPositionData = async () => {
-            try {
-                const posManager = new ethers.Contract(
-                    POSITION_MANAGER_ADDRESS,
-                    POSITION_MANAGER_MINIMAL_ABI,
-                    provider
-                )
-                const poolContract = new ethers.Contract(
-                    POOL_ADDRESS,
-                    UNISWAP_V3_POOL_ABI,
-                    provider
-                )
+    const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7"
+    const FACTORY_ABI = [
+        "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
+    ]
 
-                const pos = await posManager.positions(tokenId)
-                const [
-                    poolLiquidity,
-                    slot0,
-                    fee,
-                    token0Address,
-                    token1Address,
-                ] = await Promise.all([
-                    poolContract.liquidity(),
-                    poolContract.slot0(),
-                    poolContract.fee(),
-                    poolContract.token0(),
-                    poolContract.token1(),
-                ])
-
-                const liquidity = pos[7] // uint128
-                const tickLower = Number(pos[5])
-                const tickUpper = Number(pos[6])
-                const tokensOwed0 = pos[10]
-                const tokensOwed1 = pos[11]
-
-                // Fetch decimals
-                const token0Contract = new ethers.Contract(
-                    token0Address,
-                    ERC20_ABI,
-                    provider
-                )
-                const token1Contract = new ethers.Contract(
-                    token1Address,
-                    ERC20_ABI,
-                    provider
-                )
-                const [dec0, dec1] = await Promise.all([
-                    token0Contract.decimals(),
-                    token1Contract.decimals(),
-                ])
-
-                const token0 = new Token(chainId, token0Address, Number(dec0))
-                const token1 = new Token(chainId, token1Address, Number(dec1))
-
-                const pool = new Pool(
-                    token0,
-                    token1,
-                    Number(fee),
-                    slot0[0].toString(),
-                    poolLiquidity.toString(),
-                    Number(slot0[1])
-                )
-
-                const position = new Position({
-                    pool,
-                    liquidity: liquidity.toString(),
-                    tickLower,
-                    tickUpper,
-                })
-
-                const amount0 = parseFloat(position.amount0.toExact())
-                const amount1 = parseFloat(position.amount1.toExact())
-
-                // 3. Compute ratio
-                const valueToken0InToken1 =
-                    amount0 * parseFloat(pool.token0Price.toSignificant(6))
-                const positionValue = valueToken0InToken1 + amount1
-                const reward =
-                    Number(tokensOwed0) / 10 ** Number(dec0) +
-                    Number(tokensOwed1) / 10 ** Number(dec1)
-
-                setLiquidityData({
-                    poolTokens: Number(liquidity) / 1e18,
-                    token0Amount: amount0,
-                    token1Amount: amount1,
-                    shareOfPool: positionValue,
-                    reward: reward > 0 ? reward : null,
-                })
-            } catch (err) {
-                console.error('Error fetching position data:', err)
-            }
-        }
-
-        fetchPositionData()
-    }, [tokenId, provider])
-
-    // === Add Liquidity ===
     const handleAddLiquidity = async () => {
-        setIsAddingLiquidity(true)
+        if (!amount) {
+            alert("Enter an amount")
+            return
+        }
+        setIsAdding(true)
         try {
+            const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider)
+            const poolAddress = await factory.getPool(fromToken.address, toToken.address, 3000)
+            if (poolAddress === ethers.ZeroAddress) {
+                alert("No pool exists for this pair. Create pool first.")
+                setIsAdding(false)
+                return
+            }
+
+            console.log("Pool:", poolAddress)
+
             await addLiquidity({
-                amountA: AddingAmount.toString(),
-                amountB: AddingAmount.toString(),
+                tokenA: fromToken.address,
+                tokenB: toToken.address,
+                amountA: amount,
+                amountB: amount, // ✅ single input used for both
             })
-            alert('Liquidity added successfully!')
-        } catch (error) {
-            console.error('Error adding liquidity:', error)
-            alert('Failed to add liquidity')
+
+            alert("Liquidity added successfully!")
+            setAmount("")
+        } catch (err) {
+            console.error("Error adding liquidity:", err)
+            alert("Failed to add liquidity")
         } finally {
-            setIsAddingLiquidity(false)
+            setIsAdding(false)
         }
     }
 
-    const navigate = useNavigate()
-
     return (
-        <div>
-         
-            <div className="flex items-center justify-center px-4 min-h-screen">
-                <div className=" w-full p-[3.5px] md:rounded-[40px] rounded-[20px] max-w-[690px]">
-                    <div className="bg-white relative shadow-lg border border-gray-200 w-full md:rounded-[40px] rounded-[20px] px-[15px] md:px-[50px] py-[20px] md:py-[60px]">
-                        <button
-                            onClick={() => navigate(-1)}
-                            className="flex items-center gap-1 rounded-[8px] font-normal text-sm leading-[100%] px-[16px] py-[10px] transition-colors text-black hover:text-[#DC2626]"
+        <div className="flex items-center justify-center px-4 min-h-screen">
+            <div className="w-full p-[3.5px] md:rounded-[40px] rounded-[20px] max-w-[500px]">
+                <div className="bg-white shadow-lg border border-gray-200 w-full md:rounded-[40px] rounded-[20px] px-6 py-8">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="flex items-center gap-1 text-sm px-4 py-2 text-black hover:text-[#DC2626]"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        Back
+                    </button>
+
+                    <h2 className="mt-4 mb-6 font-bold text-2xl text-center">Add Liquidity</h2>
+
+                    {/* From token dropdown */}
+                    <div className="mb-4 relative">
+                        <label className="block mb-2">From Token</label>
+                        <div
+                            className="flex items-center gap-2 border rounded p-2 cursor-pointer"
+                            onClick={() => setShowFromDropdown(!showFromDropdown)}
                         >
-                            <ArrowLeft className="w-4 h-4" />
-                            Back
-                        </button>
-                        {/* Liquidity Info */}
-                        <h2 className="mb-4 font-bold text-2xl">
-                            Your Liquidity
-                        </h2>
-                        <input
-                            type="text"
-                            placeholder="Enter Token ID To Load Values"
-                            value={tokenId}
-                            onChange={(e) => setTokenId(e.target.value)}
-                            className="w-full mb-4 p-2 rounded-[8px] border bg-transparent text-black"
-                        />
-
-                        <div className="bg-gray-50 rounded-[12px] px-[18px] py-[22px] text-black border border-solid border-gray-200">
-                            <div className="font-bold text-lg mb-4">
-                                Pool Tokens:{' '}
-                                {liquidityData.poolTokens.toFixed(4)}
-                            </div>
-                            <div className="flex justify-between mb-2">
-                                <span>skyBNB</span>
-                                <span>
-                                    {liquidityData.token0Amount.toFixed(5)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between mb-2">
-                                <span>USDT</span>
-                                <span>
-                                    {liquidityData.token1Amount.toFixed(5)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between mb-2">
-                                <span>Reward</span>
-                                <span>
-                                    {liquidityData.reward
-                                        ? liquidityData.reward.toFixed(6)
-                                        : '-'}
-                                </span>
-                            </div>
-                            <div className="flex justify-between mb-6">
-                                <span>Position Value</span>
-                                <span>
-                                    {liquidityData.shareOfPool.toFixed(2)}
-                                </span>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="block text-lg mb-2">
-                                    Add Liquidity
-                                </label>
-                                <input
-                                    type="number"
-                                    value={AddingAmount}
-                                    onChange={(e) =>
-                                        setAddingAmount(Number(e.target.value))
-                                    }
-                                    className="w-full p-2 rounded-[8px] border bg-transparent text-black"
-                                />
-                            </div>
-
-                            <button
-                                onClick={handleAddLiquidity}
-                                disabled={isAddingLiquidity || loading}
-                                className="mt-10 w-full bg-[#DC2626] text-white rounded-full py-4 cursor-pointer font-semibold text-lg hover:bg-[#DC2626] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isAddingLiquidity
-                                    ? 'Adding Liquidity...'
-                                    : 'Add Liquidity'}
-                            </button>
+                            <img src={fromToken.img} alt="" className="w-6 h-6 rounded-full" />
+                            <span>{fromToken.symbol}</span>
+                            <ChevronDown className="ml-auto w-4 h-4" />
                         </div>
+                        {showFromDropdown && (
+                            <ul className="absolute mt-1 w-full bg-white border rounded shadow-lg max-h-40 overflow-y-auto z-50">
+                                {tokens
+                                    .filter((t) => t.symbol !== toToken.symbol)
+                                    .map((t) => (
+                                        <li
+                                            key={t.symbol}
+                                            onClick={() => {
+                                                setFromToken(t)
+                                                setShowFromDropdown(false)
+                                            }}
+                                            className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                                        >
+                                            <img src={t.img} alt="" className="w-5 h-5 mr-2 rounded-full" />
+                                            {t.symbol}
+                                        </li>
+                                    ))}
+                            </ul>
+                        )}
                     </div>
+
+                    {/* To token dropdown */}
+                    <div className="mb-4 relative">
+                        <label className="block mb-2">To Token</label>
+                        <div
+                            className="flex items-center gap-2 border rounded p-2 cursor-pointer"
+                            onClick={() => setShowToDropdown(!showToDropdown)}
+                        >
+                            <img src={toToken.img} alt="" className="w-6 h-6 rounded-full" />
+                            <span>{toToken.symbol}</span>
+                            <ChevronDown className="ml-auto w-4 h-4" />
+                        </div>
+                        {showToDropdown && (
+                            <ul className="absolute mt-1 w-full bg-white border rounded shadow-lg max-h-40 overflow-y-auto z-50">
+                                {tokens
+                                    .filter((t) => t.symbol !== fromToken.symbol)
+                                    .map((t) => (
+                                        <li
+                                            key={t.symbol}
+                                            onClick={() => {
+                                                setToToken(t)
+                                                setShowToDropdown(false)
+                                            }}
+                                            className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                                        >
+                                            <img src={t.img} alt="" className="w-5 h-5 mr-2 rounded-full" />
+                                            {t.symbol}
+                                        </li>
+                                    ))}
+                            </ul>
+                        )}
+                    </div>
+
+                    {/* Single input for amount */}
+                    <div className="mb-4">
+                        <label className="block mb-2">Amount</label>
+                        <input
+                            type="number"
+                            placeholder="0.0"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            className="w-full p-2 border rounded"
+                        />
+                    </div>
+
+                    <button
+                        onClick={handleAddLiquidity}
+                        disabled={isAdding || loading}
+                        className="mt-6 w-full bg-[#DC2626] text-white rounded-full py-3 font-semibold disabled:opacity-50"
+                    >
+                        {isAdding ? "Adding Liquidity..." : "Add Liquidity"}
+                    </button>
                 </div>
             </div>
         </div>

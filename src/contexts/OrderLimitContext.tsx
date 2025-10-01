@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useState } from "react";
 import { ethers, MaxUint256 } from "ethers";
 import { useWallet } from "./WalletContext";
-import ExecutorABI from "../ABI/LimitOrder.json" // ✅ ABI of LimitOrderExecutor
+import ExecutorABI from "../ABI/LimitOrder.json"
 
 type CreateOrderParams = {
     tokenIn: string;
     tokenOut: string;
     amountIn: string;      // human-readable (e.g. "100")
-    amountOutMin: string;  // slippage-adjusted min
-    targetSqrtPriceX96: string; // computed off-chain (as decimal ratio like "1.001")
+    amountOutMin: string;  // human-readable with slippage
+    targetSqrtPriceX96: string; // decimal ratio like "1.001"
     triggerAbove: boolean;
     ttlSeconds: number;
 };
@@ -21,33 +21,89 @@ type OrderContextType = {
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
+// ERC20 ABI for fetching decimals
+const ERC20_ABI = [
+    "function approve(address spender, uint256 amount) external returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function decimals() view returns (uint8)"
+];
+
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { account, signer } = useWallet();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // your deployed contract
     const EXECUTOR_ADDRESS = "0xB25202f5748116bC5A5e9eB3fCaBC7d5b5777996";
-    const poolAddress = "0xc9e139Aa8eFAdBc814c5dD922f489875E309838a";
+    const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
+    const FACTORY_ABI = [
+        "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
+    ];
 
     /**
-     * Convert a price ratio (e.g., 1.001) to targetPrice scaled by 1e18
-     * The contract expects targetPrice as: (token1/token0) * 10^(decimalsIn - decimalsOut) * 1e18
+     * Fetch token decimals dynamically
      */
-    const calculateTargetPrice = (priceRatio: string, decimalsIn: number, decimalsOut: number): string => {
-        // Parse the price ratio
-        const ratio = parseFloat(priceRatio);
+    async function getBestPool(factory: ethers.Contract, tokenIn: string, tokenOut: string): Promise<{ address: string, fee: number }> {
+        const feeTiers = [3000, 500, 100]; // check in order of preference
+        for (const fee of feeTiers) {
+            const pool = await factory.getPool(tokenIn, tokenOut, fee);
+            if (pool !== ethers.ZeroAddress) {
+                return { address: pool, fee };
+            }
+        }
+        throw new Error("No pool found for this token pair at supported fee tiers");
+    }
+
+    const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
+        if (!signer) throw new Error("Signer not available");
+        try {
+            const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+            const decimals = await tokenContract.decimals();
+            return Number(decimals);
+        } catch (e) {
+            console.warn(`⚠️ Failed to fetch decimals for ${tokenAddress}, defaulting to 18`);
+            return 18;
+        }
+    };
+
+    /**
+     * Convert a price ratio (e.g., "1.001") to targetPrice scaled by 1e18
+     * Formula: ratio * 10^(decimalsIn - decimalsOut) * 1e18
+     */
+    const calculateTargetPrice = (
+        priceRatio: string,
+        decimalsIn: number,
+        decimalsOut: number
+    ): string => {
+        // Clean the input
+        const cleanRatio = priceRatio.trim();
+        const ratio = parseFloat(cleanRatio);
+
+        if (isNaN(ratio) || ratio <= 0) {
+            throw new Error(`Invalid price ratio: "${priceRatio}"`);
+        }
+
+        console.log(`🔢 Calculating targetPrice: ratio=${ratio}, decimalsIn=${decimalsIn}, decimalsOut=${decimalsOut}`);
 
         // Calculate decimal adjustment
         const decimalAdjustment = decimalsIn - decimalsOut;
-        const decimalMultiplier = Math.pow(10, decimalAdjustment);
 
-        // Target price = ratio * decimalMultiplier * 1e18
-        // We use BigInt for precision
-        const ratioScaled = Math.floor(ratio * 1e18); // Scale ratio by 1e18
-        const targetPrice = BigInt(ratioScaled) * BigInt(decimalMultiplier);
+        // Convert ratio to a string with enough precision, then to BigInt
+        // Multiply by 1e18 to match contract expectation
+        const SCALE = 1e18;
+        const scaledRatio = ratio * SCALE;
 
-        return targetPrice.toString();
+        // Convert to BigInt (remove any decimals)
+        let targetPriceBigInt = BigInt(Math.floor(scaledRatio));
+
+        // Apply decimal adjustment
+        if (decimalAdjustment > 0) {
+            targetPriceBigInt = targetPriceBigInt * BigInt(10 ** decimalAdjustment);
+        } else if (decimalAdjustment < 0) {
+            targetPriceBigInt = targetPriceBigInt / BigInt(10 ** Math.abs(decimalAdjustment));
+        }
+
+        console.log(`✅ Target price calculated: ${targetPriceBigInt.toString()}`);
+        return targetPriceBigInt.toString();
     };
 
     const createOrder = async (params: CreateOrderParams): Promise<string> => {
@@ -61,51 +117,60 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
             const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, signer);
 
-            // Get token decimals (you should fetch these dynamically from token contracts)
-            const decimalsIn = 18; // USDT typically has 6 or 18 decimals - adjust accordingly
-            const decimalsOut = 18; // USDC typically has 6 or 18 decimals - adjust accordingly
+            // Fetch decimals for both tokens
+            const [decimalsIn, decimalsOut] = await Promise.all([
+                getTokenDecimals(params.tokenIn),
+                getTokenDecimals(params.tokenOut)
+            ]);
 
-            // Scale amounts properly
+            console.log(`📊 Token decimals: ${params.tokenIn}=${decimalsIn}, ${params.tokenOut}=${decimalsOut}`);
+
+            // Scale amounts using correct decimals
             const amountIn = ethers.parseUnits(params.amountIn, decimalsIn);
             const amountOutMin = ethers.parseUnits(params.amountOutMin, decimalsOut);
 
-            // Convert price ratio to targetPrice (scaled by 1e18)
-            const targetPrice = calculateTargetPrice(
+            // Convert price ratio to targetPrice with proper decimal handling
+            const targetPriceString = calculateTargetPrice(
                 params.targetSqrtPriceX96,
                 decimalsIn,
                 decimalsOut
             );
+            const targetPrice = BigInt(targetPriceString);
+
+            // Fetch pool address from factory
+            const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
+            const { address: poolAddress, fee: poolFee } = await getBestPool(factory, params.tokenIn, params.tokenOut);
+            console.log("✅ Found pool:", poolAddress, "with fee tier:", poolFee);
+
+            if (!poolAddress || poolAddress === ethers.ZeroAddress) {
+                throw new Error("Pool does not exist for this token pair");
+            }
 
             console.log("📊 Order params:", {
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: amountIn.toString(),
                 amountOutMin: amountOutMin.toString(),
-                targetPrice: targetPrice,
+                targetPrice: targetPrice.toString(),
+                targetPriceRatio: params.targetSqrtPriceX96,
+                poolAddress,
+                ttl: params.ttlSeconds,
                 decimalsIn,
-                decimalsOut,
-                ttl: params.ttlSeconds
+                decimalsOut
             });
 
-            // Approve token first
-            const tokenInContract = new ethers.Contract(
-                params.tokenIn,
-                ["function approve(address spender, uint256 amount) external returns (bool)",
-                    "function allowance(address owner, address spender) view returns (uint256)"],
-                signer
-            );
-
+            // Approve token if needed
+            const tokenInContract = new ethers.Contract(params.tokenIn, ERC20_ABI, signer);
             const currentAllowance = await tokenInContract.allowance(account, EXECUTOR_ADDRESS);
 
             if (currentAllowance < amountIn) {
-                console.log("🔓 Approving token for unlimited allowance...");
+                console.log("🔓 Approving token...");
                 const approveTx = await tokenInContract.approve(EXECUTOR_ADDRESS, MaxUint256);
                 await approveTx.wait();
-                console.log("✅ Unlimited approval granted");
-            } else {
-                console.log("👌 Already approved, skipping approval");
+                console.log("✅ Approval done");
             }
 
+            // Create order
             const tx = await executor.depositAndCreateOrder(
                 params.tokenIn,
                 params.tokenOut,
@@ -114,19 +179,20 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 amountIn,
                 amountOutMin,
                 targetPrice,
-                true,
+                params.triggerAbove,
                 params.ttlSeconds,
                 { gasLimit: 800000 }
             );
 
             console.log("⛽ Sent tx:", tx.hash);
             const receipt = await tx.wait();
-            console.log("✅ Order created:", receipt);
+            console.log("✅ Order created in block:", receipt.blockNumber);
 
             return tx.hash;
         } catch (e: any) {
-            console.error("Order creation failed:", e);
-            setError(e.message || "Failed to create order");
+            console.error("❌ Order creation failed:", e);
+            const errorMsg = e.message || "Failed to create order";
+            setError(errorMsg);
             throw e;
         } finally {
             setLoading(false);

@@ -8,6 +8,7 @@ interface TradingDashboardProps {
     className?: string;
     fullScreen?: boolean;
     showOrders?: boolean;
+    pair?: string; // e.g. "BNBUSDT"
 }
 
 function getLanguageFromURL(): string | null {
@@ -23,6 +24,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
     className = "",
     fullScreen = false,
     showOrders = true,
+    pair = "BNBUSDT", // default fallback
 }) => {
     const [activeTab, setActiveTab] = useState<"open" | "history">("open");
     const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -33,7 +35,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
     const [orderHistory, setOrderHistory] = useState<any[]>([]);
 
     const defaultProps = {
-        symbol: "BNBUSDT",
+        symbol: pair,
         interval: "1D" as "1D",
         libraryPath: "/charting_library/",
         chartsStorageUrl: "https://saveload.tradingview.com",
@@ -53,7 +55,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
         const datafeed = new BinanceDatafeed();
 
         const widgetOptions = {
-            symbol: "BNBUSDT",
+            symbol: pair,
             datafeed,
             interval: defaultProps.interval,
             container: chartContainerRef.current!,
@@ -133,7 +135,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, ["BTCUSDT"]);
+    }, [pair]);
 
     const NoOrdersIcon: React.FC = () => (
         <svg className="mx-auto" width="58" height="58" viewBox="0 0 58 58" fill="none" xmlns="http://www.w3.org/2000/svg">

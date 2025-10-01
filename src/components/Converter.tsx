@@ -1,7 +1,6 @@
 import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import TradingDashboard from './TradingDashboard'
 import { useSwap } from '../contexts/SwapContext'
 import { useWallet } from '../contexts/WalletContext'
 import { TOKENS } from '../utils/SwapTokens'

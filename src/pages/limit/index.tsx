@@ -3,6 +3,7 @@ import TradingDashboard from '../../components/TradingDashboard'
 import { ChevronDown } from 'lucide-react'
 import { useOrder } from '../../contexts/OrderLimitContext'
 import { useSwap } from '../../contexts/SwapContext'
+import { tokens } from './Tokens'
 
 interface Token {
     symbol: string
@@ -18,24 +19,6 @@ const Limit = () => {
     const { getQuote } = useSwap()
 
     const [isCreatingOrder, setIsCreatingOrder] = useState<boolean>(false)
-    const tokens: Token[] = [
-        {
-            symbol: 'USDT',
-            name: 'USDT',
-            img: '/images/stock-3.png',
-            color: '#8247E5',
-            balance: 1000.5,
-            address: '0x8df8262960065c242c66efd42eacfb6ad971f962',
-        },
-        {
-            symbol: 'USDC',
-            name: 'USDC',
-            img: '/images/stock-5.png',
-            color: '#2775CA',
-            balance: 2500.75,
-            address: '0x654684135feea7fd632754d05e15f9886ec7bf28',
-        },
-    ]
 
     const [fromToken, setFromToken] = useState<Token>(tokens[0])
     const [toToken, setToToken] = useState<Token>(tokens[1])
@@ -137,7 +120,7 @@ const Limit = () => {
                 tokenIn: fromToken.address,
                 tokenOut: toToken.address,
                 amountIn: fromAmount,
-                amountOutMin: parseFloat(toAmount).toFixed(6), // Apply slippage
+                amountOutMin: (parseFloat(toAmount) * (1 - 1 / 100)).toFixed(6), // Apply slippage
                 targetSqrtPriceX96: targetPrice, // Pass the ratio, not sqrt price
                 triggerAbove: true,
                 ttlSeconds: 86400, // 24 hours
@@ -163,7 +146,8 @@ const Limit = () => {
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <div className="w-full">
-                        <TradingDashboard fullScreen showOrders />
+                        <TradingDashboard fullScreen showOrders pair={`${fromToken.symbol}${toToken.symbol}`} // 👈 build pair dynamically
+                        />
                         <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                             {/* === Left: Limit Order Form === */}
                             <div className="modern-card px-6 py-6 flex flex-col gap-6 ">
@@ -189,19 +173,22 @@ const Limit = () => {
                                                 <ChevronDown className={`transition-transform ${isFromDropdownOpen ? "rotate-180" : ""}`} />
                                             </button>
                                             {isFromDropdownOpen && (
-                                                <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto text-sm">
-                                                    {tokens
-                                                        .filter((t) => t.symbol !== toToken.symbol)
-                                                        .map((t) => (
-                                                            <li
-                                                                key={t.symbol}
-                                                                onClick={() => handleTokenSelect(t, true)}
-                                                                className="modern-dropdown-item flex items-center"
-                                                            >
-                                                                <img src={t.img} className="w-5 h-5 mr-2" alt={t.symbol} />
-                                                                {t.symbol}
-                                                            </li>
-                                                        ))}
+                                                <ul
+                                                    className="absolute left-0 right-0 mt-1 w-full max-h-48 overflow-y-auto bg-white rounded shadow-lg z-50 text-sm
+scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
+                                                    role="listbox"
+                                                >                                                    {tokens
+                                                    .filter((t) => t.symbol !== toToken.symbol)
+                                                    .map((t) => (
+                                                        <li
+                                                            key={t.symbol}
+                                                            onClick={() => handleTokenSelect(t, true)}
+                                                            className="modern-dropdown-item flex items-center"
+                                                        >
+                                                            <img src={t.img} className="w-5 h-5 mr-2" alt={t.symbol} />
+                                                            {t.symbol}
+                                                        </li>
+                                                    ))}
                                                 </ul>
                                             )}
                                         </div>
@@ -233,32 +220,44 @@ const Limit = () => {
                                             placeholder="0.000"
                                             className="flex-1 font-semibold text-lg bg-transparent border-none outline-none placeholder-[#888]"
                                         />
-                                        <div className="relative" ref={toDropdownRef}>
+                                        <div className="relative overflow-visible" ref={toDropdownRef}>
                                             <button
                                                 onClick={() => setIsToDropdownOpen(!isToDropdownOpen)}
                                                 className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-gray-100"
                                             >
-                                                <img src={toToken.img} alt={toToken.symbol} className="w-6 h-6 rounded-full" />
+                                                <img
+                                                    src={toToken.img}
+                                                    alt={toToken.symbol}
+                                                    className="w-6 h-6 rounded-full"
+                                                />
                                                 <span>{toToken.symbol}</span>
-                                                <ChevronDown className={`transition-transform ${isToDropdownOpen ? "rotate-180" : ""}`} />
+                                                <ChevronDown
+                                                    className={`transition-transform ${isToDropdownOpen ? "rotate-180" : ""}`}
+                                                />
                                             </button>
+
                                             {isToDropdownOpen && (
-                                                <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto text-sm">
+                                                <ul
+                                                    className="absolute left-0 right-0 mt-1 w-full max-h-48 overflow-y-auto bg-white rounded shadow-lg z-50 text-sm
+                 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
+                                                    role="listbox"
+                                                >
                                                     {tokens
                                                         .filter((t) => t.symbol !== fromToken.symbol)
                                                         .map((t) => (
                                                             <li
                                                                 key={t.symbol}
                                                                 onClick={() => handleTokenSelect(t, false)}
-                                                                className="modern-dropdown-item flex items-center"
+                                                                className="flex items-center cursor-pointer px-3 py-2 hover:bg-gray-100 rounded"
                                                             >
                                                                 <img src={t.img} className="w-5 h-5 mr-2" alt={t.symbol} />
-                                                                {t.symbol}
+                                                                <span>{t.symbol}</span>
                                                             </li>
                                                         ))}
                                                 </ul>
                                             )}
                                         </div>
+
                                     </div>
                                 </div>
 
@@ -309,8 +308,8 @@ const Limit = () => {
                                 {/* Place Order */}
                                 <button
                                     onClick={handleCreateOrder}
-                                    disabled={!fromAmount || !toAmount || loading || isCreatingOrder}
-                                    className={`w-full py-3 rounded-lg font-semibold transition ${!fromAmount || !toAmount || loading || isCreatingOrder
+                                    disabled={!fromAmount || !toAmount || loading || isCreatingOrder || !targetPrice}
+                                    className={`w-full py-3 rounded-lg font-semibold transition ${!fromAmount || !toAmount || loading || isCreatingOrder || !targetPrice
                                         ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                                         : "bg-blue-600 hover:bg-blue-700 text-white"
                                         }`}
