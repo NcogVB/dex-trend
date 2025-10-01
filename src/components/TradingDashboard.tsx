@@ -328,12 +328,12 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
     // ---------- RENDER (UI unchanged) ----------
     return (
         <section
-            className={`${className} w-full ${fullScreen ? "min-h-screen py-0" : "min-h-screen py-4"}`}
+            className={`${className} w-full ${fullScreen ? " py-0" : " py-4"}`}
         >
-            <div className={`container mx-auto`}>
-                <div className="flex flex-row gap-3 h-[85vh] md:h-[88vh]">
+            <div className={`w-full`}>
+                <div className="flex flex-col lg:flex-row gap-3 h-auto lg:h-[85vh] lg:md:h-[88vh]">
                     {/* Trading Chart Section */}
-                    <div className="modern-card w-[60%] overflow-hidden">
+                    <div className="modern-card w-full lg:w-[60%] overflow-hidden h-[50vh] lg:h-full">
                         <div className="relative w-full h-full overflow-hidden">
                             <div
                                 ref={chartContainerRef}
@@ -343,7 +343,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
                     </div>
                     {/* Orders Panel Section */}
                     {showOrders && (
-                        <div className="modern-card w-[40%] flex flex-col">
+                        <div className="modern-card w-full lg:w-[40%] flex flex-col h-[50vh] lg:h-full">
                             <div className="md:p-[20px] p-[16px] flex flex-col flex-1">
                                 {/* Tab Navigation */}
                                 <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-[8px] px-2 py-1.5 text-sm w-full flex items-center gap-1 mb-[20px]">
@@ -368,7 +368,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
                                 </div>
 
                                 {/* Orders Content */}
-                                <div className="bg-[#F8F8F8] rounded-[8px] border border-[#E5E5E5] flex-1 p-4 overflow-y-auto max-h-[75vh]">
+                                <div className="bg-[#F8F8F8] rounded-[8px] border border-[#E5E5E5] flex-1 p-4 overflow-y-auto max-h-[40vh] lg:max-h-[75vh]">
                                     {activeTab === "open" ? (
                                         openOrders.length === 0 ? (
                                             <div className="flex flex-col items-center justify-center h-full">
@@ -382,7 +382,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
                                                 {openOrders.map((o) => (
                                                     <li
                                                         key={o.id}
-                                                        className="flex justify-between bg-white rounded-md p-3 shadow-sm"
+                                                        className="flex flex-col lg:flex-row lg:justify-between bg-white rounded-md p-3 shadow-sm gap-2"
                                                     >
                                                         <span className="text-sm font-medium">
                                                             #{o.id} {o.tokenIn.slice(0, 6)}… → {o.tokenOut.slice(0, 6)}…
@@ -410,7 +410,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
                                             {orderHistory.map((o) => (
                                                 <li
                                                     key={o.id}
-                                                    className="flex justify-between bg-white rounded-md p-3 shadow-sm"
+                                                    className="flex flex-col lg:flex-row lg:justify-between bg-white rounded-md p-3 shadow-sm gap-2"
                                                 >
                                                     <span className="text-sm font-medium">
                                                         #{o.id} {o.tokenIn.slice(0, 6)}… → {o.tokenOut.slice(0, 6)}…
