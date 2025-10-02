@@ -9,7 +9,7 @@ import {
 } from '../contexts/ABI'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
-import { tokens } from '../pages/limit/Tokens'
+import { TOKENS } from '../utils/SwapTokens'
 
 interface LiquidityData {
     poolTokens: number
@@ -43,10 +43,10 @@ const Converter1: React.FC = () => {
         priceUSDCtoUSDT: 0,
         priceUSDTtoUSDC: 0,
     })
-    const [tokenIn, setTokenIn] = useState<string>(tokens[0].symbol);
-    const [tokenOut, setTokenOut] = useState<string>(tokens[1].symbol);
+    const [tokenIn, setTokenIn] = useState<string>(TOKENS[0].symbol);
+    const [tokenOut, setTokenOut] = useState<string>(TOKENS[1].symbol);
     const getTokenAddress = (symbol: string): string | undefined => {
-        return tokens.find(token => token.symbol === symbol)?.address;
+        return TOKENS.find(token => token.symbol === symbol)?.address;
     };
     const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = Number(e.target.value)
@@ -248,7 +248,7 @@ const Converter1: React.FC = () => {
                                     onChange={(e) => setTokenIn(e.target.value)}
                                     className="flex-1 p-3 rounded-[8px] border border-gray-300 bg-white text-black"
                                 >
-                                    {tokens.map((t) => (
+                                    {TOKENS.map((t) => (
                                         <option key={t.address} value={t.symbol}>
                                             {t.symbol}
                                         </option>
@@ -259,7 +259,7 @@ const Converter1: React.FC = () => {
                                     value={tokenOut}
                                     onChange={(e) => setTokenOut(e.target.value)}
                                     className="flex-1 p-3 rounded-[8px] border border-gray-300 bg-white text-black"
-                                > {tokens.map((t) => (
+                                > {TOKENS.map((t) => (
                                     <option key={t.address} value={t.symbol}>
                                         {t.symbol}
                                     </option>

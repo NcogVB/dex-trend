@@ -9,7 +9,6 @@ interface Token {
     symbol: string
     name: string
     img: string
-    color: string
     balance: number
     realBalance?: string
 }
@@ -218,42 +217,34 @@ const Converter = () => {
                                 </button>
                                 {/* FROM DROPDOWN */}
                                 {isFromDropdownOpen && (
-                                    <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto">
+                                    <ul
+                                        className=" absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                                    >
                                         {tokens
-                                            .filter(
-                                                (t) =>
-                                                    t.symbol !== toToken.symbol
-                                            ) // ✅ exclude toToken
+                                            .filter((t) => t.symbol !== toToken.symbol)
                                             .map((token) => (
                                                 <li
                                                     key={token.symbol}
                                                     onClick={() => {
                                                         setFromToken(token)
-                                                        setIsFromDropdownOpen(
-                                                            false
-                                                        )
+                                                        setIsFromDropdownOpen(false)
                                                     }}
-                                                    className="modern-dropdown-item flex items-center"
+                                                    className="flex items-center px-2 py-2 hover:bg-gray-100 cursor-pointer"
                                                 >
-                                                    <img
-                                                        src={token.img}
-                                                        alt={token.name}
-                                                        className="w-6 h-6 mr-2"
-                                                    />
+                                                    <img src={token.img} alt={token.name} className="w-6 h-6 mr-2" />
                                                     <div>
-                                                        <div>
-                                                            {token.symbol}
-                                                        </div>
-                                                        <div className="text-xs text-gray-500">
-                                                            {token.balance.toFixed(
-                                                                4
-                                                            )}
-                                                        </div>
+                                                        <div className="font-medium">{token.symbol}</div>
+                                                        {typeof token.balance === "number" && (
+                                                            <div className="text-xs text-gray-500">
+                                                                {token.balance.toFixed(4)}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </li>
                                             ))}
                                     </ul>
                                 )}
+
                             </div>
                         </div>
                         <div className="mt-4 flex gap-3 percentage-redio-buttons">
@@ -338,7 +329,9 @@ const Converter = () => {
                                     />
                                 </button>
                                 {isToDropdownOpen && (
-                                    <ul className="modern-dropdown absolute z-10 mt-1 w-full max-h-48 overflow-auto">
+                                    <ul
+                                        className=" absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                                    >
                                         {tokens
                                             .filter(
                                                 (t) =>
@@ -354,7 +347,7 @@ const Converter = () => {
                                                             false
                                                         )
                                                     }}
-                                                    className="modern-dropdown-item flex items-center"
+                                                    className="flex items-center px-2 py-2 hover:bg-gray-100 cursor-pointer"
                                                 >
                                                     <img
                                                         src={token.img}

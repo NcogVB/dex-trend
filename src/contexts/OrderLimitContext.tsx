@@ -42,22 +42,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const FACTORY_ABI = [
         "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
     ];
-
-    /**
-     * Fetch token decimals dynamically
-     */
-    const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
-        if (!signer) throw new Error("Signer not available");
-        try {
-            const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-            const decimals = await tokenContract.decimals();
-            return Number(decimals);
-        } catch (e) {
-            console.warn(`⚠️ Failed to fetch decimals for ${tokenAddress}, defaulting to 18`);
-            return 18;
-        }
-    };
-
     /**
      * Convert a price ratio (e.g., "1.001") to targetPrice scaled by 1e18
      * Formula: ratio * 10^(decimalsIn - decimalsOut) * 1e18
@@ -112,8 +96,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // Fetch decimals for both tokens
             const [decimalsIn, decimalsOut] = await Promise.all([
-                getTokenDecimals(params.tokenIn),
-                getTokenDecimals(params.tokenOut)
+                18,
+                18
             ]);
 
             console.log(`📊 Token decimals: ${params.tokenIn}=${decimalsIn}, ${params.tokenOut}=${decimalsOut}`);
@@ -128,11 +112,11 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 decimalsIn,
                 decimalsOut
             );
-            const targetPrice = BigInt(targetPriceString);
+            const targetPrice = BigInt(String(targetPriceString));
 
             // Fetch pool address from factory
             const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
-            const poolAddress = await factory.getPool(params.tokenIn, params.tokenOut, 3000);
+            const poolAddress = await factory.getPool(params.tokenIn, params.tokenOut, 500);
 
             if (!poolAddress || poolAddress === ethers.ZeroAddress) {
                 throw new Error("Pool does not exist for this token pair");

@@ -4,15 +4,15 @@ import { useWallet } from "../contexts/WalletContext"
 import { ethers } from "ethers"
 import { ArrowLeft, ChevronDown } from "lucide-react"
 import { useNavigate } from "react-router-dom"
-import { tokens } from "../pages/limit/Tokens"
+import { TOKENS } from "../utils/SwapTokens"
 
 const ConverterPool: React.FC = () => {
     const { addLiquidity, loading } = useLiquidity()
     const { provider } = useWallet()
     const navigate = useNavigate()
 
-    const [fromToken, setFromToken] = useState(tokens[0])
-    const [toToken, setToToken] = useState(tokens[1])
+    const [fromToken, setFromToken] = useState(TOKENS[0])
+    const [toToken, setToToken] = useState(TOKENS[1])
     const [amount, setAmount] = useState<string>("")
     const [isAdding, setIsAdding] = useState(false)
 
@@ -32,6 +32,7 @@ const ConverterPool: React.FC = () => {
         setIsAdding(true)
         try {
             const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider)
+            console.log("factory", factory)
             const poolAddress = await factory.getPool(fromToken.address, toToken.address, 500)
             if (poolAddress === ethers.ZeroAddress) {
                 alert("No pool exists for this pair. Create pool first.")
@@ -74,67 +75,80 @@ const ConverterPool: React.FC = () => {
 
                     {/* From token dropdown */}
                     <div className="mb-4 relative">
-                        <label className="block mb-2">From Token</label>
+                        <label className="block mb-2 text-sm font-medium">From Token</label>
                         <div
-                            className="flex items-center gap-2 border rounded p-2 cursor-pointer"
+                            className="flex items-center gap-2 border rounded-lg p-2 cursor-pointer bg-gray-50 hover:bg-gray-100 transition"
                             onClick={() => setShowFromDropdown(!showFromDropdown)}
                         >
                             <img src={fromToken.img} alt="" className="w-6 h-6 rounded-full" />
-                            <span>{fromToken.symbol}</span>
-                            <ChevronDown className="ml-auto w-4 h-4" />
+                            <span className="font-medium">{fromToken.symbol}</span>
+                            <ChevronDown className="ml-auto w-4 h-4 text-gray-500" />
                         </div>
+
                         {showFromDropdown && (
-                            <ul className="absolute mt-1 w-full bg-white border rounded shadow-lg max-h-40 overflow-y-auto z-50">
-                                {tokens
-                                    .filter((t) => t.symbol !== toToken.symbol)
-                                    .map((t) => (
-                                        <li
-                                            key={t.symbol}
-                                            onClick={() => {
-                                                setFromToken(t)
-                                                setShowFromDropdown(false)
-                                            }}
-                                            className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                                        >
-                                            <img src={t.img} alt="" className="w-5 h-5 mr-2 rounded-full" />
-                                            {t.symbol}
-                                        </li>
-                                    ))}
-                            </ul>
+                            <div className="absolute mt-2 w-full bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto z-50">
+                                <ul className="divide-y divide-gray-100">
+                                    {TOKENS
+                                        .filter((t) => t.symbol !== toToken.symbol)
+                                        .map((t) => (
+                                            <li
+                                                key={t.symbol}
+                                                onClick={() => {
+                                                    setFromToken(t);
+                                                    setShowFromDropdown(false);
+                                                }}
+                                                className="flex items-center px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                            >
+                                                <img src={t.img} alt="" className="w-6 h-6 rounded-full mr-3" />
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{t.symbol}</span>
+                                                    <span className="text-xs text-gray-500">{t.name}</span>
+                                                </div>
+                                            </li>
+                                        ))}
+                                </ul>
+                            </div>
                         )}
                     </div>
 
                     {/* To token dropdown */}
                     <div className="mb-4 relative">
-                        <label className="block mb-2">To Token</label>
+                        <label className="block mb-2 text-sm font-medium">To Token</label>
                         <div
-                            className="flex items-center gap-2 border rounded p-2 cursor-pointer"
+                            className="flex items-center gap-2 border rounded-lg p-2 cursor-pointer bg-gray-50 hover:bg-gray-100 transition"
                             onClick={() => setShowToDropdown(!showToDropdown)}
                         >
                             <img src={toToken.img} alt="" className="w-6 h-6 rounded-full" />
-                            <span>{toToken.symbol}</span>
-                            <ChevronDown className="ml-auto w-4 h-4" />
+                            <span className="font-medium">{toToken.symbol}</span>
+                            <ChevronDown className="ml-auto w-4 h-4 text-gray-500" />
                         </div>
+
                         {showToDropdown && (
-                            <ul className="absolute mt-1 w-full bg-white border rounded shadow-lg max-h-40 overflow-y-auto z-50">
-                                {tokens
-                                    .filter((t) => t.symbol !== fromToken.symbol)
-                                    .map((t) => (
-                                        <li
-                                            key={t.symbol}
-                                            onClick={() => {
-                                                setToToken(t)
-                                                setShowToDropdown(false)
-                                            }}
-                                            className="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                                        >
-                                            <img src={t.img} alt="" className="w-5 h-5 mr-2 rounded-full" />
-                                            {t.symbol}
-                                        </li>
-                                    ))}
-                            </ul>
+                            <div className="absolute mt-2 w-full bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto z-50">
+                                <ul className="divide-y divide-gray-100">
+                                    {TOKENS
+                                        .filter((t) => t.symbol !== fromToken.symbol)
+                                        .map((t) => (
+                                            <li
+                                                key={t.symbol}
+                                                onClick={() => {
+                                                    setToToken(t);
+                                                    setShowToDropdown(false);
+                                                }}
+                                                className="flex items-center px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                            >
+                                                <img src={t.img} alt="" className="w-6 h-6 rounded-full mr-3" />
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{t.symbol}</span>
+                                                    <span className="text-xs text-gray-500">{t.name}</span>
+                                                </div>
+                                            </li>
+                                        ))}
+                                </ul>
+                            </div>
                         )}
                     </div>
+
 
                     {/* Single input for amount */}
                     <div className="mb-4">

@@ -7,7 +7,7 @@ export default function FeatureCards() {
                         <div className="space-y-4 mb-6">
                             <div className="mx-auto w-16 h-16 bg-blue-600/10 rounded-lg flex items-center justify-center group-hover:bg-blue-600/20 transition-colors overflow-hidden">
                                 <img
-                                    src="/ethereum-coin-giveaway-reward.jpg"
+                                    src="/images/stock-2.png"
                                     alt="Ethereum giveaway"
                                     width={32}
                                     height={32}
@@ -32,7 +32,7 @@ export default function FeatureCards() {
                         <div className="space-y-4 mb-6">
                             <div className="mx-auto w-16 h-16 bg-blue-600/10 rounded-lg flex items-center justify-center group-hover:bg-blue-600/20 transition-colors overflow-hidden">
                                 <img
-                                    src="/cryptocurrency-exchange-trading-buy-sell.jpg"
+                                    src="/images/buysell.png"
                                     alt="Buy and sell crypto"
                                     width={32}
                                     height={32}
@@ -58,7 +58,7 @@ export default function FeatureCards() {
                         <div className="space-y-4 mb-6">
                             <div className="mx-auto w-16 h-16 bg-blue-600/10 rounded-lg flex items-center justify-center group-hover:bg-blue-600/20 transition-colors overflow-hidden">
                                 <img
-                                    src="/portfolio-tracking-analytics-chart-dashboard.jpg"
+                                    src="/images/pf.png"
                                     alt="Track your portfolio"
                                     width={32}
                                     height={32}

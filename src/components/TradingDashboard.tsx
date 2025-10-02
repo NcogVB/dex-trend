@@ -19,7 +19,6 @@ function getLanguageFromURL(): string | null {
 
 const EXECUTOR_ADDRESS = "0x10e9c43B9Fbf78ca0d83515AE36D360110e4331d";
 
-
 const TradingDashboard: React.FC<TradingDashboardProps> = ({
     className = "",
     fullScreen = false,

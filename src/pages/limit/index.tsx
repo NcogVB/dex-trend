@@ -1,31 +1,30 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import TradingDashboard from '../../components/TradingDashboard'
 import { ChevronDown } from 'lucide-react'
 import { useOrder } from '../../contexts/OrderLimitContext'
 import { useSwap } from '../../contexts/SwapContext'
-import { tokens } from './Tokens'
 import ExecutorABI from "../../ABI/LimitOrder.json";
 import { ethers } from 'ethers'
 import { useWallet } from '../../contexts/WalletContext'
+import { TOKENS } from '../../utils/SwapTokens'
 
 interface Token {
     symbol: string
     name: string
     img: string
-    color: string
-    balance: number
     address: string
+    realBalance?: string;  // raw balance string
+    balance?: number;      // parsed number}
 }
-
 const Limit = () => {
     const { createOrder, cancelOrder, loading } = useOrder()
-    const { getQuote } = useSwap()
+    const { getQuote, getTokenBalance } = useSwap()
     const { account } = useWallet()
 
     const [isCreatingOrder, setIsCreatingOrder] = useState<boolean>(false)
 
-    const [fromToken, setFromToken] = useState<Token>(tokens[0])
-    const [toToken, setToToken] = useState<Token>(tokens[1])
+    const [fromToken, setFromToken] = useState<Token>(TOKENS[1])
+    const [toToken, setToToken] = useState<Token>(TOKENS[0])
     const [fromAmount, setFromAmount] = useState<string>('')
     const [toAmount, setToAmount] = useState<string>('')
     const [targetPrice, setTargetPrice] = useState<string>("");
@@ -34,7 +33,9 @@ const Limit = () => {
     const [isToDropdownOpen, setIsToDropdownOpen] = useState<boolean>(false)
     const fromDropdownRef = useRef<HTMLDivElement>(null)
     const toDropdownRef = useRef<HTMLDivElement>(null)
-
+    const [tokens, setTokens] = useState<Token[]>(
+        TOKENS.map((t) => ({ ...t, balance: 0, realBalance: '0' }))
+    )
     useEffect(() => {
         if (
             fromAmount &&
@@ -109,6 +110,26 @@ const Limit = () => {
         setFromAmount(value)
         // Remove the toAmount calculation - it's now handled by the quote
     }
+    const updateBalances = useCallback(async () => {
+        if (!account) return
+        const updated = await Promise.all(
+            TOKENS.map(async (t) => {
+                const realBalance = await getTokenBalance(t.symbol).catch(() => "0")
+                return { ...t, realBalance, balance: parseFloat(realBalance) }
+            })
+        )
+        setTokens(updated)
+        setFromToken(
+            (prev) => updated.find((t) => t.symbol === prev.symbol) || updated[0]
+        )
+        setToToken(
+            (prev) => updated.find((t) => t.symbol === prev.symbol) || updated[1]
+        )
+    }, [account, getTokenBalance])
+
+    useEffect(() => {
+        updateBalances()
+    }, [account, updateBalances])
     const handleCreateOrder = async (): Promise<void> => {
         if (isCreatingOrder) return
 
@@ -308,23 +329,28 @@ const Limit = () => {
                                             </button>
                                             {isFromDropdownOpen && (
                                                 <ul
-                                                    className="absolute right-0 mt-2 w-48 max-h-48 overflow-y-auto bg-white rounded-lg shadow-lg z-50 text-sm border border-gray-200 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
+                                                    className="absolute right-0 mt-2 w-56 max-h-48 overflow-y-auto bg-white rounded-lg shadow-lg z-50 text-sm border border-gray-200"
                                                     role="listbox"
                                                 >
-                                                    {tokens
-                                                        .filter((t) => t.symbol !== toToken.symbol)
-                                                        .map((t) => (
-                                                            <li
-                                                                key={t.symbol}
-                                                                onClick={() => handleTokenSelect(t, true)}
-                                                                className="flex items-center cursor-pointer px-3 py-2.5 hover:bg-gray-50 transition-colors"
-                                                            >
+                                                    {tokens.filter((t) => t.symbol !== toToken.symbol).map((t) => (
+                                                        <li
+                                                            key={t.symbol}
+                                                            onClick={() => handleTokenSelect(t, true)}
+                                                            className="flex items-center justify-between cursor-pointer px-3 py-2.5 hover:bg-gray-50 transition-colors"
+                                                        >
+                                                            <div className="flex items-center">
                                                                 <img src={t.img} className="w-5 h-5 mr-2.5 rounded-full" alt={t.symbol} />
                                                                 <span className="font-medium">{t.symbol}</span>
-                                                            </li>
-                                                        ))}
+                                                            </div>
+                                                            <span className="text-gray-500 text-xs">
+                                                                {t.balance !== undefined ? t.balance.toFixed(4) : "0.0000"}
+                                                            </span>
+                                                        </li>
+                                                    ))}
+
                                                 </ul>
                                             )}
+
                                         </div>
                                     </div>
                                 </div>
@@ -335,13 +361,13 @@ const Limit = () => {
                                         <button
                                             key={pct}
                                             onClick={() => {
-                                                const bal = fromToken.balance
-                                                const calcAmt = ((bal * pct) / 100).toFixed(6)
-                                                setFromAmount(calcAmt)
+                                                const bal = parseFloat(fromToken.realBalance || "0"); // ✅ ensure number
+                                                const calcAmt = ((bal * pct) / 100).toFixed(6);
+                                                setFromAmount(calcAmt);
                                             }}
                                             className="cursor-pointer w-full bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-2 text-sm font-medium text-[#888888] hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors"
                                         >
-                                            {pct === 100 ? 'MAX' : `${pct}%`}
+                                            {pct === 100 ? "MAX" : `${pct}%`}
                                         </button>
                                     ))}
                                 </div>
@@ -392,7 +418,7 @@ const Limit = () => {
                                                     className="absolute right-0 mt-2 w-48 max-h-48 overflow-y-auto bg-white rounded-lg shadow-lg z-50 text-sm border border-gray-200 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100"
                                                     role="listbox"
                                                 >
-                                                    {tokens
+                                                    {TOKENS
                                                         .filter((t) => t.symbol !== fromToken.symbol)
                                                         .map((t) => (
                                                             <li
@@ -434,7 +460,7 @@ const Limit = () => {
                                             className={`border rounded-lg px-3 py-2.5 text-center font-semibold focus:outline-none focus:ring-2 ${targetError
                                                 ? "border-red-500 text-red-600 focus:ring-red-200"
                                                 : "border-gray-300 focus:ring-blue-200"
-                                            }`}
+                                                }`}
                                         />
                                         {targetError && <p className="text-xs text-red-500 mt-1.5">{targetError}</p>}
                                     </div>
@@ -467,7 +493,7 @@ const Limit = () => {
                                     className={`w-full py-3.5 rounded-lg font-semibold transition-all ${!fromAmount || !toAmount || loading || isCreatingOrder || !targetPrice
                                         ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                                         : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md"
-                                    }`}
+                                        }`}
                                 >
                                     {isCreatingOrder ? "Placing Order..." : "Place Limit Order"}
                                 </button>

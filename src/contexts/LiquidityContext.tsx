@@ -43,10 +43,18 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
                 // --- 1. Get pool from factory ---
                 const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
-                let poolAddress = await factory.getPool(tokenA, tokenB, fee);
+                // Always query factory with sorted token addresses
+                const [t0, t1] =
+                    tokenA.toLowerCase() < tokenB.toLowerCase()
+                        ? [tokenA, tokenB]
+                        : [tokenB, tokenA];
+
+                let poolAddress = await factory.getPool(t0, t1, fee);
+
                 if (poolAddress === ethers.ZeroAddress) {
-                    throw new Error("Pool does not exist for selected tokens");
+                    throw new Error(`Pool does not exist for ${t0} / ${t1} with fee ${fee}`);
                 }
+
 
                 // --- 2. Read pool state ---
                 const poolContract = new ethers.Contract(poolAddress, UNISWAP_V3_POOL_ABI, provider);
@@ -75,7 +83,7 @@ export const LiquidityProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                     new ethers.Contract(tokenB, ERC20_ABI, provider).symbol(),
                 ]);
 
-                const chainId = (await provider.getNetwork()).chainId;
+                const chainId = 1476;
                 const tokenObjA = new Token(Number(chainId), tokenA, Number(decA), symA, symA);
                 const tokenObjB = new Token(Number(chainId), tokenB, Number(decB), symB, symB);
 

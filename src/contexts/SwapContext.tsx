@@ -2,18 +2,18 @@
 import React, { createContext, useContext } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "./WalletContext"; // Adjust the import path as needed
-import { TOKENS } from "../utils/Constants";
 import { ERC20_ABI } from "./ABI";
 import SwapRouterABI from "../ABI/SwapRouter.json";
+import { TOKENS } from "../utils/SwapTokens";
 
-// Fee tiers for Uniswap V3
-
+// Types
 interface SwapQuote {
     amountOut: string;
     priceImpact: number;
     route: string[];
     fee: number;
 }
+
 interface PoolInfo {
     address: string;
     fee: number;
@@ -25,17 +25,17 @@ interface PoolInfo {
 
 interface SwapContextValue {
     getQuote: (params: {
-        fromSymbol: keyof typeof TOKENS; // This will now be "WPOL" | "USDC"
-        toSymbol: keyof typeof TOKENS;
+        fromSymbol: string;
+        toSymbol: string;
         amountIn: string;
     }) => Promise<SwapQuote>;
     swapExactInputSingle: (params: {
-        fromSymbol: keyof typeof TOKENS;
-        toSymbol: keyof typeof TOKENS;
+        fromSymbol: string;
+        toSymbol: string;
         amountIn: string;
         slippageTolerance: number;
     }) => Promise<any>;
-    getTokenBalance: (tokenSymbol: keyof typeof TOKENS) => Promise<string>;
+    getTokenBalance: (tokenSymbol: string) => Promise<string>;
 }
 
 const SwapContext = createContext<SwapContextValue | undefined>(undefined);
@@ -44,11 +44,14 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
     children,
 }) => {
     const { account, provider, signer } = useWallet();
+
     const SWAP_ROUTER_ADDRESS = "0x459A438Fbe3Cb71f2F8e251F181576d5a035Faef";
     const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
+
     const FACTORY_ABI = [
         "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)",
     ];
+
     const POOL_ABI = [
         "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
         "function token0() external view returns (address)",
@@ -56,6 +59,14 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
         "function fee() external view returns (uint24)",
         "function liquidity() external view returns (uint128)",
     ];
+
+    // ------------------ Helpers -------------------
+    const findToken = (symbol: string) => {
+        const token = TOKENS.find((t) => t.symbol === symbol);
+        if (!token) throw new Error(`Token ${symbol} not found`);
+        return token;
+    };
+
     const getPoolInfo = async (
         tokenA: string,
         tokenB: string,
@@ -70,6 +81,7 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
             if (poolAddress === ethers.ZeroAddress) {
                 return null;
             }
+
             console.log(`Found pool at ${poolAddress} for fee ${fee}`);
             const poolContract = new ethers.Contract(poolAddress, POOL_ABI, provider);
             const [slot0Data, liquidity, token0, token1] = await Promise.all([
@@ -107,20 +119,20 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
         );
     };
 
+    // ------------------ Quote -------------------
     const getQuote = async ({
         fromSymbol,
         toSymbol,
         amountIn,
     }: {
-        fromSymbol: keyof typeof TOKENS;
-        toSymbol: keyof typeof TOKENS;
+        fromSymbol: string;
+        toSymbol: string;
         amountIn: string;
     }): Promise<SwapQuote> => {
         if (!provider) throw new Error("Provider not connected");
 
-        const tokenInInfo = TOKENS[fromSymbol];
-        const tokenOutInfo = TOKENS[toSymbol];
-        if (!tokenInInfo || !tokenOutInfo) throw new Error("Token not configured");
+        const tokenInInfo = findToken(fromSymbol);
+        const tokenOutInfo = findToken(toSymbol);
 
         const pools = await getAllPoolsForPair(tokenInInfo.address, tokenOutInfo.address);
         if (pools.length === 0) throw new Error("No liquidity pools found");
@@ -128,45 +140,45 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
         const bestPool = pools[0];
         const sqrtPriceX96 = BigInt(bestPool.sqrtPriceX96);
 
-        // ✅ Convert sqrtPriceX96 to price with decimals adjustment
-        const numerator = sqrtPriceX96 * sqrtPriceX96; // Q128.192
+        // Convert sqrtPriceX96 to price
+        const numerator = sqrtPriceX96 * sqrtPriceX96;
         const denominator = 1n << 192n;
-
         const rawPrice = Number(numerator) / Number(denominator);
+
         const price =
             bestPool.token0.toLowerCase() === tokenInInfo.address.toLowerCase()
-                ? rawPrice * 10 ** (tokenInInfo.decimals - tokenOutInfo.decimals)
-                : (1 / rawPrice) * 10 ** (tokenInInfo.decimals - tokenOutInfo.decimals);
+                ? rawPrice *
+                10 ** ((18) - (18))
+                : (1 / rawPrice) *
+                10 ** ((18) - (18));
 
-        // Calculate output amount
         const inputAmount = parseFloat(amountIn);
         const outputAmount = inputAmount * price;
 
         return {
             amountOut: outputAmount.toString(),
-            priceImpact: 0.0, // you can later compute real impact from pool reserves
+            priceImpact: 0.0, // later: compute actual impact
             route: [fromSymbol, toSymbol],
             fee: bestPool.fee,
         };
     };
 
-
+    // ------------------ Swap -------------------
     const swapExactInputSingle = async ({
         fromSymbol,
         toSymbol,
         amountIn,
         slippageTolerance,
     }: {
-        fromSymbol: keyof typeof TOKENS;
-        toSymbol: keyof typeof TOKENS;
+        fromSymbol: string;
+        toSymbol: string;
         amountIn: string;
         slippageTolerance: number;
     }) => {
         if (!signer || !account) throw new Error("Wallet not connected");
 
-        const tokenInInfo = TOKENS[fromSymbol];
-        const tokenOutInfo = TOKENS[toSymbol];
-        if (!tokenInInfo || !tokenOutInfo) throw new Error("Token not configured");
+        const tokenInInfo = findToken(fromSymbol);
+        const tokenOutInfo = findToken(toSymbol);
 
         const tokenInContract = new ethers.Contract(
             tokenInInfo.address,
@@ -179,7 +191,7 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
             signer
         );
 
-        const amtInWei = ethers.parseUnits(amountIn, tokenInInfo.decimals);
+        const amtInWei = ethers.parseUnits(amountIn, 18);
         const currentAllowance = await tokenInContract.allowance(
             account,
             SWAP_ROUTER_ADDRESS
@@ -201,10 +213,11 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
         const quote = await getQuote({ fromSymbol, toSymbol, amountIn });
         const amountOutWei = ethers.parseUnits(
             quote.amountOut,
-            tokenOutInfo.decimals
+            18
         );
 
-        const minOutWei = (amountOutWei * BigInt(100 - slippageTolerance)) / BigInt(100);
+        const minOutWei =
+            (amountOutWei * BigInt(100 - slippageTolerance)) / BigInt(100);
         const deadline = Math.floor(Date.now() / 1000) + 60 * 10;
 
         const params = {
@@ -225,22 +238,25 @@ export const SwapProvider: React.FC<{ children: React.ReactNode }> = ({
         return receipt;
     };
 
-    const getTokenBalance = async (tokenSymbol: keyof typeof TOKENS): Promise<string> => {
+    // ------------------ Balance -------------------
+    const getTokenBalance = async (tokenSymbol: string): Promise<string> => {
         if (!provider || !account) {
             throw new Error("Wallet not connected");
         }
 
         try {
-            const token = TOKENS[tokenSymbol];
+            const token = findToken(tokenSymbol);
             const tokenContract = new ethers.Contract(token.address, ERC20_ABI, provider);
             const balance = await tokenContract.balanceOf(account);
-            return ethers.formatUnits(balance, token.decimals);
+            const decimals = 18;
+            return ethers.formatUnits(balance, decimals);
         } catch (error) {
             console.error(`Error getting balance for ${tokenSymbol}:`, error);
             return "0";
         }
     };
 
+    // ------------------ Context -------------------
     return (
         <SwapContext.Provider
             value={{
