@@ -164,7 +164,7 @@ const Converter = () => {
                 {/* Top tabs */}
                 <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">
                     <Link
-                        to="/home"
+                        to="/swap"
                         className="rounded-[6px] bg-white text-[#DC2626] font-semibold text-sm px-[20px] py-[10px] cursor-pointer shadow-sm"
                     >
                         Exchange

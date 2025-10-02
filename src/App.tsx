@@ -15,7 +15,7 @@ function App() {
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
-        <Route path="/home" element={<Swap />} />
+        <Route path="/swap" element={<Swap />} />
         <Route path="/bridge" element={<Bridge />} />
         <Route path="/exchange" element={<Limit />} />
         <Route path="/pool" element={<Pool />} />
