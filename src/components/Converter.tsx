@@ -105,12 +105,14 @@ const Converter = () => {
             return
         }
         setIsSwapping(true)
+        const slippageBps = Math.floor(slippageTolerance * 100);
+
         try {
             const receipt = await swapExactInputSingle({
                 fromSymbol: fromToken.symbol as 'skybnb' | 'USDT',
                 toSymbol: toToken.symbol as 'skybnb' | 'USDT',
                 amountIn: fromAmount,
-                slippageTolerance: slippageTolerance,
+                slippageTolerance: slippageBps,
             })
             alert(`Swap successful! Tx hash: ${receipt.hash}`)
             setFromAmount('')
@@ -375,6 +377,7 @@ const Converter = () => {
                             {[25, 50, 75, 100].map((pct) => (
                                 <button
                                     key={pct}
+                                    disabled
                                     onClick={() => {
                                         const bal = parseFloat(
                                             toToken.realBalance || '0'
@@ -385,7 +388,7 @@ const Converter = () => {
                                         ).toFixed(6)
                                         setToAmount(calcAmt)
                                     }}
-                                    className="cursor-pointer w-full block bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-[8px] text-[14px] font-medium text-[#888888] text-center hover:bg-[#DC2626] hover:text-white transition-colors peer-checked:bg-[#DC2626] peer-checked:text-white"
+                                    className="cursor-notallowed w-full block bg-[#F8F8F8] border border-[#E5E5E5] rounded-[6px] py-[8px] text-[14px] font-medium text-[#888888] text-center   transition-colors peer-checked:bg-[#DC2626] peer-checked:text-white"
                                 >
                                     {pct === 100 ? 'MAX' : `${pct}%`}
                                 </button>
@@ -406,24 +409,25 @@ const Converter = () => {
                                 : '--'}
                         </p>
                     </div>
-
                     <div className="flex-1 text-center md:text-right">
                         <span className="flex items-center justify-center md:justify-end gap-2 text-[#888888] text-sm">
-                            Slippage Tolerance{' '}
-                            <CircleQuestionMarkIcon size={16} />
+                            Slippage Tolerance <CircleQuestionMarkIcon size={16} />
                         </span>
-                        <div className="flex items-center justify-center md:justify-end mt-2">
-                            <input
-                                type="number"
-                                value={slippageTolerance}
-                                onChange={(e) =>
-                                    setSlippageTolerance(
-                                        parseFloat(e.target.value) || 1
-                                    )
-                                }
-                                className="font-semibold text-[18px] text-[#DC2626] bg-transparent border-none outline-none w-12 text-right"
-                            />
-                            %
+
+                        {/* Slippage Options */}
+                        <div className="flex items-center justify-center md:justify-end mt-2 gap-2">
+                            {[0.1, 0.5, 1, 2].map((value) => (
+                                <button
+                                    key={value}
+                                    onClick={() => setSlippageTolerance(value)}
+                                    className={`px-3 py-1 rounded-full border text-sm font-medium transition ${slippageTolerance === value
+                                        ? "bg-[#DC2626] text-white border-[#DC2626]"
+                                        : "border-gray-300 text-gray-600 hover:border-[#DC2626]"
+                                        }`}
+                                >
+                                    {value}%
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
