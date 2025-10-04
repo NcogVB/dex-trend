@@ -330,9 +330,9 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
             className={`${className} w-full ${fullScreen ? " py-0" : " py-4"}`}
         >
             <div className={`w-full`}>
-                <div className="flex flex-col lg:flex-row gap-3 h-auto lg:h-[85vh] lg:md:h-[88vh]">
+                <div className="flex flex-col lg:flex-row gap-3 h-auto lg:h-[55vh] lg:md:h-[62vh]">
                     {/* Trading Chart Section */}
-                    <div className="modern-card w-full lg:w-[60%] overflow-hidden h-[50vh] lg:h-full">
+                    <div className="modern-card w-full lg:w-[100%] overflow-hidden h-[50vh] lg:h-full">
                         <div className="relative w-full h-full overflow-hidden">
                             <div
                                 ref={chartContainerRef}
