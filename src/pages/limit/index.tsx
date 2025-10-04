@@ -273,7 +273,7 @@ const Limit = () => {
 
                 const amountIn = ethers.formatUnits(ord.amountIn, decimalsIn);
                 const minOut = ethers.formatUnits(ord.amountOutMin, decimalsOut);
-
+                const targetAmount = ethers.formatUnits(ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96), 18)
                 const orderData = {
                     id,
                     maker: ord.maker,
@@ -283,7 +283,7 @@ const Limit = () => {
                     pool: ord.pool,
                     amountIn,
                     minOut,
-                    targetSqrt: ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96),
+                    targetSqrt: targetAmount,
                     triggerAbove: ord.triggerAbove,
                     expiry: Number(ord.expiry),
                     filled: Boolean(ord.filled),
@@ -295,6 +295,7 @@ const Limit = () => {
                 // === USER orders ===
                 if (account && ord.maker.toLowerCase() === account.toLowerCase()) {
                     if (!orderData.filled && !orderData.cancelled && !isExpired) {
+                        console.log(orderData)
                         userOpen.push(orderData); // active user orders
                     } else {
                         history.push(orderData); // user history
@@ -422,6 +423,14 @@ const Limit = () => {
 
                                     {/* Orders Content (scrollable area) */}
                                     <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-md flex-1 overflow-y-auto">
+                                        {/* Header Row */}
+                                        <div className="px-3 py-2 flex items-center justify-between text-gray-600 font-semibold border-b border-gray-300 text-xs">
+                                            <span className="flex-1 text-left">Target Price</span>
+                                            <span className="flex-1 text-center">Order Amount</span>
+                                            <span className="flex-1 text-right">Min Out</span>
+                                            <span className="flex-1 text-right">Status</span>
+                                        </div>
+
                                         {activeTab === "open" ? (
                                             generalOpenOrders.length === 0 ? (
                                                 <div className="flex flex-col items-center justify-center h-full text-sm text-gray-600">
@@ -430,11 +439,26 @@ const Limit = () => {
                                             ) : (
                                                 <ul className="divide-y divide-gray-200 text-xs">
                                                     {generalOpenOrders.map((o) => (
-                                                        <li key={o.id} className="px-3 py-2 flex items-center justify-between">
-                                                            <span className="text-xs font-medium text-gray-800">
-                                                                #{o.id} {o.tokenIn.slice(0, 4)} → {o.tokenOut.slice(0, 4)} • {o.amountIn} in | min {o.minOut} out •{" "}
-                                                                {o.triggerAbove ? "Above" : "Below"} • {new Date(o.expiry * 1000).toLocaleString()} •{" "}
-                                                                Maker: {o.maker.slice(0, 6)}…{o.maker.slice(-4)}
+                                                        <li
+                                                            key={o.id}
+                                                            className="px-3 py-2 flex items-center justify-between text-gray-800"
+                                                        >
+                                                            {/* Target Price */}
+                                                            <span className="flex-1 text-left font-medium">
+                                                                {parseFloat(o.targetSqrt).toFixed(5)}
+                                                            </span>
+
+                                                            {/* Token Pair + Amount */}
+                                                            <span className="flex-1 text-center">
+                                                                {o.tokenIn.slice(0, 4)} → {o.tokenOut.slice(0, 4)} ({o.amountIn})
+                                                            </span>
+
+                                                            {/* MinOut */}
+                                                            <span className="flex-1 text-right font-medium">{o.minOut}</span>
+
+                                                            {/* Status */}
+                                                            <span className="flex-1 text-right font-semibold text-green-600">
+                                                                Active
                                                             </span>
                                                         </li>
                                                     ))}
@@ -446,23 +470,50 @@ const Limit = () => {
                                             </div>
                                         ) : (
                                             <ul className="divide-y divide-gray-200 text-xs">
-                                                {orderHistory.map((o) => (
-                                                    <li key={o.id} className="px-3 py-2 flex items-center justify-between">
-                                                        <span className="text-xs font-medium text-gray-800">
-                                                            #{o.id} {o.tokenIn.slice(0, 4)} → {o.tokenOut.slice(0, 4)} • {o.amountIn} in •{" "}
-                                                            {o.filled ? "Filled" : o.cancelled ? "Cancelled" : "Expired"} • Maker:{" "}
-                                                            {o.maker.slice(0, 6)}…{o.maker.slice(-4)}
-                                                        </span>
-                                                    </li>
-                                                ))}
+                                                {orderHistory.map((o) => {
+                                                    const status = o.filled
+                                                        ? "Filled"
+                                                        : o.cancelled
+                                                            ? "Cancelled"
+                                                            : "Expired";
+
+                                                    return (
+                                                        <li
+                                                            key={o.id}
+                                                            className="px-3 py-2 flex items-center justify-between text-gray-800"
+                                                        >
+                                                            {/* Target Price */}
+                                                            <span className="flex-1 text-left font-medium">
+                                                                {parseFloat(o.targetSqrt).toFixed(5)}
+                                                            </span>
+
+                                                            {/* Token Pair + Amount */}
+                                                            <span className="flex-1 text-center">
+                                                                {o.tokenIn.slice(0, 4)} → {o.tokenOut.slice(0, 4)} ({o.amountIn})
+                                                            </span>
+
+                                                            {/* MinOut */}
+                                                            <span className="flex-1 text-right font-medium">{o.minOut}</span>
+
+                                                            {/* Status */}
+                                                            <span
+                                                                className={`flex-1 text-right font-semibold ${status === "Filled"
+                                                                        ? "text-blue-600"
+                                                                        : status === "Cancelled"
+                                                                            ? "text-red-600"
+                                                                            : "text-gray-600"
+                                                                    }`}
+                                                            >
+                                                                {status}
+                                                            </span>
+                                                        </li>
+                                                    );
+                                                })}
                                             </ul>
                                         )}
                                     </div>
-
-
                                 </div>
                             </div>
-
 
                             {/* Create Order Form - Below Orders Panel */}
                             <div className="modern-card p-4 flex flex-col gap-4 text-sm h-[380px]">
