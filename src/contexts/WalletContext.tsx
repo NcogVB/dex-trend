@@ -16,7 +16,7 @@ type WalletType = "metamask" | "trust" | null
 
 interface WalletContextType {
     account: string | null
-    provider: ethers.BrowserProvider | null
+    provider: ethers.Provider | null
     signer: ethers.JsonRpcSigner | null
     isConnected: boolean
     isConnecting: boolean
@@ -38,6 +38,10 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined)
 interface WalletProviderProps {
     children: ReactNode
 }
+
+// Chain configuration
+const CHAIN_ID = 1476
+const RPC_URL = "https://api.skyhighblockchain.com"
 
 // ✅ Provider selector
 function getInjectedProvider(walletType?: WalletType): any | null {
@@ -72,39 +76,60 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [copySuccess, setCopySuccess] = useState(false)
-    const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null)
+    // ✅ Initialize provider immediately with fallback RPC
+    const [provider, setProvider] = useState<ethers.Provider | null>(
+        () => new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID)
+    )
     const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null)
     const [connectedWallet, setConnectedWallet] = useState<WalletType>(null)
 
     // Initialize provider & signer
     useEffect(() => {
         const setup = async () => {
-            if (!address) {
-                setProvider(null)
-                setSigner(null)
-                return
-            }
             try {
-                const raw = getInjectedProvider(connectedWallet ?? undefined)
-                if (!raw) {
-                    console.warn("No injected provider found for:", connectedWallet)
+                if (!address) {
+                    // ✅ Always maintain a read-only provider for contract calls
+                    const fallbackProvider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID)
+                    setProvider(fallbackProvider)
+                    setSigner(null)
                     return
                 }
-                const p = new ethers.BrowserProvider(raw)
-                const s = await p.getSigner()
-                setProvider(p)
+
+                const raw = getInjectedProvider(connectedWallet ?? undefined)
+                if (!raw) {
+                    console.warn("No injected provider found, using fallback")
+                    const fallbackProvider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID)
+                    setProvider(fallbackProvider)
+                    setSigner(null)
+                    return
+                }
+
+                // ✅ Create BrowserProvider with proper network
+                const browserProvider = new ethers.BrowserProvider(raw, CHAIN_ID)
+
+                // ✅ Get the underlying provider for read operations
+                const readProvider = browserProvider.provider || browserProvider
+
+                // Get signer for write operations
+                const s = await browserProvider.getSigner()
+
+                setProvider(readProvider as ethers.Provider)
                 setSigner(s)
+
             } catch (err) {
                 console.error("Failed to init provider/signer:", err)
-                setProvider(null)
+                // ✅ Fallback to read-only provider on error
+                const fallbackProvider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID)
+                setProvider(fallbackProvider)
                 setSigner(null)
             }
         }
         setup()
-    }, [address, connectedWallet])
+    }, [address, connectedWallet, chainId])
 
     const formatAddress = (addr: string): string =>
         `${addr.slice(0, 6)}...${addr.slice(-4)}`
+
     const connect = async (walletType?: "metamask" | "trust") => {
         try {
             let connectorToUse = connectors[0]
@@ -120,15 +145,15 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
             if (!connectorToUse) throw new Error("No wallet connector available")
 
-            // ✅ Force connect to Polygon
+            // ✅ Force connect to custom chain
             await connectAsync({
                 connector: connectorToUse,
-                chainId: 1476,  // ⬅ forces Polygon
+                chainId: CHAIN_ID,
             })
 
-            // ✅ Immediately switch chain if wrong
-            if (chainId !== 1476) {
-                await switchChainAsync({ chainId: 1476 })
+            // ✅ Verify and switch if needed
+            if (chainId !== CHAIN_ID) {
+                await switchChainAsync({ chainId: CHAIN_ID })
             }
 
         } catch (err) {
@@ -137,10 +162,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         }
     }
 
-
     const switchToPolygon = async () => {
-        if (chainId !== 1476) {
-            await switchChainAsync({ chainId: 1476 })
+        if (chainId !== CHAIN_ID) {
+            await switchChainAsync({ chainId: CHAIN_ID })
         }
     }
 

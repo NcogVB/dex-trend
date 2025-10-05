@@ -28,14 +28,20 @@ const WalletModal: React.FC = () => {
   }, [isModalOpen, isConnected])
 
   // Handle successful connection
+  // Close modal automatically once wallet is connected
   useEffect(() => {
-    if (isConnected && provider && signer && account && connectionStep === 'loading') {
-      setConnectionStep('success')
-      setTimeout(() => {
-        closeModal()
-      }, 1500)
+    if (isConnected && account && provider && signer) {
+      // Mark success if not already
+      if (connectionStep !== 'success') setConnectionStep('success');
+
+      const timer = setTimeout(() => {
+        closeModal();
+      }, 1200); // Close after success message
+
+      return () => clearTimeout(timer);
     }
-  }, [isConnected, provider, signer, account, connectionStep, closeModal])
+  }, [isConnected, account, provider, signer, connectionStep, closeModal]);
+
 
   if (!isModalOpen) return null
 
@@ -202,7 +208,7 @@ const WalletModal: React.FC = () => {
               <div className="flex items-center justify-center gap-2 mb-3">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 <p className="text-xs text-gray-600 font-medium">
-                  Polygon Mainnet
+                  SkyHigh Chain
                 </p>
               </div>
               <p className="text-xs text-gray-500 text-center">

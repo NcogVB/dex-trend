@@ -19,7 +19,7 @@ interface Token {
 const Limit = () => {
     const { createOrder, cancelOrder, loading } = useOrder()
     const { getQuote, getTokenBalance } = useSwap()
-    const { account } = useWallet()
+    const { account, provider } = useWallet()
 
     const [isCreatingOrder, setIsCreatingOrder] = useState<boolean>(false)
     const [activeTab, setActiveTab] = useState<"open" | "history">("open");
@@ -48,8 +48,8 @@ const Limit = () => {
 
                 // fetch quote for 1 unit of fromToken
                 const quote = await getQuote({
-                    fromSymbol: fromToken.symbol as "skybnb" | "USDT",
-                    toSymbol: toToken.symbol as "skybnb" | "USDT",
+                    fromSymbol: fromToken.symbol as "USDC" | "USDT",
+                    toSymbol: toToken.symbol as "USDC" | "USDT",
                     amountIn: "1",
                 });
 
@@ -196,25 +196,16 @@ const Limit = () => {
         }
     }
     const MIN_ERC20_ABI = ["function decimals() view returns (uint8)"];
-    function getReadProvider() {
-        try {
-            if (typeof (window as any).ethereum !== "undefined") {
-                return new ethers.BrowserProvider((window as any).ethereum);
-            } else {
-                return new ethers.JsonRpcProvider("https://api.skyhighblockchain.com");
-            }
-        } catch (e) {
-            console.warn("Failed to create provider, falling back to JsonRpcProvider:", e);
-            return new ethers.JsonRpcProvider("https://api.skyhighblockchain.com");
-        }
-    }
     const EXECUTOR_ADDRESS = "0x10e9c43B9Fbf78ca0d83515AE36D360110e4331d";
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
 
     const fetchOrders = async () => {
         try {
-            const provider = getReadProvider();
+            if (!provider) {
+                console.error("Provider is not initialized");
+                return;
+            }
             const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
 
             const nextIdBN = await executor.nextOrderId();
@@ -332,7 +323,6 @@ const Limit = () => {
         fetchOrders();
         const t = setInterval(fetchOrders, 15000);
         return () => clearInterval(t);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     return (
         <div>
@@ -498,10 +488,10 @@ const Limit = () => {
                                                             {/* Status */}
                                                             <span
                                                                 className={`flex-1 text-right font-semibold ${status === "Filled"
-                                                                        ? "text-blue-600"
-                                                                        : status === "Cancelled"
-                                                                            ? "text-red-600"
-                                                                            : "text-gray-600"
+                                                                    ? "text-blue-600"
+                                                                    : status === "Cancelled"
+                                                                        ? "text-red-600"
+                                                                        : "text-gray-600"
                                                                     }`}
                                                             >
                                                                 {status}
