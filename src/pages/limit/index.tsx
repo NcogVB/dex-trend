@@ -281,23 +281,25 @@ const Limit = () => {
                     cancelled: Boolean(ord.cancelled),
                 };
 
-                const isExpired = orderData.expiry <= Math.floor(Date.now() / 1000);
+                const now = Math.floor(Date.now() / 1000);
+                const isExpired = orderData.expiry > 0 && orderData.expiry < now;
 
                 // === USER orders ===
                 if (account && ord.maker.toLowerCase() === account.toLowerCase()) {
                     if (!orderData.filled && !orderData.cancelled && !isExpired) {
-                        console.log(orderData)
                         userOpen.push(orderData); // active user orders
                     } else {
-                        history.push(orderData); // user history
+                        history.push(orderData); // user's completed/expired orders
                     }
                 }
 
                 // === GENERAL orders ===
                 if (!orderData.filled && !orderData.cancelled && !isExpired) {
-                    // all non-expired, non-filled orders from everyone
-                    generalOpen.push(orderData);
+                    generalOpen.push(orderData); // all active open orders
+                } else {
+                    history.push(orderData); // include all expired/filled/cancelled orders in history
                 }
+
             }
 
 
