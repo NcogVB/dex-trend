@@ -8,6 +8,7 @@ import Swap from './pages/swap'
 import ConverterPool from './components/ConverterPool'
 import Converter1 from './components/Converter1'
 import Home from './pages/Home'
+import LendingBorrowing from './pages/LendingBorrowing/LB'
 
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/swap" element={<Swap />} />
         <Route path="/bridge" element={<Bridge />} />
+        <Route path="/LendingBorrowing" element={<LendingBorrowing />} />
         <Route path="/exchange" element={<Limit />} />
         <Route path="/pool" element={<Pool />} />
         <Route path="/addlp" element={<ConverterPool />} />
