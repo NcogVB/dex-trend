@@ -46,7 +46,8 @@ const Header: React.FC = () => {
         { name: 'Pool', href: 'pool', path: '/pool' },
         { name: 'Bridge', href: 'https://bridge.skyhighblockchain.com/', path: '', external: true },
         { name: 'Exchange', href: 'exchange', path: '/exchange' },
-        { name: 'L&B', href: 'LendingBorrowing', path: '/LendingBorrowing' },
+        // { name: 'L&B', href: 'LendingBorrowing', path: '/LendingBorrowing' },
+        { name: 'PoolData', href: 'PoolData', path: '/PoolData' },
     ]
 
     // Handle scroll behavior
