@@ -3,16 +3,10 @@ import { ChevronDown, CircleQuestionMarkIcon } from "lucide-react";
 import { useWallet } from "../../contexts/WalletContext";
 import { TOKENS } from "../../utils/SwapTokens";
 import { useLendingBorrowing } from "../../contexts/LendingBorrowingContext";
-interface Token {
-    symbol: string
-    name: string
-    img: string
-    balance: number
-    realBalance?: string
-}
+
 const LendingBorrowing = () => {
     const { account } = useWallet();
-    const { getTokenBalance, collateral, debt, depositCollateral, borrow, refreshPositions } = useLendingBorrowing();
+    const { getTokenBalance, depositCollateral, borrow, refreshPositions } = useLendingBorrowing();
 
     const [tokens, setTokens] = useState(
         TOKENS.map((t) => ({ ...t, balance: 0, realBalance: "0" }))

@@ -23,7 +23,7 @@ interface BotState {
   pairs: AmmPair[];
 }
 
-const API_URL = "http://localhost:4000/amm/status";
+const API_URL = "http://38.242.217.249:3001/amm/status";
 
 const AmmDashboard: React.FC = () => {
   const [data, setData] = useState<BotState | null>(null);
