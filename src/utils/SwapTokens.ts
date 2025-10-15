@@ -11,19 +11,19 @@ export const TOKENS: Token[] = [
     {
         symbol: "USDT",
         name: "Tether",
-        address: "0x188D71EE19cB9976213BBa3867ED5EdAA04e6E78",
+        address: "0xC26efb6DB570DEE4BD0541A1ed52B590F05E3E3B",
         img: "/images/stock-3.png",
     },
     {
         symbol: "USDC",
         name: "USD Coin",
-        address: "0x2A4c1D209ef13dBB846c7E7421a0B8238D155fFB",
+        address: "0x553fE3CA2A5F304857A7c2C78b37686716B8c89b",
         img: "/images/stock-5.png",
     },
     {
         symbol: "ETH",
         name: "Ethereum",
-        address: "0xEc8f91aDD963aF50f9390795DcD2828990308FA5",
+        address: "0xc671a7a0Bcef13018B384F5af9f4696Aba5Ff0F1",
         img: "/images/eth.png",
     },
     {
