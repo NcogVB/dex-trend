@@ -28,26 +28,28 @@ const API_URL = "https://api.dex-trend.com/amm/status";
 const AmmDashboard: React.FC = () => {
   const [data, setData] = useState<BotState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (isInitial = false) => {
     try {
-      setError(null);
+      if (isInitial) setLoading(true);
+      else setRefreshing(true);
+
       const response = await axios.get(API_URL);
       setData(response.data);
       setLastUpdated(new Date());
     } catch (err: any) {
       console.error("❌ Failed to fetch AMM status:", err);
-      setError(err.message || "Failed to fetch AMM bot data");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 30_000);
+    fetchStatus(true);
+    const interval = setInterval(() => fetchStatus(false), 60_000); // every 1 min
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
@@ -55,21 +57,6 @@ const AmmDashboard: React.FC = () => {
     return (
       <div className="p-8 text-gray-500 text-center text-lg animate-pulse">
         ⏳ Loading AMM bot data...
-      </div>
-    );
-
-  if (error)
-    return (
-      <div className="p-8 text-red-500 text-center">
-        ❌ {error}
-        <div className="mt-4">
-          <button
-            onClick={fetchStatus}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-          >
-            Retry
-          </button>
-        </div>
       </div>
     );
 
@@ -81,15 +68,20 @@ const AmmDashboard: React.FC = () => {
     );
 
   return (
-    <div className="p-8 max-w-6xl mx-auto bg-gray-50 min-h-screen">
+    <div className="p-8 max-w-6xl mx-auto bg-gray-50 min-h-screen transition-all">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-blue-700">
           🤖 AMM Bot Dashboard
         </h2>
-        <div className="text-sm text-gray-600">
-          Last updated:{" "}
-          {lastUpdated ? lastUpdated.toLocaleTimeString() : "Never"}
+        <div className="text-sm text-gray-600 flex items-center gap-3">
+          <span>
+            Last updated:{" "}
+            {lastUpdated ? lastUpdated.toLocaleTimeString() : "Never"}
+          </span>
+          {refreshing && (
+            <span className="text-blue-500 animate-pulse">Refreshing...</span>
+          )}
         </div>
       </div>
 
@@ -120,8 +112,6 @@ const AmmDashboard: React.FC = () => {
                 "Pair",
                 "Price",
                 "Range",
-                "Tick",
-                "Fee",
                 "Liquidity (LP Tokens)",
                 "Token Reserves",
                 "LP Value (ETH)",
@@ -143,10 +133,8 @@ const AmmDashboard: React.FC = () => {
                 <td className="p-3 font-medium text-blue-700">{p.pair}</td>
                 <td className="p-3">{p.price}</td>
                 <td className="p-3 text-gray-600">{p.range}</td>
-                <td className="p-3">{p.tick}</td>
-                <td className="p-3">{p.fee}</td>
                 <td className="p-3 text-gray-700">
-                  {(Number(p.liquidity) / 1e18).toFixed(4)} ETH
+                  {(Number(p.liquidity) / 1e18).toFixed(0)} ETH
                 </td>
                 <td className="p-3 text-sm text-left">
                   <div className="text-blue-600">{p.tokenReserves.token0}</div>
