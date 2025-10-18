@@ -48,6 +48,7 @@ const Header: React.FC = () => {
         { name: 'Exchange', href: 'exchange', path: '/exchange' },
         // { name: 'L&B', href: 'LendingBorrowing', path: '/LendingBorrowing' },
         { name: 'PoolData', href: 'PoolData', path: '/PoolData' },
+        // { name: 'Policy', href: 'Policy', path: '/Policy' },
     ]
 
     // Handle scroll behavior

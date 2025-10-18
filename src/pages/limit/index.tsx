@@ -221,19 +221,29 @@ const Limit = () => {
             const decimalsCache: Record<string, number> = {};
             const userOpen: any[] = [];
             const generalOpen: any[] = [];
-            const history: any[] = [];
+            const historyMap: Map<number, any> = new Map(); // use map to dedupe by id
 
-            // fetch all orders in batch
-            const batch: Promise<{ id: number; ord: any }>[] = [];
+            // prepare batch promises
+            const batch: Promise<{ id: number; ord: any } | null>[] = [];
             for (let id = 1; id < nextId; id++) {
-                batch.push(executor.getOrder(id).then((ord: any) => ({ id, ord })));
+                batch.push(
+                    executor
+                        .getOrder(id)
+                        .then((ord: any) => ({ id, ord }))
+                        .catch((e) => {
+                            console.warn(`getOrder(${id}) failed:`, e?.message ?? e);
+                            return null;
+                        })
+                );
             }
 
-            const results = await Promise.allSettled(batch);
+            const settled = await Promise.all(batch);
 
-            for (const res of results) {
-                if (res.status !== "fulfilled") continue;
-                const { id, ord } = res.value;
+            const now = Math.floor(Date.now() / 1000);
+
+            for (const entry of settled) {
+                if (!entry) continue;
+                const { id, ord } = entry;
                 if (!ord?.maker) continue;
 
                 const tokenIn = ord.tokenIn;
@@ -242,6 +252,7 @@ const Limit = () => {
                 const lowerIn = tokenIn.toLowerCase();
                 const lowerOut = tokenOut.toLowerCase();
 
+                // cache decimals (safe fallback to 18)
                 if (!(lowerIn in decimalsCache)) {
                     try {
                         const erc20 = new ethers.Contract(tokenIn, MIN_ERC20_ABI, provider);
@@ -264,7 +275,13 @@ const Limit = () => {
 
                 const amountIn = ethers.formatUnits(ord.amountIn, decimalsIn);
                 const minOut = ethers.formatUnits(ord.amountOutMin, decimalsOut);
-                const targetAmount = ethers.formatUnits(ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96), 18)
+
+                // keep your original conversion for targetSqrt (you can change logic if you want different representation)
+                const targetAmount = ethers.formatUnits(
+                    ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96),
+                    18
+                );
+
                 const orderData = {
                     id,
                     maker: ord.maker,
@@ -275,38 +292,38 @@ const Limit = () => {
                     amountIn,
                     minOut,
                     targetSqrt: targetAmount,
-                    triggerAbove: ord.triggerAbove,
+                    triggerAbove: Boolean(ord.triggerAbove),
                     expiry: Number(ord.expiry),
                     filled: Boolean(ord.filled),
                     cancelled: Boolean(ord.cancelled),
                 };
 
-                const now = Math.floor(Date.now() / 1000);
                 const isExpired = orderData.expiry > 0 && orderData.expiry < now;
+                const isActive = !orderData.filled && !orderData.cancelled && !isExpired;
 
-                // === USER orders ===
+                // GENERAL: all active open orders
+                if (isActive) {
+                    generalOpen.push(orderData);
+                } else {
+                    // Not active -> candidate for history (use map to avoid duplicates)
+                    historyMap.set(id, orderData);
+                }
+
+                // USER: if maker is current account, classify into userOpen or history
                 if (account && ord.maker.toLowerCase() === account.toLowerCase()) {
-                    if (!orderData.filled && !orderData.cancelled && !isExpired) {
-                        userOpen.push(orderData); // active user orders
+                    if (isActive) {
+                        userOpen.push(orderData);
                     } else {
-                        history.push(orderData); // user's completed/expired orders
+                        historyMap.set(id, orderData);
                     }
                 }
-
-                // === GENERAL orders ===
-                if (!orderData.filled && !orderData.cancelled && !isExpired) {
-                    generalOpen.push(orderData); // all active open orders
-                } else {
-                    history.push(orderData); // include all expired/filled/cancelled orders in history
-                }
-
             }
-
 
             // sort newest first
             userOpen.sort((a, b) => b.id - a.id);
             generalOpen.sort((a, b) => b.id - a.id);
-            history.sort((a, b) => b.id - a.id);
+
+            const history = Array.from(historyMap.values()).sort((a, b) => b.id - a.id);
 
             setUserOpenOrders(userOpen);
             setGeneralOpenOrders(generalOpen);
@@ -315,6 +332,7 @@ const Limit = () => {
             console.error("Failed to fetch orders:", err?.message ?? err);
         }
     };
+
     const handleCancel = async (orderId: number) => {
         await cancelOrder({ orderId })
         console.log("Cancel order:", orderId);

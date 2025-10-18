@@ -10,6 +10,7 @@ import Converter1 from './components/Converter1'
 import Home from './pages/Home'
 // import LendingBorrowing from './pages/LendingBorrowing/LB'
 import AmmDashboard from './components/BotDashboard'
+import PolicyDashboard from './pages/policy/Policy'
 
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
         <Route path="/swap" element={<Swap />} />
+        <Route path="/Policy" element={<PolicyDashboard />} />
         <Route path="/bridge" element={<Bridge />} />
         {/* <Route path="/LendingBorrowing" element={<LendingBorrowing />} /> */}
         <Route path="/PoolData" element={<AmmDashboard />} />
