@@ -304,17 +304,21 @@ const Limit = () => {
 
                 // FIXED: Changed from !matchesTokenPair to matchesTokenPair
                 if (matchesTokenPair) {
+                    // GENERAL: all active open orders
                     if (isActive) {
-                        // Active orders go to open orders
-                        generalOpen.push(orderData);
 
-                        // If it's user's order, add to user open orders
-                        if (account && ord.maker.toLowerCase() === account.toLowerCase()) {
-                            userOpen.push(orderData);
-                        }
-                    } else if (orderData.filled || orderData.cancelled) {
-                        // Only add to history if filled or cancelled (NOT expired)
+                        generalOpen.push(orderData);
+                    } else {
                         historyMap.set(id, orderData);
+                    }
+
+                    // USER: if maker is current account, classify into userOpen or history
+                    if (account && ord.maker.toLowerCase() === account.toLowerCase()) {
+                        if (isActive) {
+                            userOpen.push(orderData);
+                        } else {
+                            historyMap.set(id, orderData);
+                        }
                     }
                 }
             }
@@ -517,6 +521,8 @@ const Limit = () => {
                                                                         ? "text-blue-600"
                                                                         : status === "Cancelled"
                                                                             ? "text-red-600"
+                                                                            :status === "Expired"
+                                                                                ? "text-red-600"
                                                                             : "text-gray-600"
                                                                         }`}
                                                                 >

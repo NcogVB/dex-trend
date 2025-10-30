@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { ethers } from "ethers";
 import DeFiInsuranceABI from "./ABI.json"; // ABI JSON file
 import { useWallet } from "../../contexts/WalletContext";
+import { TOKENS } from "../../utils/SwapTokens";
 
 const CONTRACT_ADDRESS = "0xF1Cfa890bF34663F1F9138C3D8974D6711CB69b4"; // replace with your deployed address
 
@@ -159,18 +160,36 @@ const PolicyDashboard: React.FC = () => {
             <div className="bg-white p-6 rounded-xl shadow border border-gray-200 mb-8">
                 <h3 className="text-lg font-semibold text-blue-700 mb-4">➕ Create New Policy</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <input
-                        placeholder="Asset Token Address"
-                        value={form.assetToken}
-                        onChange={(e) => setForm({ ...form, assetToken: e.target.value })}
-                        className="border p-2 rounded"
-                    />
-                    <input
-                        placeholder="Quote Token Address"
-                        value={form.quoteToken}
-                        onChange={(e) => setForm({ ...form, quoteToken: e.target.value })}
-                        className="border p-2 rounded"
-                    />
+                    <div className="relative">
+                        <select
+                            value={form.assetToken}
+                            onChange={(e) => setForm({ ...form, assetToken: e.target.value })}
+                            className="border p-2 rounded w-full appearance-none pr-8"
+                        >
+                            <option value="">Select Asset Token</option>
+                            {TOKENS.map((token) => (
+                                <option key={token.address} value={token.address}>
+                                    {token.symbol} - {token.name}
+                                </option>
+                            ))}
+                        </select>
+                        <span className="absolute right-3 top-3 text-gray-400">▼</span>
+                    </div>
+                    <div className="relative">
+                        <select
+                            value={form.quoteToken}
+                            onChange={(e) => setForm({ ...form, quoteToken: e.target.value })}
+                            className="border p-2 rounded w-full appearance-none pr-8"
+                        >
+                            <option value="">Select Quote Token</option>
+                            {TOKENS.map((token) => (
+                                <option key={token.address} value={token.address}>
+                                    {token.symbol} - {token.name}
+                                </option>
+                            ))}
+                        </select>
+                        <span className="absolute right-3 top-3 text-gray-400">▼</span>
+                    </div>
                     <input
                         placeholder="Notional (e.g. 100)"
                         value={form.notional}
