@@ -119,6 +119,21 @@ const PolicyDashboard: React.FC = () => {
             alert("Failed to create policy: " + err.message);
         }
     };
+    // ====================== CLAIM POLICY ======================
+    const handleClaim = async (policyId: number) => {
+        if (!contract || !signer) return;
+        try {
+            // Assuming 500 is your Uniswap pool fee tier used during policy creation
+            const fee = 500;
+            const tx = await contract.submitClaim(policyId, fee);
+            await tx.wait();
+            alert(`✅ Claim submitted for Policy #${policyId}`);
+            fetchPolicies();
+        } catch (err: any) {
+            console.error("❌ Claim submission failed:", err);
+            alert("Failed to submit claim: " + (err.message || "Unknown error"));
+        }
+    };
 
     // ====================== UI ======================
     if (loading)
@@ -231,6 +246,7 @@ const PolicyDashboard: React.FC = () => {
                                 "Premium",
                                 "Active",
                                 "Expiry",
+                                "Claim"
                             ].map((header) => (
                                 <th key={header} className="p-3 text-center font-semibold">
                                     {header}
@@ -241,7 +257,7 @@ const PolicyDashboard: React.FC = () => {
                     <tbody>
                         {policies.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="p-4 text-center text-gray-500">
+                                <td colSpan={9} className="p-4 text-center text-gray-500">
                                     No policies found.
                                 </td>
                             </tr>
@@ -249,7 +265,8 @@ const PolicyDashboard: React.FC = () => {
                             policies.map((p, i) => (
                                 <tr
                                     key={i}
-                                    className={`text-center ${i % 2 === 0 ? "bg-gray-50" : "bg-white"} hover:bg-blue-50 transition`}
+                                    className={`text-center ${i % 2 === 0 ? "bg-gray-50" : "bg-white"
+                                        } hover:bg-blue-50 transition`}
                                 >
                                     <td className="p-3 text-blue-700 font-medium">{p.policyId}</td>
                                     <td className="p-3">{p.assetToken.slice(0, 6)}...</td>
@@ -259,16 +276,37 @@ const PolicyDashboard: React.FC = () => {
                                     <td className="p-3 text-green-600">{p.premium}</td>
                                     <td className="p-3">
                                         {p.active ? (
-                                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">Active</span>
+                                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">
+                                                Active
+                                            </span>
                                         ) : (
-                                            <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs">Ended</span>
+                                            <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs">
+                                                Ended
+                                            </span>
                                         )}
                                     </td>
                                     <td className="p-3 text-gray-600">{p.expiryTime}</td>
+                                    <td className="p-3">
+                                        {p.claimed ? (
+                                            <span className="text-gray-500 text-xs font-medium">
+                                                Claimed
+                                            </span>
+                                        ) : p.active ? (
+                                            <button
+                                                onClick={() => handleClaim(p.policyId)}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 rounded transition"
+                                            >
+                                                Claim
+                                            </button>
+                                        ) : (
+                                            <span className="text-gray-400 text-xs">N/A</span>
+                                        )}
+                                    </td>
                                 </tr>
                             ))
                         )}
                     </tbody>
+
                 </table>
             </div>
         </div>
