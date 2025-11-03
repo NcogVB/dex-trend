@@ -39,7 +39,7 @@ export const tokens: Token[] = [
         img: "/images/stock-2.png",
         color: "#627EEA",
         balance: 12.3,
-        address: "0x68FC90e1A41436E14dB2384d1e923a9F2B7b22AD",
+        address: "0xc671a7a0Bcef13018B384F5af9f4696Aba5Ff0F1",
     },
     {
         symbol: "USDC",
