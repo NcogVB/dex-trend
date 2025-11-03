@@ -438,7 +438,6 @@ const Limit = () => {
                                             <span className="flex-1 text-left">Target Price</span>
                                             <span className="flex-1 text-center">Order Amount</span>
                                             <span className="flex-1 text-right">Total Amount</span>
-                                            <span className="flex-1 text-right">Status</span>
                                         </div>
 
                                         {activeTab === "open" ? (
@@ -468,11 +467,6 @@ const Limit = () => {
 
                                                                 {/* Total Amount */}
                                                                 <span className="flex-1 text-right font-medium">{totalAmount}</span>
-
-                                                                {/* Status */}
-                                                                <span className="flex-1 text-right font-semibold text-green-600">
-                                                                    Active
-                                                                </span>
                                                             </li>
                                                         );
                                                     })}
@@ -486,11 +480,7 @@ const Limit = () => {
                                             ) : (
                                                 <ul className="divide-y divide-gray-200 text-xs">
                                                     {orderHistory.map((o) => {
-                                                        const status = o.filled
-                                                            ? "Filled"
-                                                            : o.cancelled
-                                                                ? "Cancelled"
-                                                                : "Expired";
+
                                                         const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
 
                                                         return (
@@ -510,20 +500,6 @@ const Limit = () => {
 
                                                                 {/* Total Amount */}
                                                                 <span className="flex-1 text-right font-medium">{totalAmount}</span>
-
-                                                                {/* Status */}
-                                                                <span
-                                                                    className={`flex-1 text-right font-semibold ${status === "Filled"
-                                                                        ? "text-blue-600"
-                                                                        : status === "Cancelled"
-                                                                            ? "text-red-600"
-                                                                            : status === "Expired"
-                                                                                ? "text-red-600"
-                                                                                : "text-gray-600"
-                                                                        }`}
-                                                                >
-                                                                    {status}
-                                                                </span>
                                                             </li>
                                                         );
                                                     })}
