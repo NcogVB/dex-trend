@@ -509,7 +509,7 @@ const Limit = () => {
                                 <h2 className="text-sm font-semibold text-gray-800">Create Order</h2>
 
                                 {/* --- FROM SECTION --- */}
-                                <div className="relative">
+                                <div className="relative group">   {/* 👈 added group here */}
                                     <div className="modern-input px-2 py-1.5 w-full flex items-center gap-2 border border-gray-200 rounded-md">
                                         <input
                                             type="number"
@@ -525,7 +525,10 @@ const Limit = () => {
                                             >
                                                 <img src={fromToken.img} alt={fromToken.symbol} className="w-4 h-4 rounded-full" />
                                                 <span>{fromToken.symbol}</span>
-                                                <ChevronDown className={`w-3 h-3 transition-transform ${isFromDropdownOpen ? "rotate-180" : ""}`} />
+                                                <ChevronDown
+                                                    className={`w-3 h-3 transition-transform ${isFromDropdownOpen ? "rotate-180" : ""
+                                                        }`}
+                                                />
                                             </button>
 
                                             {isFromDropdownOpen && (
@@ -538,13 +541,34 @@ const Limit = () => {
                                                                 onClick={() => handleTokenSelect(t, true)}
                                                                 className="flex items-center px-2 py-1 hover:bg-gray-50 cursor-pointer"
                                                             >
-                                                                <img src={t.img} className="w-4 h-4 mr-2 rounded-full" alt={t.symbol} />
+                                                                <img
+                                                                    src={t.img}
+                                                                    className="w-4 h-4 mr-2 rounded-full"
+                                                                    alt={t.symbol}
+                                                                />
                                                                 {t.symbol}
                                                             </li>
                                                         ))}
                                                 </ul>
                                             )}
                                         </div>
+                                    </div>
+
+                                    {/* Hover buttons (now work) */}
+                                    <div className="absolute -top-6 left-60 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                        {[25, 50, 75, 100].map((pct) => (
+                                            <button
+                                                key={pct}
+                                                onClick={() => {
+                                                    const bal = parseFloat(fromToken.realBalance || "0");
+                                                    const calcAmt = ((bal * pct) / 100).toFixed(6);
+                                                    setFromAmount(calcAmt);
+                                                }}
+                                                className="px-2 py-0.5 rounded bg-gray-100 text-[10px] font-medium hover:bg-blue-600 hover:text-white"
+                                            >
+                                                {pct === 100 ? "MAX" : `${pct}%`}
+                                            </button>
+                                        ))}
                                     </div>
 
                                     {/* Current Rate */}
@@ -554,7 +578,8 @@ const Limit = () => {
                                                 1 {fromToken.symbol} = {currentRate} {toToken.symbol}
                                             </div>
                                             <div>
-                                                Balance: {fromToken.balance ? fromToken.balance.toFixed(3) : "0.000"}
+                                                Balance:{" "}
+                                                {fromToken.balance ? fromToken.balance.toFixed(3) : "0.000"}
                                             </div>
                                         </div>
                                     )}
