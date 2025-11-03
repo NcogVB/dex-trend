@@ -11,6 +11,7 @@ type CreateOrderParams = {
     targetSqrtPriceX96: string; // decimal ratio like "1.001"
     triggerAbove: boolean;
     ttlSeconds: number;
+    ordertype: number; // 0 = BUY, 1 = SELL
 };
 
 type cancelParams = {
@@ -37,7 +38,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const EXECUTOR_ADDRESS = "0x10e9c43B9Fbf78ca0d83515AE36D360110e4331d";
+    const EXECUTOR_ADDRESS = "0x230eb7155cD2392b8113fE5B557f9F05A81Df9Cd";
     const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
     const FACTORY_ABI = [
         "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
@@ -157,6 +158,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 targetPrice,
                 params.triggerAbove,
                 params.ttlSeconds,
+                params.ordertype,
                 { gasLimit: 800000 }
             );
 
