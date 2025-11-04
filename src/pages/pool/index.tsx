@@ -1,13 +1,100 @@
-import { Wallet } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from "react";
+import { Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ethers } from "ethers";
+import { useWallet } from "../../contexts/WalletContext";
+
+const POSITION_MANAGER_ADDRESS = "0xe4ae6F10ee1C8e2465D9975cb3325267A2025549";
+
+// 🔹 Minimal ABI directly embedded
+const POSITION_MANAGER_ABI = [
+    "function balanceOf(address owner) view returns (uint256)",
+    "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
+    "function positions(uint256 tokenId) view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)"
+];
+
+const ERC20_ABI = [
+    "function symbol() view returns (string)",
+    "function decimals() view returns (uint8)"
+];
+
+interface Position {
+    tokenId: string;
+    token0: string;
+    token1: string;
+    symbol0: string;
+    symbol1: string;
+    fee: number;
+    liquidity: number;
+    tickLower: number;
+    tickUpper: number;
+}
 
 const Pool = () => {
+    const { provider, account } = useWallet();
+    const [positions, setPositions] = useState<Position[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!account || !provider) return;
+        fetchPositions();
+    }, [account, provider]);
+
+    const fetchPositions = async () => {
+        try {
+            setLoading(true);
+            const contract = new ethers.Contract(
+                POSITION_MANAGER_ADDRESS,
+                POSITION_MANAGER_ABI,
+                provider
+            );
+
+            const balance = await contract.balanceOf(account);
+            const count = Number(balance);
+            const allPositions = [];
+
+            for (let i = 0; i < count; i++) {
+                const tokenId = await contract.tokenOfOwnerByIndex(account, i);
+                const pos = await contract.positions(tokenId);
+
+                // fetch token symbols
+                const token0Contract = new ethers.Contract(pos.token0, ERC20_ABI, provider);
+                const token1Contract = new ethers.Contract(pos.token1, ERC20_ABI, provider);
+
+                const [symbol0, symbol1] = await Promise.all([
+                    token0Contract.symbol(),
+                    token1Contract.symbol()
+                ]);
+
+                allPositions.push({
+                    tokenId: tokenId.toString(),
+                    token0: pos.token0,
+                    token1: pos.token1,
+                    symbol0,
+                    symbol1,
+                    fee: pos.fee,
+                    liquidity: pos.liquidity,
+                    tickLower: pos.tickLower,
+                    tickUpper: pos.tickUpper
+                });
+            }
+
+            setPositions(allPositions);
+        } catch (err) {
+            console.error("Error fetching positions:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div>
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <div className="modern-card mt-[56px] w-full max-w-[690px] mx-auto px-4">
                         <div className="w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
+
+                            {/* Tabs */}
                             <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">
                                 <Link
                                     to="/swap"
@@ -23,6 +110,7 @@ const Pool = () => {
                                 </Link>
                             </div>
 
+                            {/* Buttons */}
                             <Link
                                 to="/addlp"
                                 className="modern-button relative z-10 w-full flex items-center justify-center space-x-2 mb-6 py-4 !bg-red-600 !text-white hover:!bg-red-700"
@@ -39,50 +127,53 @@ const Pool = () => {
                                 <span>Remove Liquidity</span>
                             </Link>
 
-                            <div className="relative z-10 modern-card p-10 text-center">
-                                <svg
-                                    className="mx-auto mb-[22px]"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="64"
-                                    height="64"
-                                    fill="none"
-                                >
-                                    <path
-                                        stroke="#DC2626"
-                                        strokeLinecap="round"
-                                        strokeWidth="3.5"
-                                        d="M5.333 5.333h53.333"
-                                    />
-                                    <path
-                                        stroke="#DC2626"
-                                        strokeLinecap="round"
-                                        strokeWidth="3.5"
-                                        d="m24 28 3.448-3.448c.889-.889 1.333-1.333 1.885-1.333.553 0 .997.444 1.886 1.333l1.562 1.562c.889.89 1.333 1.334 1.886 1.334.552 0 .996-.445 1.885-1.334L40 22.667"
-                                    />
-                                    <path
-                                        stroke="#DC2626"
-                                        strokeLinecap="round"
-                                        strokeWidth="3.5"
-                                        d="M32 56V45.333M26.667 58.667 32 56M37.333 58.667 32 56"
-                                    />
-                                    <path
-                                        stroke="#DC2626"
-                                        strokeWidth="3.5"
-                                        d="M53.334 5.333V28c0 8.171 0 12.257-2.678 14.795-2.678 2.538-6.988 2.538-15.608 2.538h-6.095c-8.62 0-12.93 0-15.608-2.538-2.678-2.538-2.678-6.624-2.678-14.795V5.333"
-                                    />
-                                </svg>
+                            {/* Positions */}
+                            {/* Positions */}
+                            <div className="relative z-10 modern-card p-6 text-center">
+                                {loading ? (
+                                    <p className="text-gray-500">Loading positions...</p>
+                                ) : positions.length > 0 ? (
+                                    <div className="max-h-[420px] overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                                        {positions.map((p) => (
+                                            <div
+                                                key={p.tokenId}
+                                                className="border border-gray-200 rounded-lg p-3 bg-gray-50 text-left shadow-sm hover:shadow-md transition-all duration-200"
+                                            >
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <div className="font-semibold text-red-600 text-sm">
+                                                        #{p.tokenId}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">
+                                                        {Number(p.fee) / 10000}% fee
+                                                    </div>
+                                                </div>
 
-                                <p className="text-[#333333] font-semibold text-xl leading-7 max-w-[380px] mx-auto">
-                                    Check Your Active Liquidity positions
-                                    <br />
-                                </p>
+                                                <div className="text-sm text-gray-800 font-medium mb-1">
+                                                    {p.symbol0}/{p.symbol1}
+                                                </div>
+
+                                                <div className="flex flex-wrap justify-between text-xs text-gray-600">
+                                                    <div>Liquidity: {p.liquidity.toString()}</div>
+                                                    <div>Tick: {p.tickLower} → {p.tickUpper}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-[#333333] font-semibold text-xl leading-7 max-w-[380px] mx-auto">
+                                        {account
+                                            ? "No active liquidity positions found."
+                                            : "Connect your wallet to view positions."}
+                                    </div>
+                                )}
                             </div>
+
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    )
-}
+    );
+};
 
-export default Pool
+export default Pool;

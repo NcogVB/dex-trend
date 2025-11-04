@@ -179,12 +179,13 @@ const Limit = () => {
                 amountIn: isBuy ? toAmount : fromAmount,
                 amountOutMin: (parseFloat(isBuy ? fromAmount : toAmount) * (1 - 1 / 100)).toFixed(6),
                 targetSqrtPriceX96: targetPrice, // your internal conversion can handle sqrtPrice later
-                triggerAbove: isBuy ? false : true, // BUY triggers above, SELL triggers below
+                triggerAbove: isBuy ? false : true, // BUY triggers below, SELL triggers above
                 ttlSeconds,
                 ordertype,
             })
 
-            // alert(`${isBuy ? 'Buy' : 'Sell'} order created successfully!`)
+            await fetchOrders();
+            alert(`${isBuy ? 'Buy' : 'Sell'} order created successfully!`)
 
             setFromAmount('')
             setToAmount('')
@@ -341,6 +342,7 @@ const Limit = () => {
 
     const handleCancel = async (orderId: number) => {
         await cancelOrder({ orderId })
+        await fetchOrders();
         console.log("Cancel order:", orderId);
     };
 
@@ -368,52 +370,81 @@ const Limit = () => {
                             </div>
 
                             {/* Active Orders (below chart, full width of left column) */}
-                            <div className="modern-card p-6 flex flex-col h-[200px]">
-                                <h2 className="text-xl font-semibold text-[#111] mb-4">Active Orders</h2>
-                                <div className="bg-[#F9FAFB] border border-[#E5E5E5] rounded-lg p-4 flex-1 overflow-y-auto">
-                                    {userOpenOrders.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center h-full">
-                                            <h2 className="text-[#333333] text-xl font-semibold text-center">
+                            <div className="modern-card p-6 flex flex-col h-[250px]">
+                                <h2 className="text-xl font-semibold text-[#111] mb-4 shrink-0">Active Orders</h2>
+
+                                {/* This container must stretch to fill remaining height */}
+                                <div className="w-full border border-[#E5E5E5] rounded-lg overflow-hidden flex flex-col flex-1">
+                                    {/* Header Row */}
+                                    <div className="grid grid-cols-7 bg-[#F3F4F6] text-xs font-semibold text-gray-700 py-2 px-3 border-b border-[#E5E5E5] shrink-0">
+                                        <span className="text-left">Order #</span>
+                                        <span className="text-center">Target Price</span>
+                                        <span className="text-center">Order Amount</span>
+                                        <span className="text-center">Total Amount</span>
+                                        <span className="text-center">Expiry</span>
+                                        <span className="text-center">Type</span>
+                                        <span className="text-center">Action</span>
+                                    </div>
+
+                                    {/* Orders */}
+                                    <div className="flex-1 overflow-y-auto">
+                                        {userOpenOrders.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center h-full text-sm text-gray-600">
                                                 No Open Orders Yet
-                                            </h2>
-                                        </div>
-                                    ) : (
-                                        <ul className="space-y-3">
-                                            {userOpenOrders.map((o) => (
-                                                <li
-                                                    key={o.id}
-                                                    className="flex justify-between items-center bg-white rounded-md p-3 shadow-sm"
-                                                >
-                                                    <div>
-                                                        <p className="text-sm font-medium">
-                                                            #{o.id} {o.tokenIn.slice(0, 6)}… → {o.tokenOut.slice(0, 6)}…
-                                                        </p>
-                                                        <p className="text-xs text-gray-500">
-                                                            {o.amountIn} in | min {o.minOut} out
-                                                        </p>
-                                                        <p className="text-xs text-gray-400">
-                                                            {o.triggerAbove ? "Above" : "Below"} •{" "}
-                                                            {new Date(o.expiry * 1000).toLocaleString()}
-                                                        </p>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => handleCancel(o.id)}
-                                                        className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200"
+                                            </div>
+                                        ) : (
+                                            userOpenOrders.map((o) => {
+                                                const targetPrice = parseFloat(o.targetSqrt || o.targetPrice || 0);
+                                                const amountIn = parseFloat(o.amountIn || 0);
+                                                const totalAmount = (targetPrice * amountIn).toFixed(4);
+
+                                                const expiryDate = new Date(o.expiry * 1000);
+                                                const expiryDay = expiryDate.toLocaleDateString(undefined, {
+                                                    weekday: "short",
+                                                    day: "2-digit",
+                                                    month: "short",
+                                                });
+
+                                                const isSell = o.triggerAbove;
+
+                                                return (
+                                                    <div
+                                                        key={o.id}
+                                                        className="grid grid-cols-7 text-xs text-gray-700 py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition"
                                                     >
-                                                        Cancel
-                                                    </button>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
+                                                        <span className="text-left font-medium">#{o.id}</span>
+                                                        <span className="text-center">{targetPrice.toFixed(5)}</span>
+                                                        <span className="text-center">{o.amountIn}</span>
+                                                        <span className="text-center">{totalAmount}</span>
+                                                        <span className="text-center">{expiryDay}</span>
+                                                        <span
+                                                            className={`text-center font-semibold ${isSell ? "text-red-600" : "text-green-600"
+                                                                }`}
+                                                        >
+                                                            {isSell ? "SELL" : "BUY"}
+                                                        </span>
+                                                        <div className="flex justify-center">
+                                                            <button
+                                                                onClick={() => handleCancel(o.id)}
+                                                                className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-600 hover:bg-red-200"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
                                 </div>
                             </div>
+
                         </div>
 
                         {/* Right Side - Orders Panel + Create Order */}
                         <div className="w-full lg:w-[30%] flex flex-col gap-3">
                             {/* Orders Panel */}
-                            <div className="modern-card flex flex-col h-[300px]">
+                            <div className="modern-card flex flex-col h-[350px]">
                                 <div className="p-3 flex flex-col h-full">
                                     {/* Tabs */}
                                     <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-md px-1 py-1 text-xs w-full flex mb-2">
@@ -458,7 +489,12 @@ const Limit = () => {
                                                     <ul>
                                                         {generalOpenOrders
                                                             .filter((o) => o.orderType === 1) // SELL
-                                                            .sort((a, b) => parseFloat(b.targetSqrt) - parseFloat(a.targetSqrt))
+                                                            .sort((a, b) => {
+                                                                const distA = parseFloat(a.targetSqrt) - parseFloat(currentRate || "0");
+                                                                const distB = parseFloat(b.targetSqrt) - parseFloat(currentRate || "0");
+                                                                // We want smaller distance (closer to current) to appear later (down)
+                                                                return distB - distA;
+                                                            })
                                                             .map((o) => {
                                                                 const totalAmount = (
                                                                     parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
@@ -478,8 +514,17 @@ const Limit = () => {
                                                             })}
                                                     </ul>
 
-                                                    {/* --- MID PRICE --- */}
-                                                    <div className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky top-0">
+
+                                                    {/* Mid-Price / Current Price Bar */}
+                                                    <div
+                                                        onClick={() => {
+                                                            if (currentRate) {
+                                                                setTargetPrice(parseFloat(currentRate).toFixed(8));
+                                                            }
+                                                        }}
+                                                        className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky top-0 cursor-pointer hover:bg-blue-50 transition"
+                                                        title="Click to set as Target Price"
+                                                    >
                                                         {currentRate ? (
                                                             <>
                                                                 {parseFloat(currentRate).toFixed(4)}{" "}
@@ -490,11 +535,17 @@ const Limit = () => {
                                                         )}
                                                     </div>
 
+
                                                     {/* --- BUY ORDERS (below, green, low → high) --- */}
                                                     <ul>
                                                         {generalOpenOrders
                                                             .filter((o) => o.orderType === 0) // BUY
-                                                            .sort((a, b) => parseFloat(a.targetSqrt) - parseFloat(b.targetSqrt))
+                                                            .sort((a, b) => {
+                                                                const distA = parseFloat(currentRate || "0") - parseFloat(a.targetSqrt);
+                                                                const distB = parseFloat(currentRate || "0") - parseFloat(b.targetSqrt);
+                                                                // Smaller distance (closer to current) first
+                                                                return distA - distB;
+                                                            })
                                                             .map((o) => {
                                                                 const totalAmount = (
                                                                     parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
@@ -513,6 +564,7 @@ const Limit = () => {
                                                                 );
                                                             })}
                                                     </ul>
+
                                                 </div>
                                             )
                                         ) : (
@@ -528,16 +580,17 @@ const Limit = () => {
                                                         <ul>
                                                             {orderHistory
                                                                 .filter((o) => o.orderType === 1) // SELL
-                                                                .sort((a, b) => parseFloat(b.targetSqrt) - parseFloat(a.targetSqrt))
+                                                                .sort((a, b) => {
+                                                                    const distA = parseFloat(a.targetSqrt) - parseFloat(currentRate || "0");
+                                                                    const distB = parseFloat(b.targetSqrt) - parseFloat(currentRate || "0");
+                                                                    // Smaller distance (closer to current) should show lower (bottom),
+                                                                    // so sort descending
+                                                                    return distB - distA;
+                                                                })
                                                                 .map((o) => {
                                                                     const totalAmount = (
                                                                         parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
                                                                     ).toFixed(2);
-
-                                                                    let label = "Filled";
-                                                                    if (o.cancelled) label = "Cancelled";
-                                                                    else if (o.expired) label = "Expired";
-
                                                                     return (
                                                                         <li
                                                                             key={o.id}
@@ -549,9 +602,6 @@ const Limit = () => {
                                                                             <span className="flex-1 text-center">{o.amountIn}</span>
                                                                             <span className="flex-1 text-right">
                                                                                 {totalAmount}
-                                                                                <span className="ml-1 text-[10px] font-semibold text-gray-500">
-                                                                                    ({label})
-                                                                                </span>
                                                                             </span>
                                                                         </li>
                                                                     );
@@ -573,15 +623,17 @@ const Limit = () => {
                                                         <ul>
                                                             {orderHistory
                                                                 .filter((o) => o.orderType === 0) // BUY
-                                                                .sort((a, b) => parseFloat(a.targetSqrt) - parseFloat(b.targetSqrt))
+                                                                .sort((a, b) => {
+                                                                    const distA = parseFloat(currentRate || "0") - parseFloat(a.targetSqrt);
+                                                                    const distB = parseFloat(currentRate || "0") - parseFloat(b.targetSqrt);
+                                                                    // Smaller distance (closer to current) should show higher (top),
+                                                                    // so sort ascending
+                                                                    return distA - distB;
+                                                                })
                                                                 .map((o) => {
                                                                     const totalAmount = (
                                                                         parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
                                                                     ).toFixed(2);
-
-                                                                    let label = "Filled";
-                                                                    if (o.cancelled) label = "Cancelled";
-                                                                    else if (o.expired) label = "Expired";
 
                                                                     return (
                                                                         <li
@@ -594,9 +646,6 @@ const Limit = () => {
                                                                             <span className="flex-1 text-center">{o.amountIn}</span>
                                                                             <span className="flex-1 text-right">
                                                                                 {totalAmount}
-                                                                                <span className="ml-1 text-[10px] font-semibold text-gray-500">
-                                                                                    ({label})
-                                                                                </span>
                                                                             </span>
                                                                         </li>
                                                                     );
@@ -678,8 +727,12 @@ const Limit = () => {
 
                                     {/* Current Rate */}
                                     {currentRate && (
-                                        <div className="text-[11px] text-gray-500 px-1 flex justify-between items-center pt-0.5">
-                                            <div>
+                                        <div className="text-[11px] text-gray-500 px-1 flex justify-between items-center pt-0.5 cursor-pointer">
+                                            <div onClick={() => {
+                                                if (currentRate) {
+                                                    setTargetPrice(parseFloat(currentRate).toFixed(8));
+                                                }
+                                            }}>
                                                 1 {fromToken.symbol} = {currentRate} {toToken.symbol}
                                             </div>
                                             <div>

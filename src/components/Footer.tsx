@@ -1,7 +1,7 @@
 const Footer = () => (
     <footer>
-        <div className="container mx-auto md:px-6 px-4 pb-[30px] pt-[56px]">
-            <div className="flex justify-between md:flex-row flex-col-reverse md:items-end mt-[90px] md:gap-4 gap-8">
+        <div className="container mx-auto md:px-6 px-4 pb-[1px]">
+            <div className="flex justify-between md:flex-row flex-col-reverse md:items-end mt-[10px] md:gap-4 gap-8">
                 <div className="flex gap-5 flex-col">
                     <p className="font-light text-xs leading-[13.2px] text-[#767676] md:text-start text-center">
                         ©2025 Powered by Dextrend
