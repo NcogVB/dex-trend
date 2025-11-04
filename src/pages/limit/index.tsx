@@ -26,6 +26,7 @@ const Limit = () => {
     const [isCreatingBuy, setIsCreatingBuy] = useState(false)
     const [isCreatingSell, setIsCreatingSell] = useState(false)
     const [fromToken, setFromToken] = useState<Token>(TOKENS[1])
+    const [expiryDays, setExpiryDays] = useState<number>(1); // default 1 day
     const [toToken, setToToken] = useState<Token>(TOKENS[0])
     const [fromAmount, setFromAmount] = useState<string>('')
     const [toAmount, setToAmount] = useState<string>('')
@@ -170,7 +171,7 @@ const Limit = () => {
         else setIsCreatingSell(true)
 
         try {
-            const ttlSeconds = 24 * 3600
+            const ttlSeconds = expiryDays * 24 * 3600
             const ordertype = isBuy ? 0 : 1;
             await createOrder({
                 tokenIn: isBuy ? toToken.address : fromToken.address,
@@ -183,7 +184,7 @@ const Limit = () => {
                 ordertype,
             })
 
-            alert(`${isBuy ? 'Buy' : 'Sell'} order created successfully!`)
+            // alert(`${isBuy ? 'Buy' : 'Sell'} order created successfully!`)
 
             setFromAmount('')
             setToAmount('')
@@ -201,15 +202,14 @@ const Limit = () => {
     const EXECUTOR_ADDRESS = "0x230eb7155cD2392b8113fE5B557f9F05A81Df9Cd";
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
-
     const fetchOrders = async () => {
         try {
             if (!provider) {
                 console.error("Provider is not initialized");
                 return;
             }
-            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
 
+            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
             const nextIdBN = await executor.nextOrderId();
             const nextId = Number(nextIdBN ?? 0);
 
@@ -248,10 +248,10 @@ const Limit = () => {
 
                 const tokenIn = ord.tokenIn;
                 const tokenOut = ord.tokenOut;
-
                 const lowerIn = tokenIn.toLowerCase();
                 const lowerOut = tokenOut.toLowerCase();
 
+                // Cache decimals
                 if (!(lowerIn in decimalsCache)) {
                     try {
                         const erc20 = new ethers.Contract(tokenIn, MIN_ERC20_ABI, provider);
@@ -274,7 +274,6 @@ const Limit = () => {
 
                 const amountIn = ethers.formatUnits(ord.amountIn, decimalsIn);
                 const minOut = ethers.formatUnits(ord.amountOutMin, decimalsOut);
-
                 const targetAmount = ethers.formatUnits(
                     ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96),
                     18
@@ -298,33 +297,34 @@ const Limit = () => {
                 };
 
                 const isExpired = orderData.expiry > 0 && orderData.expiry < now;
-                const isActive = !orderData.filled && !orderData.cancelled && !isExpired;
+                const isFilled = Boolean(orderData.filled);
+                const isCancelled = Boolean(orderData.cancelled);
+                const isActive = !isFilled && !isCancelled && !isExpired;
 
-                // Check if order matches selected token pair using token addresses
-                // ✅ Show orders for both directions of the selected pair
-                const matchesTokenPair = fromToken && toToken
-                    ? (
-                        (lowerIn === fromToken.address.toLowerCase() && lowerOut === toToken.address.toLowerCase()) ||
-                        (lowerIn === toToken.address.toLowerCase() && lowerOut === fromToken.address.toLowerCase())
-                    )
-                    : true;
+                // ✅ Match both directions of selected pair
+                const matchesTokenPair =
+                    fromToken && toToken
+                        ? (lowerIn === fromToken.address.toLowerCase() &&
+                            lowerOut === toToken.address.toLowerCase()) ||
+                        (lowerIn === toToken.address.toLowerCase() &&
+                            lowerOut === fromToken.address.toLowerCase())
+                        : true;
 
-                // FIXED: Changed from !matchesTokenPair to matchesTokenPair
                 if (matchesTokenPair) {
                     if (isActive) {
-                        // Active orders go to open orders
+                        // ✅ OPEN ORDERS
                         generalOpen.push(orderData);
-                        // If it's user's order, add to user open orders
                         if (account && ord.maker.toLowerCase() === account.toLowerCase()) {
                             userOpen.push(orderData);
                         }
-                    } else if (orderData.filled || orderData.cancelled) {
-                        // Only add to history if filled or cancelled (NOT expired)
-                        historyMap.set(id, orderData);
+                    } else if (isFilled || isCancelled || isExpired) {
+                        // ✅ HISTORY: filled, cancelled, or expired
+                        historyMap.set(id, { ...orderData, expired: isExpired });
                     }
                 }
             }
 
+            // Sort newest first
             userOpen.sort((a, b) => b.id - a.id);
             generalOpen.sort((a, b) => b.id - a.id);
 
@@ -338,6 +338,7 @@ const Limit = () => {
         }
     };
 
+
     const handleCancel = async (orderId: number) => {
         await cancelOrder({ orderId })
         console.log("Cancel order:", orderId);
@@ -348,7 +349,7 @@ const Limit = () => {
         if (fromToken && toToken && provider) {
             fetchOrders();
         }
-    }, [fromToken, toToken, provider]);
+    }, [fromToken, toToken]);
     return (
         <div>
             <div className="hero-section">
@@ -445,66 +446,169 @@ const Limit = () => {
                                             <span className="flex-1 text-right">Total Amount</span>
                                         </div>
 
+                                        {/* === OPEN TAB === */}
                                         {activeTab === "open" ? (
                                             generalOpenOrders.length === 0 ? (
                                                 <div className="flex flex-col items-center justify-center h-full text-sm text-gray-600">
                                                     No Open Orders
                                                 </div>
                                             ) : (
-                                                <ul className="divide-y divide-gray-200 text-xs">
-                                                    {generalOpenOrders.map((o) => {
-                                                        const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
-                                                        const colorClass = o.orderType === 0 ? "text-green-600" : "text-red-600";
-                                                        return (
-                                                            <li
-                                                                key={o.id}
-                                                                className={`px-3 py-2 flex items-center justify-between font-medium ${colorClass}`}
-                                                            >
-                                                                {/* Target Price */}
-                                                                <span className="flex-1 text-left">{parseFloat(o.targetSqrt).toFixed(5)}</span>
+                                                <div className="flex flex-col text-xs font-medium">
+                                                    {/* --- SELL ORDERS (on top, red, high → low) --- */}
+                                                    <ul>
+                                                        {generalOpenOrders
+                                                            .filter((o) => o.orderType === 1) // SELL
+                                                            .sort((a, b) => parseFloat(b.targetSqrt) - parseFloat(a.targetSqrt))
+                                                            .map((o) => {
+                                                                const totalAmount = (
+                                                                    parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
+                                                                ).toFixed(2);
+                                                                return (
+                                                                    <li
+                                                                        key={o.id}
+                                                                        className="px-3 py-2 flex items-center justify-between text-red-600 hover:bg-red-50 transition"
+                                                                    >
+                                                                        <span className="flex-1 text-left">
+                                                                            {parseFloat(o.targetSqrt).toFixed(5)}
+                                                                        </span>
+                                                                        <span className="flex-1 text-center">{o.amountIn}</span>
+                                                                        <span className="flex-1 text-right">{totalAmount}</span>
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                    </ul>
 
-                                                                {/* Order Amount */}
-                                                                <span className="flex-1 text-center">{o.amountIn}</span>
+                                                    {/* --- MID PRICE --- */}
+                                                    <div className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky top-0">
+                                                        {currentRate ? (
+                                                            <>
+                                                                {parseFloat(currentRate).toFixed(4)}{" "}
+                                                                <span className="text-gray-500 ml-1">{toToken.symbol}</span>
+                                                            </>
+                                                        ) : (
+                                                            "-"
+                                                        )}
+                                                    </div>
 
-                                                                {/* Total Amount */}
-                                                                <span className="flex-1 text-right">{totalAmount}</span>
-                                                            </li>
-                                                        );
-                                                    })}
-                                                </ul>
-
+                                                    {/* --- BUY ORDERS (below, green, low → high) --- */}
+                                                    <ul>
+                                                        {generalOpenOrders
+                                                            .filter((o) => o.orderType === 0) // BUY
+                                                            .sort((a, b) => parseFloat(a.targetSqrt) - parseFloat(b.targetSqrt))
+                                                            .map((o) => {
+                                                                const totalAmount = (
+                                                                    parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
+                                                                ).toFixed(2);
+                                                                return (
+                                                                    <li
+                                                                        key={o.id}
+                                                                        className="px-3 py-2 flex items-center justify-between text-green-600 hover:bg-green-50 transition"
+                                                                    >
+                                                                        <span className="flex-1 text-left">
+                                                                            {parseFloat(o.targetSqrt).toFixed(5)}
+                                                                        </span>
+                                                                        <span className="flex-1 text-center">{o.amountIn}</span>
+                                                                        <span className="flex-1 text-right">{totalAmount}</span>
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                    </ul>
+                                                </div>
                                             )
                                         ) : (
-                                            orderHistory.length === 0 ? (
-                                                <div className="flex flex-col items-center justify-center h-full text-sm text-gray-600">
-                                                    No History
-                                                </div>
-                                            ) : (
-                                                <ul className="divide-y divide-gray-200 text-xs">
-                                                    {orderHistory.map((o) => {
-                                                        const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
-                                                        const isBuy = o.triggerAbove;
-                                                        const colorClass = isBuy ? "text-green-600" : "text-red-600";
+                                            /* === HISTORY TAB === */
+                                            <>
+                                                {orderHistory.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center h-full text-sm text-gray-600">
+                                                        No History
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col text-xs font-medium">
+                                                        {/* --- SELL HISTORY (red, high → low) --- */}
+                                                        <ul>
+                                                            {orderHistory
+                                                                .filter((o) => o.orderType === 1) // SELL
+                                                                .sort((a, b) => parseFloat(b.targetSqrt) - parseFloat(a.targetSqrt))
+                                                                .map((o) => {
+                                                                    const totalAmount = (
+                                                                        parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
+                                                                    ).toFixed(2);
 
-                                                        return (
-                                                            <li
-                                                                key={o.id}
-                                                                className={`px-3 py-2 flex items-center justify-between font-medium ${colorClass}`}
-                                                            >
-                                                                <span className="flex-1 text-left">{parseFloat(o.targetSqrt).toFixed(5)}</span>
-                                                                <span className="flex-1 text-center">{o.amountIn}</span>
-                                                                <span className="flex-1 text-right">{totalAmount}</span>
-                                                            </li>
-                                                        );
-                                                    })}
-                                                </ul>
+                                                                    let label = "Filled";
+                                                                    if (o.cancelled) label = "Cancelled";
+                                                                    else if (o.expired) label = "Expired";
 
-                                            )
+                                                                    return (
+                                                                        <li
+                                                                            key={o.id}
+                                                                            className="px-3 py-2 flex items-center justify-between text-red-600 hover:bg-red-50 transition"
+                                                                        >
+                                                                            <span className="flex-1 text-left">
+                                                                                {parseFloat(o.targetSqrt).toFixed(5)}
+                                                                            </span>
+                                                                            <span className="flex-1 text-center">{o.amountIn}</span>
+                                                                            <span className="flex-1 text-right">
+                                                                                {totalAmount}
+                                                                                <span className="ml-1 text-[10px] font-semibold text-gray-500">
+                                                                                    ({label})
+                                                                                </span>
+                                                                            </span>
+                                                                        </li>
+                                                                    );
+                                                                })}
+                                                        </ul>
+
+                                                        {/* --- DIVIDER --- */}
+                                                        <div className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky top-0">
+                                                            {currentRate ? (
+                                                                <>
+                                                                    {parseFloat(currentRate).toFixed(4)}{" "}
+                                                                    <span className="text-gray-500 ml-1">{toToken.symbol}</span>
+                                                                </>
+                                                            ) : (
+                                                                "-"
+                                                            )}
+                                                        </div>
+                                                        {/* --- BUY HISTORY (green, low → high) --- */}
+                                                        <ul>
+                                                            {orderHistory
+                                                                .filter((o) => o.orderType === 0) // BUY
+                                                                .sort((a, b) => parseFloat(a.targetSqrt) - parseFloat(b.targetSqrt))
+                                                                .map((o) => {
+                                                                    const totalAmount = (
+                                                                        parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
+                                                                    ).toFixed(2);
+
+                                                                    let label = "Filled";
+                                                                    if (o.cancelled) label = "Cancelled";
+                                                                    else if (o.expired) label = "Expired";
+
+                                                                    return (
+                                                                        <li
+                                                                            key={o.id}
+                                                                            className="px-3 py-2 flex items-center justify-between text-green-600 hover:bg-green-50 transition"
+                                                                        >
+                                                                            <span className="flex-1 text-left">
+                                                                                {parseFloat(o.targetSqrt).toFixed(5)}
+                                                                            </span>
+                                                                            <span className="flex-1 text-center">{o.amountIn}</span>
+                                                                            <span className="flex-1 text-right">
+                                                                                {totalAmount}
+                                                                                <span className="ml-1 text-[10px] font-semibold text-gray-500">
+                                                                                    ({label})
+                                                                                </span>
+                                                                            </span>
+                                                                        </li>
+                                                                    );
+                                                                })}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </div>
                             </div>
-
                             <div className="modern-card p-3 flex flex-col gap-3 text-xs rounded-xl border border-gray-200 bg-white">
                                 <h2 className="text-sm font-semibold text-gray-800">Create Order</h2>
 
@@ -555,7 +659,7 @@ const Limit = () => {
                                     </div>
 
                                     {/* Hover buttons (now work) */}
-                                    <div className="absolute -top-6 left-60 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                    <div className="absolute -top-6 left-60 flex gap-1">
                                         {[25, 50, 75, 100].map((pct) => (
                                             <button
                                                 key={pct}
@@ -570,6 +674,7 @@ const Limit = () => {
                                             </button>
                                         ))}
                                     </div>
+
 
                                     {/* Current Rate */}
                                     {currentRate && (
@@ -674,11 +779,20 @@ const Limit = () => {
 
                                     </div>
                                     <div className="flex flex-col">
-                                        <label className="text-[11px] text-gray-500">Expiry</label>
-                                        <div className="border border-gray-200 rounded-md px-2 py-1 bg-gray-50 text-center text-[11px]">
-                                            {new Date(Date.now() + 24 * 60 * 60 * 1000).toLocaleDateString()}
+                                        <label className="text-[11px] text-gray-500">Expiry (Days)</label>
+                                        <input
+                                            type="number"
+                                            max="30"
+                                            value={expiryDays}
+                                            onChange={(e) => setExpiryDays(Number(e.target.value))}
+                                            className="border border-gray-200 rounded-md px-2 py-1 bg-gray-50 text-center text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        />
+                                        <div className="text-[10px] text-gray-400 text-center mt-1">
+                                            Expires on:{" "}
+                                            {new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toLocaleDateString()}
                                         </div>
                                     </div>
+
                                 </div>
 
                                 {/* --- BUY / SELL BUTTONS --- */}
