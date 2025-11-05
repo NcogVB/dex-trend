@@ -7,6 +7,7 @@ import ExecutorABI from "../../ABI/LimitOrder.json";
 import { ethers } from 'ethers'
 import { useWallet } from '../../contexts/WalletContext'
 import { TOKENS } from '../../utils/SwapTokens'
+import { toast } from 'react-toastify'
 
 interface Token {
     symbol: string
@@ -191,7 +192,7 @@ const Limit = () => {
                 tokenIn: isBuy ? toToken.address : fromToken.address,
                 tokenOut: isBuy ? fromToken.address : toToken.address,
                 amountIn: isBuy ? toAmount : fromAmount,
-                amountOutMin: (parseFloat(isBuy ? fromAmount : toAmount) * (1 - 1 / 100)).toFixed(6),
+                amountOutMin: (parseFloat(isBuy ? fromAmount : toAmount).toFixed(6)),
                 targetSqrtPriceX96: targetPrice, // your internal conversion can handle sqrtPrice later
                 triggerAbove: isBuy ? false : true, // BUY triggers below, SELL triggers above
                 ttlSeconds,
@@ -199,8 +200,9 @@ const Limit = () => {
             })
 
             await fetchOrders();
-            alert(`${isBuy ? 'Buy' : 'Sell'} order created successfully!`)
-
+            toast.success(
+                `${isBuy ? "✅ Buy" : "✅ Sell"} order created successfully!`
+            );
             setFromAmount('')
             setToAmount('')
             setTargetPrice('')
@@ -294,6 +296,9 @@ const Limit = () => {
                     18
                 );
 
+                const displayAmount =
+                    Number(ord.orderType) === 0 ? minOut : amountIn; // BUY shows minOut, SELL shows amountIn
+
                 const orderData = {
                     id,
                     maker: ord.maker,
@@ -308,7 +313,8 @@ const Limit = () => {
                     expiry: Number(ord.expiry),
                     filled: Boolean(ord.filled),
                     cancelled: Boolean(ord.cancelled),
-                    orderType: Number(ord.orderType), // 0 = BUY, 1 = SELL
+                    orderType: Number(ord.orderType),
+                    displayAmount, // ✅ add this
                 };
 
                 const isExpired = orderData.expiry > 0 && orderData.expiry < now;
@@ -436,7 +442,14 @@ const Limit = () => {
                                                         >
                                                             {targetPrice.toFixed(5)}
                                                         </span>
-                                                        <span className="text-center cursor-pointer" onClick={() => { setFromAmount(o.amountIn) }}>{o.amountIn}</span>
+                                                        <span
+                                                            className="text-center cursor-pointer"
+                                                            onClick={() => {
+                                                                setFromAmount(o.orderType === 0 ? o.minOut : o.amountIn); // ✅ use minOut for BUY
+                                                            }}
+                                                        >
+                                                            {o.orderType === 0 ? o.minOut : o.amountIn}
+                                                        </span>
                                                         <span className="text-center">{totalAmount}</span>
                                                         <span className="text-center">{expiryDay}</span>
                                                         <span
@@ -528,7 +541,9 @@ const Limit = () => {
                                                                         <span className="flex-1 text-left cursor-pointer" onClick={() => { setTargetPrice(o.targetSqrt) }}>
                                                                             {parseFloat(o.targetSqrt).toFixed(5)}
                                                                         </span>
-                                                                        <span className="flex-1 text-center cursor-pointer" onClick={() => { setFromAmount(o.amountIn) }}>{o.amountIn}</span>
+                                                                        <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
+                                                                            {o.displayAmount}
+                                                                        </span>
                                                                         <span className="flex-1 text-right">{totalAmount}</span>
                                                                     </li>
                                                                 );
@@ -579,7 +594,9 @@ const Limit = () => {
                                                                         <span className="flex-1 text-left cursor-pointer" onClick={() => { setTargetPrice(o.targetSqrt) }}>
                                                                             {parseFloat(o.targetSqrt).toFixed(5)}
                                                                         </span>
-                                                                        <span className="flex-1 text-center cursor-pointer" onClick={() => { setFromAmount(o.amountIn) }}>{o.amountIn}</span>
+                                                                        <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
+                                                                            {o.displayAmount}
+                                                                        </span>
                                                                         <span className="flex-1 text-right">{totalAmount}</span>
                                                                     </li>
                                                                 );
@@ -630,12 +647,10 @@ const Limit = () => {
                                                                             </span>
 
                                                                             {/* 🔹 Middle: Order Amount */}
-                                                                            <span
-                                                                                className="flex-1 text-center"
-                                                                                onClick={() => setFromAmount(o.amountIn)}
-                                                                            >
-                                                                                {o.amountIn}
+                                                                            <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
+                                                                                {o.displayAmount}
                                                                             </span>
+
 
                                                                             {/* 🔹 Right: Total */}
                                                                             <span className="flex-1 text-right">{totalAmount}</span>
