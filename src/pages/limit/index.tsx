@@ -111,6 +111,13 @@ const Limit = () => {
         return () =>
             document.removeEventListener('mousedown', handleClickOutside)
     }, [])
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchOrders();
+        }, 10000); // every 10 seconds
+
+        return () => clearInterval(interval);
+    }, []);
 
     // Handle token swap
     const handleSwapTokens = (): void => {
@@ -613,13 +620,16 @@ const Limit = () => {
                                                                             key={o.id}
                                                                             className={`px-3 py-2 flex items-center justify-between transition cursor-pointer ${colorClass}`}
                                                                         >
+                                                                            {/* 🔹 Left: Order ID + Target Price */}
                                                                             <span
-                                                                                className="flex-1 text-left"
+                                                                                className="flex-1 text-left flex items-center gap-2"
                                                                                 onClick={() => setTargetPrice(o.targetSqrt)}
                                                                             >
-                                                                                {parseFloat(o.targetSqrt).toFixed(5)}
+                                                                                <span className="text-gray-400 font-semibold">#{o.id}</span>
+                                                                                <span>{parseFloat(o.targetSqrt).toFixed(5)}</span>
                                                                             </span>
 
+                                                                            {/* 🔹 Middle: Order Amount */}
                                                                             <span
                                                                                 className="flex-1 text-center"
                                                                                 onClick={() => setFromAmount(o.amountIn)}
@@ -627,15 +637,16 @@ const Limit = () => {
                                                                                 {o.amountIn}
                                                                             </span>
 
+                                                                            {/* 🔹 Right: Total */}
                                                                             <span className="flex-1 text-right">{totalAmount}</span>
                                                                         </li>
                                                                     );
                                                                 })}
                                                         </ul>
-
                                                     </div>
                                                 )}
                                             </>
+
 
                                         )}
                                     </div>
