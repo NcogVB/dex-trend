@@ -7,7 +7,7 @@ import ExecutorABI from "../../ABI/LimitOrder.json";
 import { ethers } from 'ethers'
 import { useWallet } from '../../contexts/WalletContext'
 import { TOKENS } from '../../utils/SwapTokens'
-import { toast } from 'react-toastify'
+import { useToast } from '../../components/Toast'
 
 interface Token {
     symbol: string
@@ -21,6 +21,7 @@ const Limit = () => {
     const { createOrder, cancelOrder } = useOrder()
     const { getQuote, getTokenBalance } = useSwap()
     const { account, provider } = useWallet()
+    const { showToast } = useToast();
 
     const [activeTab, setActiveTab] = useState<"open" | "history">("open");
     const [orderHistory, setOrderHistory] = useState<any[]>([]);
@@ -188,6 +189,7 @@ const Limit = () => {
         try {
             const ttlSeconds = expiryDays * 24 * 3600
             const ordertype = isBuy ? 0 : 1;
+
             await createOrder({
                 tokenIn: isBuy ? toToken.address : fromToken.address,
                 tokenOut: isBuy ? fromToken.address : toToken.address,
@@ -200,15 +202,15 @@ const Limit = () => {
             })
 
             await fetchOrders();
-            toast.success(
-                `${isBuy ? "✅ Buy" : "✅ Sell"} order created successfully!`
-            );
+            showToast(`${isBuy ? "✅ Buy" : "✅ Sell"} order created successfully!`, "success");
+
             setFromAmount('')
             setToAmount('')
             setTargetPrice('')
         } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : String(err)
-            alert(`Failed to create ${isBuy ? 'buy' : 'sell'} order: ${errorMessage}`)
+            // const errorMessage = err instanceof Error ? err.message : String(err)
+            showToast(`❌ Failed to create order`, "error",);
+
             console.error('Order creation error:', err)
         } finally {
             if (isBuy) setIsCreatingBuy(false)
