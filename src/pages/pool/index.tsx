@@ -43,6 +43,7 @@ const Pool = () => {
     const fetchPositions = async () => {
         try {
             setLoading(true);
+
             const contract = new ethers.Contract(
                 POSITION_MANAGER_ADDRESS,
                 POSITION_MANAGER_ABI,
@@ -51,35 +52,55 @@ const Pool = () => {
 
             const balance = await contract.balanceOf(account);
             const count = Number(balance);
-            const allPositions = [];
-
-            for (let i = 0; i < count; i++) {
-                const tokenId = await contract.tokenOfOwnerByIndex(account, i);
-                const pos = await contract.positions(tokenId);
-
-                // fetch token symbols
-                const token0Contract = new ethers.Contract(pos.token0, ERC20_ABI, provider);
-                const token1Contract = new ethers.Contract(pos.token1, ERC20_ABI, provider);
-
-                const [symbol0, symbol1] = await Promise.all([
-                    token0Contract.symbol(),
-                    token1Contract.symbol()
-                ]);
-
-                allPositions.push({
-                    tokenId: tokenId.toString(),
-                    token0: pos.token0,
-                    token1: pos.token1,
-                    symbol0,
-                    symbol1,
-                    fee: pos.fee,
-                    liquidity: pos.liquidity,
-                    tickLower: pos.tickLower,
-                    tickUpper: pos.tickUpper
-                });
+            if (count === 0) {
+                setPositions([]);
+                return;
             }
 
-            setPositions(allPositions);
+            // --- Step 1: Fetch all tokenIds in parallel ---
+            const tokenIds = await Promise.all(
+                Array.from({ length: count }, (_, i) => contract.tokenOfOwnerByIndex(account, i))
+            );
+
+            // --- Step 2: Fetch all positions in parallel ---
+            const rawPositions = await Promise.all(
+                tokenIds.map((id) => contract.positions(id))
+            );
+
+            // --- Step 3: Cache for token symbols ---
+            const tokenCache = new Map();
+
+            async function getTokenSymbol(address: any) {
+                if (tokenCache.has(address)) return tokenCache.get(address);
+                const tokenContract = new ethers.Contract(address, ERC20_ABI, provider);
+                const symbol = await tokenContract.symbol().catch(() => "UNKNOWN");
+                tokenCache.set(address, symbol);
+                return symbol;
+            }
+
+            // --- Step 4: Resolve symbols in parallel ---
+            const enriched = await Promise.all(
+                rawPositions.map(async (pos, idx) => {
+                    const [symbol0, symbol1] = await Promise.all([
+                        getTokenSymbol(pos.token0),
+                        getTokenSymbol(pos.token1),
+                    ]);
+
+                    return {
+                        tokenId: tokenIds[idx].toString(),
+                        token0: pos.token0,
+                        token1: pos.token1,
+                        symbol0,
+                        symbol1,
+                        fee: pos.fee,
+                        liquidity: Number(pos.liquidity),
+                        tickLower: pos.tickLower,
+                        tickUpper: pos.tickUpper,
+                    };
+                })
+            );
+
+            setPositions(enriched);
         } catch (err) {
             console.error("Error fetching positions:", err);
         } finally {
