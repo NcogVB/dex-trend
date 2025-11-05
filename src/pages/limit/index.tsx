@@ -139,6 +139,13 @@ const Limit = () => {
         setFromAmount(value)
         // Remove the toAmount calculation - it's now handled by the quote
     }
+    useEffect(() => {
+        if (currentRate) {
+            setTargetPrice(Number(currentRate).toFixed(8)); // keep 8 decimals
+        }
+    }, [currentRate]); // ✅ only re-run when rate changes
+
+
     const updateBalances = useCallback(async () => {
         if (!account) return
         const updated = await Promise.all(
@@ -412,8 +419,17 @@ const Limit = () => {
                                                         className="grid grid-cols-7 text-xs text-gray-700 py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition"
                                                     >
                                                         <span className="text-left font-medium">#{o.id}</span>
-                                                        <span className="text-center">{targetPrice.toFixed(5)}</span>
-                                                        <span className="text-center">{o.amountIn}</span>
+                                                        <span
+                                                            className="text-center cursor-pointer"
+                                                            title="Click to set current rate as target"
+                                                            onClick={() => {
+                                                                const rate = parseFloat(currentRate);
+                                                                if (!isNaN(rate)) setTargetPrice(targetPrice.toFixed(5));
+                                                            }}
+                                                        >
+                                                            {targetPrice.toFixed(5)}
+                                                        </span>
+                                                        <span className="text-center cursor-pointer" onClick={() => { setFromAmount(o.amountIn) }}>{o.amountIn}</span>
                                                         <span className="text-center">{totalAmount}</span>
                                                         <span className="text-center">{expiryDay}</span>
                                                         <span
@@ -502,10 +518,10 @@ const Limit = () => {
                                                                         key={o.id}
                                                                         className="px-3 py-2 flex items-center justify-between text-red-600 hover:bg-red-50 transition"
                                                                     >
-                                                                        <span className="flex-1 text-left">
+                                                                        <span className="flex-1 text-left cursor-pointer" onClick={() => { setTargetPrice(o.targetSqrt) }}>
                                                                             {parseFloat(o.targetSqrt).toFixed(5)}
                                                                         </span>
-                                                                        <span className="flex-1 text-center">{o.amountIn}</span>
+                                                                        <span className="flex-1 text-center cursor-pointer" onClick={() => { setFromAmount(o.amountIn) }}>{o.amountIn}</span>
                                                                         <span className="flex-1 text-right">{totalAmount}</span>
                                                                     </li>
                                                                 );
@@ -553,10 +569,10 @@ const Limit = () => {
                                                                         key={o.id}
                                                                         className="px-3 py-2 flex items-center justify-between text-green-600 hover:bg-green-50 transition"
                                                                     >
-                                                                        <span className="flex-1 text-left">
+                                                                        <span className="flex-1 text-left cursor-pointer" onClick={() => { setTargetPrice(o.targetSqrt) }}>
                                                                             {parseFloat(o.targetSqrt).toFixed(5)}
                                                                         </span>
-                                                                        <span className="flex-1 text-center">{o.amountIn}</span>
+                                                                        <span className="flex-1 text-center cursor-pointer" onClick={() => { setFromAmount(o.amountIn) }}>{o.amountIn}</span>
                                                                         <span className="flex-1 text-right">{totalAmount}</span>
                                                                     </li>
                                                                 );
@@ -574,61 +590,20 @@ const Limit = () => {
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col text-xs font-medium">
-                                                        {/* --- SELL HISTORY (red, high → low) --- */}
                                                         <ul>
                                                             {orderHistory
-                                                                .filter((o) => o.orderType === 1) // SELL
+                                                                // Combine both BUY and SELL
                                                                 .sort((a, b) => {
-                                                                    const distA = parseFloat(a.targetSqrt) - parseFloat(currentRate || "0");
-                                                                    const distB = parseFloat(b.targetSqrt) - parseFloat(currentRate || "0");
-                                                                    // Smaller distance (closer to current) should show lower (bottom),
-                                                                    // so sort descending
-                                                                    return distB - distA;
+                                                                    const diffA = Math.abs(parseFloat(a.targetSqrt) - parseFloat(currentRate || "0"));
+                                                                    const diffB = Math.abs(parseFloat(b.targetSqrt) - parseFloat(currentRate || "0"));
+                                                                    return diffA - diffB; // closest to current first
                                                                 })
                                                                 .map((o) => {
-                                                                    const totalAmount = (
-                                                                        parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
-                                                                    ).toFixed(2);
-                                                                    return (
-                                                                        <li
-                                                                            key={o.id}
-                                                                            className="px-3 py-2 flex items-center justify-between text-red-600 hover:bg-red-50 transition"
-                                                                        >
-                                                                            <span className="flex-1 text-left">
-                                                                                {parseFloat(o.targetSqrt).toFixed(5)}
-                                                                            </span>
-                                                                            <span className="flex-1 text-center">{o.amountIn}</span>
-                                                                            <span className="flex-1 text-right">
-                                                                                {totalAmount}
-                                                                            </span>
-                                                                        </li>
-                                                                    );
-                                                                })}
-                                                        </ul>
+                                                                    const isSell = o.orderType === 1;
+                                                                    const colorClass = isSell
+                                                                        ? "text-red-600 hover:bg-red-50"
+                                                                        : "text-green-600 hover:bg-green-50";
 
-                                                        {/* --- DIVIDER --- */}
-                                                        <div className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky top-0">
-                                                            {currentRate ? (
-                                                                <>
-                                                                    {parseFloat(currentRate).toFixed(4)}{" "}
-                                                                    <span className="text-gray-500 ml-1">{toToken.symbol}</span>
-                                                                </>
-                                                            ) : (
-                                                                "-"
-                                                            )}
-                                                        </div>
-                                                        {/* --- BUY HISTORY (green, low → high) --- */}
-                                                        <ul>
-                                                            {orderHistory
-                                                                .filter((o) => o.orderType === 0) // BUY
-                                                                .sort((a, b) => {
-                                                                    const distA = parseFloat(currentRate || "0") - parseFloat(a.targetSqrt);
-                                                                    const distB = parseFloat(currentRate || "0") - parseFloat(b.targetSqrt);
-                                                                    // Smaller distance (closer to current) should show higher (top),
-                                                                    // so sort ascending
-                                                                    return distA - distB;
-                                                                })
-                                                                .map((o) => {
                                                                     const totalAmount = (
                                                                         parseFloat(o.targetSqrt) * parseFloat(o.amountIn)
                                                                     ).toFixed(2);
@@ -636,22 +611,32 @@ const Limit = () => {
                                                                     return (
                                                                         <li
                                                                             key={o.id}
-                                                                            className="px-3 py-2 flex items-center justify-between text-green-600 hover:bg-green-50 transition"
+                                                                            className={`px-3 py-2 flex items-center justify-between transition cursor-pointer ${colorClass}`}
                                                                         >
-                                                                            <span className="flex-1 text-left">
+                                                                            <span
+                                                                                className="flex-1 text-left"
+                                                                                onClick={() => setTargetPrice(o.targetSqrt)}
+                                                                            >
                                                                                 {parseFloat(o.targetSqrt).toFixed(5)}
                                                                             </span>
-                                                                            <span className="flex-1 text-center">{o.amountIn}</span>
-                                                                            <span className="flex-1 text-right">
-                                                                                {totalAmount}
+
+                                                                            <span
+                                                                                className="flex-1 text-center"
+                                                                                onClick={() => setFromAmount(o.amountIn)}
+                                                                            >
+                                                                                {o.amountIn}
                                                                             </span>
+
+                                                                            <span className="flex-1 text-right">{totalAmount}</span>
                                                                         </li>
                                                                     );
                                                                 })}
                                                         </ul>
+
                                                     </div>
                                                 )}
                                             </>
+
                                         )}
                                     </div>
                                 </div>
@@ -817,13 +802,11 @@ const Limit = () => {
                                         <span className="text-gray-500">Target</span>
                                         <input
                                             type="number"
-                                            step="0.00000001"
                                             value={targetPrice}
                                             onChange={(e) => {
                                                 const input = e.target.value;
                                                 setTargetPrice(input);
                                             }}
-                                            placeholder="0.0"
                                             className={`border rounded px-2 py-1 text-center font-medium text-xs  
                                                 }`}
                                         />
