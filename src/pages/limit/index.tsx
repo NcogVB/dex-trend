@@ -176,49 +176,49 @@ const Limit = () => {
         updateBalances()
     }, [account, updateBalances])
     const handleCreateOrder = async (isBuy: boolean): Promise<void> => {
-        if (isBuy ? isCreatingBuy : isCreatingSell) return
+        if (isBuy ? isCreatingBuy : isCreatingSell) return;
 
         if (!fromAmount || !toAmount || !targetPrice) {
-            alert('Please enter valid amounts and target price')
-            return
+            alert("Please enter valid amounts and target price");
+            return;
         }
 
-        if (isBuy) setIsCreatingBuy(true)
-        else setIsCreatingSell(true)
+        if (isBuy) setIsCreatingBuy(true);
+        else setIsCreatingSell(true);
 
         try {
-            const ttlSeconds = expiryDays * 24 * 3600
+            const ttlSeconds = expiryDays * 24 * 3600;
             const ordertype = isBuy ? 0 : 1;
 
+            // 💡 targetPrice now directly in normal number (ex: 2000)
+            // contract will convert to 1e18 scaled value
             await createOrder({
-                tokenIn: isBuy ? toToken.address : fromToken.address,
-                tokenOut: isBuy ? fromToken.address : toToken.address,
-                amountIn: isBuy ? toAmount : fromAmount,
-                amountOutMin: (parseFloat(isBuy ? fromAmount : toAmount).toFixed(6)),
-                targetSqrtPriceX96: targetPrice, // your internal conversion can handle sqrtPrice later
-                triggerAbove: isBuy ? false : true, // BUY triggers below, SELL triggers above
+                tokenIn: fromToken.address,
+                tokenOut: toToken.address,
+                amountIn: fromAmount,
+                targetPrice, // direct price (user-entered)
+                triggerAbove: isBuy ? false : true,
                 ttlSeconds,
                 ordertype,
-            })
+            });
 
             await fetchOrders();
             showToast(`${isBuy ? "✅ Buy" : "✅ Sell"} order created successfully!`, "success");
 
-            setFromAmount('')
-            setToAmount('')
-            setTargetPrice('')
+            setFromAmount("");
+            setToAmount("");
+            setTargetPrice("");
         } catch (err: unknown) {
-            // const errorMessage = err instanceof Error ? err.message : String(err)
-            showToast(`❌ Failed to create order`, "error",);
-
-            console.error('Order creation error:', err)
+            console.error("Order creation error:", err);
+            showToast("❌ Failed to create order", "error");
         } finally {
-            if (isBuy) setIsCreatingBuy(false)
-            else setIsCreatingSell(false)
+            if (isBuy) setIsCreatingBuy(false);
+            else setIsCreatingSell(false);
         }
-    }
+    };
+
     const MIN_ERC20_ABI = ["function decimals() view returns (uint8)"];
-    const EXECUTOR_ADDRESS = "0xD80712A300F0c8Fb974315b63c0F048a1CFF1339";
+    const EXECUTOR_ADDRESS = "0x8eA4661007b475Bfbb16e10186E896d6723C3655";
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
     const fetchOrders = async () => {
@@ -228,7 +228,7 @@ const Limit = () => {
                 return;
             }
 
-            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
+            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, provider);
             const nextIdBN = await executor.nextOrderId();
             const nextId = Number(nextIdBN ?? 0);
 
@@ -289,35 +289,32 @@ const Limit = () => {
                 }
 
                 const decimalsIn = decimalsCache[lowerIn];
-                const decimalsOut = decimalsCache[lowerOut];
 
                 const amountIn = ethers.formatUnits(ord.amountIn, decimalsIn);
-                const minOut = ethers.formatUnits(ord.amountOutMin, decimalsOut);
                 const targetAmount = ethers.formatUnits(
-                    ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96),
+                    ord.targetPrice?.toString?.() ?? String(ord.targetPrice),
                     18
                 );
 
-                const displayAmount =
-                    Number(ord.orderType) === 0 ? minOut : amountIn; // BUY shows minOut, SELL shows amountIn
+                // Display only amountIn now (since amountOutMin no longer exists)
+                const displayAmount = amountIn;
 
                 const orderData = {
                     id,
                     maker: ord.maker,
                     tokenIn,
                     tokenOut,
-                    poolFee: Number(ord.poolFee),
                     pool: ord.pool,
                     amountIn,
-                    minOut,
                     targetSqrt: targetAmount,
                     triggerAbove: Boolean(ord.triggerAbove),
                     expiry: Number(ord.expiry),
                     filled: Boolean(ord.filled),
                     cancelled: Boolean(ord.cancelled),
                     orderType: Number(ord.orderType),
-                    displayAmount, // ✅ add this
+                    displayAmount,
                 };
+
 
                 const isExpired = orderData.expiry > 0 && orderData.expiry < now;
                 const isFilled = Boolean(orderData.filled);
@@ -447,10 +444,10 @@ const Limit = () => {
                                                         <span
                                                             className="text-center cursor-pointer"
                                                             onClick={() => {
-                                                                setFromAmount(o.orderType === 0 ? o.minOut : o.amountIn); // ✅ use minOut for BUY
+                                                                setFromAmount(o.amountIn); // ✅ use minOut for BUY
                                                             }}
                                                         >
-                                                            {o.orderType === 0 ? o.minOut : o.amountIn}
+                                                            {o.amountIn}
                                                         </span>
                                                         <span className="text-center">{totalAmount}</span>
                                                         <span className="text-center">{expiryDay}</span>
