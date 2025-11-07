@@ -2,15 +2,29 @@ import { useEffect, useState } from "react";
 import { Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ethers } from "ethers";
+import { Token } from "@uniswap/sdk-core";
+import { Pool as UniPool, Position } from "@uniswap/v3-sdk";
 import { useWallet } from "../../contexts/WalletContext";
 
 const POSITION_MANAGER_ADDRESS = "0xe4ae6F10ee1C8e2465D9975cb3325267A2025549";
+const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
 
-// 🔹 Minimal ABI directly embedded
 const POSITION_MANAGER_ABI = [
     "function balanceOf(address owner) view returns (uint256)",
     "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
     "function positions(uint256 tokenId) view returns (uint96 nonce, address operator, address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, uint128 tokensOwed0, uint128 tokensOwed1)"
+];
+
+const FACTORY_ABI = [
+    "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
+];
+
+const UNISWAP_V3_POOL_ABI = [
+    "function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)",
+    "function liquidity() view returns (uint128)",
+    "function token0() view returns (address)",
+    "function token1() view returns (address)",
+    "function fee() view returns (uint24)"
 ];
 
 const ERC20_ABI = [
@@ -18,21 +32,22 @@ const ERC20_ABI = [
     "function decimals() view returns (uint8)"
 ];
 
-interface Position {
+interface PositionInfo {
     tokenId: string;
     token0: string;
     token1: string;
     symbol0: string;
     symbol1: string;
     fee: number;
-    liquidity: number;
+    amount0: number;
+    amount1: number;
     tickLower: number;
     tickUpper: number;
 }
 
 const Pool = () => {
     const { provider, account } = useWallet();
-    const [positions, setPositions] = useState<Position[]>([]);
+    const [positions, setPositions] = useState<PositionInfo[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -44,58 +59,162 @@ const Pool = () => {
         try {
             setLoading(true);
 
-            const contract = new ethers.Contract(
+            const positionManager = new ethers.Contract(
                 POSITION_MANAGER_ADDRESS,
                 POSITION_MANAGER_ABI,
                 provider
             );
+            const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
 
-            const balance = await contract.balanceOf(account);
+            const balance = await positionManager.balanceOf(account);
             const count = Number(balance);
             if (count === 0) {
                 setPositions([]);
                 return;
             }
 
-            // --- Step 1: Fetch all tokenIds in parallel ---
             const tokenIds = await Promise.all(
-                Array.from({ length: count }, (_, i) => contract.tokenOfOwnerByIndex(account, i))
+                Array.from({ length: count }, (_, i) =>
+                    positionManager.tokenOfOwnerByIndex(account, i)
+                )
             );
 
-            // --- Step 2: Fetch all positions in parallel ---
             const rawPositions = await Promise.all(
-                tokenIds.map((id) => contract.positions(id))
+                tokenIds.map((id) => positionManager.positions(id))
             );
 
-            // --- Step 3: Cache for token symbols ---
-            const tokenCache = new Map();
+            // Cache for token metadata
+            const tokenCache = new Map<string, { symbol: string; decimals: number }>();
 
-            async function getTokenSymbol(address: any) {
-                if (tokenCache.has(address)) return tokenCache.get(address);
+            async function getTokenData(address: string) {
+                if (tokenCache.has(address)) return tokenCache.get(address)!;
+
                 const tokenContract = new ethers.Contract(address, ERC20_ABI, provider);
-                const symbol = await tokenContract.symbol().catch(() => "UNKNOWN");
-                tokenCache.set(address, symbol);
-                return symbol;
+
+                let symbol = "UNKNOWN";
+                let decimals = 18; // default fallback
+
+                try {
+                    const sym = await tokenContract.symbol();
+                    if (sym && typeof sym === "string") symbol = sym;
+                } catch (err) {
+                    console.warn("⚠️ Symbol fetch failed for", address);
+                }
+
+                try {
+                    const dec = await tokenContract.decimals();
+                    if (dec !== null && dec !== undefined && !isNaN(Number(dec))) {
+                        decimals = Number(dec);
+                    }
+                } catch (err) {
+                    console.warn("⚠️ Decimals fetch failed for", address, "— defaulting to 18");
+                }
+
+                tokenCache.set(address, { symbol, decimals });
+                return { symbol, decimals };
             }
 
-            // --- Step 4: Resolve symbols in parallel ---
             const enriched = await Promise.all(
                 rawPositions.map(async (pos, idx) => {
-                    const [symbol0, symbol1] = await Promise.all([
-                        getTokenSymbol(pos.token0),
-                        getTokenSymbol(pos.token1),
+                    const token0Addr = pos.token0;
+                    const token1Addr = pos.token1;
+                    const fee = Number(pos.fee);
+                    const tickLower = Number(pos.tickLower);
+                    const tickUpper = Number(pos.tickUpper);
+                    const liquidityBN = pos.liquidity;
+
+                    const poolAddress = await factory.getPool(token0Addr, token1Addr, fee);
+                    if (poolAddress === ethers.ZeroAddress) {
+                        return {
+                            tokenId: tokenIds[idx].toString(),
+                            token0: token0Addr,
+                            token1: token1Addr,
+                            symbol0: "UNKNOWN",
+                            symbol1: "UNKNOWN",
+                            fee,
+                            amount0: 0,
+                            amount1: 0,
+                            tickLower,
+                            tickUpper,
+                        };
+                    }
+
+                    const poolContract = new ethers.Contract(
+                        poolAddress,
+                        UNISWAP_V3_POOL_ABI,
+                        provider
+                    );
+
+                    const [slot0, poolLiquidity, token0, token1, poolFee] = await Promise.all([
+                        poolContract.slot0(),
+                        poolContract.liquidity(),
+                        poolContract.token0(),
+                        poolContract.token1(),
+                        poolContract.fee(),
                     ]);
+
+                    const [data0, data1] = await Promise.all([
+                        getTokenData(token0),
+                        getTokenData(token1),
+                    ]);
+
+                    // ✅ Hard safeguard against undefined decimals
+                    const dec0 = Number.isFinite(data0.decimals) ? data0.decimals : 18;
+                    const dec1 = Number.isFinite(data1.decimals) ? data1.decimals : 18;
+
+                    const chainId = 1476;
+                    const token0Obj = new Token(
+                        chainId,
+                        ethers.getAddress(token0),
+                        dec0,
+                        data0.symbol,
+                        data0.symbol
+                    );
+                    const token1Obj = new Token(
+                        chainId,
+                        ethers.getAddress(token1),
+                        dec1,
+                        data1.symbol,
+                        data1.symbol
+                    );
+
+                    const pool = new UniPool(
+                        token0Obj,
+                        token1Obj,
+                        Number(poolFee),
+                        slot0[0].toString(),
+                        poolLiquidity.toString(),
+                        Number(slot0[1])
+                    );
+
+                    const position = new Position({
+                        pool,
+                        liquidity: liquidityBN.toString(),
+                        tickLower,
+                        tickUpper,
+                    });
+
+                    let amount0 = 0;
+                    let amount1 = 0;
+
+                    try {
+                        amount0 = Number(position.amount0.toSignificant(6));
+                        amount1 = Number(position.amount1.toSignificant(6));
+                    } catch (err) {
+                        console.warn("⚠️ Failed to compute amounts for position", tokenIds[idx].toString());
+                    }
 
                     return {
                         tokenId: tokenIds[idx].toString(),
-                        token0: pos.token0,
-                        token1: pos.token1,
-                        symbol0,
-                        symbol1,
-                        fee: pos.fee,
-                        liquidity: Number(pos.liquidity),
-                        tickLower: pos.tickLower,
-                        tickUpper: pos.tickUpper,
+                        token0: token0Addr,
+                        token1: token1Addr,
+                        symbol0: data0.symbol,
+                        symbol1: data1.symbol,
+                        fee,
+                        amount0,
+                        amount1,
+                        tickLower,
+                        tickUpper,
                     };
                 })
             );
@@ -108,13 +227,13 @@ const Pool = () => {
         }
     };
 
+
     return (
         <div>
             <div className="hero-section">
                 <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
                     <div className="modern-card mt-[56px] w-full max-w-[690px] mx-auto px-4">
                         <div className="w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
-
                             {/* Tabs */}
                             <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">
                                 <Link
@@ -141,14 +260,13 @@ const Pool = () => {
                             </Link>
 
                             <Link
-                                to="/removeLp"
+                                to="/removelp"
                                 className="modern-button relative z-10 w-full flex items-center justify-center space-x-2 mb-6 py-4 !bg-red-600 !text-white hover:!bg-red-700"
                             >
                                 <Wallet />
                                 <span>Remove Liquidity</span>
                             </Link>
 
-                            {/* Positions */}
                             {/* Positions */}
                             <div className="relative z-10 modern-card p-6 text-center">
                                 {loading ? (
@@ -165,17 +283,30 @@ const Pool = () => {
                                                         #{p.tokenId}
                                                     </div>
                                                     <div className="text-xs text-gray-500">
-                                                        {Number(p.fee) / 10000}% fee
+                                                        {(Number(p.fee) / 10000).toFixed(2)}% fee
                                                     </div>
                                                 </div>
 
-                                                <div className="text-sm text-gray-800 font-medium mb-1">
+                                                <div className="text-sm text-gray-800 font-medium mb-2">
                                                     {p.symbol0}/{p.symbol1}
                                                 </div>
 
-                                                <div className="flex flex-wrap justify-between text-xs text-gray-600">
-                                                    <div>Liquidity: {p.liquidity.toString()}</div>
-                                                    <div>Tick: {p.tickLower} → {p.tickUpper}</div>
+                                                <div className="flex flex-col text-xs text-gray-700 space-y-1">
+                                                    <div>
+                                                        {p.symbol0}:{" "}
+                                                        <span className="font-semibold">
+                                                            {p.amount0.toFixed(6)}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        {p.symbol1}:{" "}
+                                                        <span className="font-semibold">
+                                                            {p.amount1.toFixed(6)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-gray-500">
+                                                        Tick range: {p.tickLower} → {p.tickUpper}
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))}
@@ -188,7 +319,6 @@ const Pool = () => {
                                     </div>
                                 )}
                             </div>
-
                         </div>
                     </div>
                 </div>

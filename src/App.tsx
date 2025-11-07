@@ -9,7 +9,7 @@ import Converter1 from "./components/Converter1";
 import Home from "./pages/Home";
 import AmmDashboard from "./components/BotDashboard";
 import PolicyDashboard from "./pages/policy/Policy";
-import LendingBorrowing from "./pages/LendingBorrowing/LB";
+// import LendingBorrowing from "./pages/LendingBorrowing/LB";
 import { ToastProvider } from "./components/Toast";
 
 function App() {
@@ -24,12 +24,12 @@ function App() {
             <Route path="/swap" element={<Swap />} />
             <Route path="/Policy" element={<PolicyDashboard />} />
             <Route path="/bridge" element={<Bridge />} />
-            <Route path="/LendingBorrowing" element={<LendingBorrowing />} />
+            {/* <Route path="/LendingBorrowing" element={<LendingBorrowing />} /> */}
             <Route path="/PoolData" element={<AmmDashboard />} />
             <Route path="/exchange" element={<Limit />} />
             <Route path="/pool" element={<Pool />} />
             <Route path="/addlp" element={<ConverterPool />} />
-            <Route path="/removeLp" element={<Converter1 />} />
+            <Route path="/removelp" element={<Converter1 />} />
           </Route>
         </Routes>
       </ToastProvider>
