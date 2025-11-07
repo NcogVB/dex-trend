@@ -4,6 +4,7 @@ import { Token } from '@uniswap/sdk-core'
 import { Pool, Position } from '@uniswap/v3-sdk'
 import { ethers } from 'ethers'
 import {
+    ERC20_ABI,
     POSITION_MANAGER_MINIMAL_ABI,
     UNISWAP_V3_POOL_ABI,
 } from '../contexts/ABI'
@@ -26,7 +27,7 @@ interface LiquidityData {
 const Converter1: React.FC = () => {
     const { removeLiquidity } = useLiquidity()
     const [percentage, setPercentage] = useState<number>(25)
-    const [tokenId, setTokenId] = useState<string>('12345') // Sample token ID
+    const [tokenId, setTokenId] = useState<string>("") // Sample token ID
     const [selectedPercentage, setSelectedPercentage] = useState<
         25 | 50 | 75 | 100
     >(25)
@@ -45,9 +46,9 @@ const Converter1: React.FC = () => {
     })
     const [tokenIn, setTokenIn] = useState<string>(TOKENS[0].symbol);
     const [tokenOut, setTokenOut] = useState<string>(TOKENS[1].symbol);
-    const getTokenAddress = (symbol: string): string | undefined => {
-        return TOKENS.find(token => token.symbol === symbol)?.address;
-    };
+    // const getTokenAddress = (symbol: string): string | undefined => {
+    //     return TOKENS.find(token => token.symbol === symbol)?.address;
+    // };
     const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = Number(e.target.value)
         setPercentage(value)
@@ -58,123 +59,111 @@ const Converter1: React.FC = () => {
         else setSelectedPercentage(100)
     }
 
+    const FACTORY_ABI = [
+        "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)"
+    ];
+    const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
     const fetchPositionData = useCallback(async () => {
-        if (!tokenId || !(window as any).ethereum) return;
-
         try {
-            const provider = new ethers.BrowserProvider((window as any).ethereum);
+            if (!tokenId || !(window as any).ethereum) return;
 
+            const provider = new ethers.BrowserProvider((window as any).ethereum);
             const positionManager = new ethers.Contract(
                 "0xe4ae6F10ee1C8e2465D9975cb3325267A2025549",
                 POSITION_MANAGER_MINIMAL_ABI,
                 provider
             );
-
-            const FACTORY_ABI = [
-                "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address)"
-            ];
-            const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
-
             const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
 
-            const tokenInAddress = getTokenAddress(tokenIn);
-            const tokenOutAddress = getTokenAddress(tokenOut);
+            // 1) Read position from NFT (use BigInt/string for tokenId)
+            const pos = await positionManager.positions(BigInt(tokenId));
 
-            if (!tokenInAddress || !tokenOutAddress) {
-                console.error("Token address not found for:", tokenIn, tokenOut);
-                return;
-            }
+            const token0Addr: string = pos.token0 ?? pos[2];
+            const token1Addr: string = pos.token1 ?? pos[3];
+            const fee: number = Number(pos.fee ?? pos[4]);
+            const tickLower: number = Number(pos.tickLower ?? pos[5]);
+            const tickUpper: number = Number(pos.tickUpper ?? pos[6]);
+            const liquidityBI: bigint = pos.liquidity ?? pos[7];
 
-            // Ensure addresses are properly formatted
-            const token0Addr = ethers.getAddress(tokenInAddress);
-            const token1Addr = ethers.getAddress(tokenOutAddress);
-
-            // Sort tokens before calling factory (Uniswap requires token0 < token1)
-            const [t0, t1] = token0Addr.toLowerCase() < token1Addr.toLowerCase()
-                ? [token0Addr, token1Addr]
-                : [token1Addr, token0Addr];
-            const poolAddress = await factory.getPool(t0, t1, 500); // 500 = 0.05% fee tier
-
+            // 2) Get pool by exact token0/token1/fee from the NFT
+            // (The NFT stores sorted token0/token1 already)
+            const poolAddress: string = await factory.getPool(token0Addr, token1Addr, fee);
             if (poolAddress === ethers.ZeroAddress) {
-                console.error("No pool found for selected token pair");
+                console.error("No pool exists for this NFT (token0/token1/fee).");
                 return;
             }
 
+            // 3) Read pool state
             const poolContract = new ethers.Contract(poolAddress, UNISWAP_V3_POOL_ABI, provider);
+            const [liquidityPoolBI, slot0, , ,] = await Promise.all([
+                poolContract.liquidity(),
+                poolContract.slot0(),
+                poolContract.fee(),     // already have 'fee' but harmless to read
+                poolContract.token0(),  // already have token0Addr
+                poolContract.token1(),  // already have token1Addr
+            ]);
+            const sqrtPriceX96 = slot0[0].toString();
+            const tick = Number(slot0[1]);
 
-            // Fetch position and pool data
-            const [positionData, poolData] = await Promise.all([
-                positionManager.positions(tokenId),
-                Promise.all([
-                    poolContract.liquidity(),
-                    poolContract.slot0(),
-                    poolContract.fee(),
-                    poolContract.token0(),
-                    poolContract.token1(),
-                ]),
+            // 4) Fetch token metadata
+            const [dec0, dec1, sym0, sym1] = await Promise.all([
+                new ethers.Contract(token0Addr, ERC20_ABI, provider).decimals(),
+                new ethers.Contract(token1Addr, ERC20_ABI, provider).decimals(),
+                new ethers.Contract(token0Addr, ERC20_ABI, provider).symbol(),
+                new ethers.Contract(token1Addr, ERC20_ABI, provider).symbol(),
             ]);
 
-            const [poolLiquidity, slot0, fee, token0Address, token1Address] = poolData;
-
-            // Build Token objects (get decimals properly in production, here assume 6 for USDC, 18 for USDT if ERC20 default)
             const chainId = 1476;
-            const token0 = new Token(chainId, token0Address, 18, "USDC", "USDC");
-            const token1 = new Token(chainId, token1Address, 18, "USDT", "USDT");
+            const token0 = new Token(chainId, ethers.getAddress(token0Addr), Number(dec0), sym0, sym0);
+            const token1 = new Token(chainId, ethers.getAddress(token1Addr), Number(dec1), sym1, sym1);
 
-            // Build Pool
-            const pool = new Pool(
-                token0,
-                token1,
-                Number(fee),
-                slot0[0].toString(),
-                poolLiquidity.toString(),
-                Number(slot0[1])
-            );
-
-            // Build Position
-            const liquidity = positionData[7];
+            // 5) Build Pool & Position from the NFT specifics
+            const pool = new Pool(token0, token1, fee, sqrtPriceX96, liquidityPoolBI.toString(), tick);
             const position = new Position({
                 pool,
-                liquidity: liquidity.toString(),
-                tickLower: Number(positionData[5]),
-                tickUpper: Number(positionData[6]),
+                liquidity: liquidityBI.toString(),
+                tickLower,
+                tickUpper,
             });
-            console.log("position", position)
-            // Calculate token amounts
+
+            // 6) Token amounts in position
             const amount0 = Number(position.amount0.toSignificant(6));
             const amount1 = Number(position.amount1.toSignificant(6));
 
-            // Map correctly to USDC/USDT
-            const usdcAmount = token0.symbol === "USDC" ? amount0 : amount1;
-            const usdtAmount = token0.symbol === "USDT" ? amount0 : amount1;
+            // 7) Prices (token0 per token1 and vice versa)
+            const price0per1 = Number(pool.token0Price.toSignificant(6));
+            const price1per0 = Number(pool.token1Price.toSignificant(6));
 
-            // Share of pool
-            const shareOfPool = (Number(liquidity) / Number(poolLiquidity)) * 100;
+            // 8) Share of pool (best-effort render)
+            const shareOfPool =
+                Number(liquidityBI) > 0 && Number(liquidityPoolBI) > 0
+                    ? (Number(liquidityBI) / Number(liquidityPoolBI)) * 100
+                    : 0;
 
-            // Rewards (simplified)
-            const tokensOwed0 = positionData[9];
-            const tokensOwed1 = positionData[10];
+            // 9) Fees owed (both tokens, show as "reward" in USD-ish if you want)
+            const tokensOwed0 = pos.tokensOwed0 ?? pos[10];
+            const tokensOwed1 = pos.tokensOwed1 ?? pos[11];
             const reward =
-                Number(tokensOwed0) / 1e6 + Number(tokensOwed1) / 1e18;
+                Number(tokensOwed0) / 10 ** Number(dec0) * price0per1 + // convert owed0 to token1 value
+                Number(tokensOwed1) / 10 ** Number(dec1);               // already token1
 
-            // Prices
-            const priceUSDCtoUSDT = Number(pool.token0Price.toSignificant(6));
-            const priceUSDTtoUSDC = Number(pool.token1Price.toSignificant(6));
-            console.log("Prices:", { priceUSDCtoUSDT, priceUSDTtoUSDC });
+            // 10) Drive the UI from the NFT’s token symbols
+            setTokenIn(sym0);
+            setTokenOut(sym1);
+
             setLiquidityData({
-                poolTokens: Number(liquidity) / 1e18,
-                usdcAmount,
-                usdtAmount,
+                poolTokens: Number(liquidityBI) / 1e18, // display-only; optional
+                usdcAmount: amount1,                    // rename these keys if they’re confusing now
+                usdtAmount: amount0,
                 shareOfPool,
                 reward: reward > 0 ? reward : null,
-                totalPoolLiquidity: Number(poolLiquidity) / 1e18,
-                currentPrice: priceUSDCtoUSDT,
-                priceUSDCtoUSDT,
-                priceUSDTtoUSDC,
+                totalPoolLiquidity: Number(liquidityPoolBI) / 1e18,
+                currentPrice: price0per1,
+                priceUSDCtoUSDT: price0per1, // 1 token0 in token1
+                priceUSDTtoUSDC: price1per0, // 1 token1 in token0
             });
-            console.log("Fetched position data:", {}, liquidityData);
-        } catch (error) {
-            console.error("Error fetching position data:", error);
+        } catch (err) {
+            console.error("Error fetching position data:", err);
         }
     }, [tokenId]);
 
@@ -204,6 +193,7 @@ const Converter1: React.FC = () => {
         setIsRemovingLiquidity(true)
         try {
             await removeLiquidity(Number(tokenId), percentage)
+            await fetchPositionData();
             alert('Liquidity removed successfully!')
             // Refresh position data
         } catch (error) {
@@ -238,7 +228,7 @@ const Converter1: React.FC = () => {
 
                         {/* Header */}
                         {/* Token Selection */}
-                        <div className="mb-6">
+                        {/* <div className="mb-6">
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Select Token Pair
                             </label>
@@ -266,7 +256,7 @@ const Converter1: React.FC = () => {
                                 ))}
                                 </select>
                             </div>
-                        </div>
+                        </div> */}
 
                         {/* Position ID Input */}
                         <div className="mb-6">
