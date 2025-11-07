@@ -177,7 +177,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
     const fetchOrders = async () => {
         try {
             const provider = getReadProvider();
-            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, provider);
+            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
 
             // Ensure ABI has nextOrderId/getOrder
             if (!executor.nextOrderId || !executor.getOrder) {

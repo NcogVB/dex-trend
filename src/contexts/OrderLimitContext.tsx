@@ -1,17 +1,18 @@
 import React, { createContext, useContext, useState } from "react";
-import { ethers } from "ethers";
+import { ethers, MaxUint256 } from "ethers";
 import { useWallet } from "./WalletContext";
 import ExecutorABI from "../ABI/LimitOrder.json"
 
-interface CreateOrderParams {
+type CreateOrderParams = {
     tokenIn: string;
     tokenOut: string;
-    amountIn: string;       // user input, converted to units
-    targetPrice: string;    // plain human price, converted to 1e18 in createOrder()
+    amountIn: string;      // human-readable (e.g. "100")
+    amountOutMin: string;  // human-readable with slippage
+    targetSqrtPriceX96: string; // decimal ratio like "1.001"
     triggerAbove: boolean;
     ttlSeconds: number;
-    ordertype: number;      // 0=BUY, 1=SELL
-}
+    ordertype: number; // 0 = BUY, 1 = SELL
+};
 
 type cancelParams = {
     orderId: number
@@ -37,11 +38,52 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const EXECUTOR_ADDRESS = "0x8eA4661007b475Bfbb16e10186E896d6723C3655";
+    const EXECUTOR_ADDRESS = "0xD80712A300F0c8Fb974315b63c0F048a1CFF1339";
     const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
     const FACTORY_ABI = [
         "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
     ];
+    /**
+     * Convert a price ratio (e.g., "1.001") to targetPrice scaled by 1e18
+     * Formula: ratio * 10^(decimalsIn - decimalsOut) * 1e18
+     */
+    const calculateTargetPrice = (
+        priceRatio: string,
+        decimalsIn: number,
+        decimalsOut: number
+    ): string => {
+        // Clean the input
+        const cleanRatio = priceRatio.trim();
+        const ratio = parseFloat(cleanRatio);
+
+        if (isNaN(ratio) || ratio <= 0) {
+            throw new Error(`Invalid price ratio: "${priceRatio}"`);
+        }
+
+        console.log(`🔢 Calculating targetPrice: ratio=${ratio}, decimalsIn=${decimalsIn}, decimalsOut=${decimalsOut}`);
+
+        // Calculate decimal adjustment
+        const decimalAdjustment = decimalsIn - decimalsOut;
+
+        // Convert ratio to a string with enough precision, then to BigInt
+        // Multiply by 1e18 to match contract expectation
+        const SCALE = 1e18;
+        const scaledRatio = ratio * SCALE;
+
+        // Convert to BigInt (remove any decimals)
+        let targetPriceBigInt = BigInt(Math.floor(scaledRatio));
+
+        // Apply decimal adjustment
+        if (decimalAdjustment > 0) {
+            targetPriceBigInt = targetPriceBigInt * BigInt(10 ** decimalAdjustment);
+        } else if (decimalAdjustment < 0) {
+            targetPriceBigInt = targetPriceBigInt / BigInt(10 ** Math.abs(decimalAdjustment));
+        }
+
+        console.log(`✅ Target price calculated: ${targetPriceBigInt.toString()}`);
+        return targetPriceBigInt.toString();
+    };
+
     const createOrder = async (params: CreateOrderParams): Promise<string> => {
         if (!signer || !account) {
             throw new Error("Wallet not connected");
@@ -51,21 +93,29 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setError(null);
 
         try {
-            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, signer);
+            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, signer);
 
-            // Fetch decimals for tokens (you can fetch dynamically if needed)
-            const [decimalsIn, decimalsOut] = await Promise.all([18, 18]);
+            // Fetch decimals for both tokens
+            const [decimalsIn, decimalsOut] = await Promise.all([
+                18,
+                18
+            ]);
 
             console.log(`📊 Token decimals: ${params.tokenIn}=${decimalsIn}, ${params.tokenOut}=${decimalsOut}`);
 
-            // Scale input amounts
+            // Scale amounts using correct decimals
             const amountIn = ethers.parseUnits(params.amountIn, decimalsIn);
+            const amountOutMin = ethers.parseUnits(params.amountOutMin, decimalsOut);
 
-            // 🧮 targetPrice is now just the user-input ratio (quote per base)
-            // Example: if 1 ETH = 2000 USDC, targetPrice = 2000 * 1e18
-            const targetPrice = ethers.parseUnits(params.targetPrice, 18);
+            // Convert price ratio to targetPrice with proper decimal handling
+            const targetPriceString = calculateTargetPrice(
+                params.targetSqrtPriceX96,
+                decimalsIn,
+                decimalsOut
+            );
+            const targetPrice = BigInt(String(targetPriceString));
 
-            // Fetch pool from Uniswap factory
+            // Fetch pool address from factory
             const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
             const poolAddress = await factory.getPool(params.tokenIn, params.tokenOut, 500);
 
@@ -77,35 +127,39 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 tokenIn: params.tokenIn,
                 tokenOut: params.tokenOut,
                 amountIn: amountIn.toString(),
+                amountOutMin: amountOutMin.toString(),
                 targetPrice: targetPrice.toString(),
-                triggerAbove: params.triggerAbove,
-                ttlSeconds: params.ttlSeconds,
-                ordertype: params.ordertype,
+                targetPriceRatio: params.targetSqrtPriceX96,
                 poolAddress,
+                ttl: params.ttlSeconds,
+                decimalsIn,
+                decimalsOut
             });
 
-            // Approve if needed
+            // Approve token if needed
             const tokenInContract = new ethers.Contract(params.tokenIn, ERC20_ABI, signer);
             const currentAllowance = await tokenInContract.allowance(account, EXECUTOR_ADDRESS);
 
             if (currentAllowance < amountIn) {
                 console.log("🔓 Approving token...");
-                const approveTx = await tokenInContract.approve(EXECUTOR_ADDRESS, ethers.MaxUint256);
+                const approveTx = await tokenInContract.approve(EXECUTOR_ADDRESS, MaxUint256);
                 await approveTx.wait();
                 console.log("✅ Approval done");
             }
 
-            // ✅ Create order (no amountOutMin, no sqrt)
+            // Create order
             const tx = await executor.depositAndCreateOrder(
                 params.tokenIn,
                 params.tokenOut,
+                500, // 0.05% fee tier
                 poolAddress,
                 amountIn,
+                amountOutMin,
                 targetPrice,
                 params.triggerAbove,
                 params.ttlSeconds,
                 params.ordertype,
-                { gasLimit: 1_000_000 }
+                { gasLimit: 800000 }
             );
 
             console.log("⛽ Sent tx:", tx.hash);
@@ -115,7 +169,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return tx.hash;
         } catch (e: any) {
             console.error("❌ Order creation failed:", e);
-            setError(e.message || "Failed to create order");
+            const errorMsg = e.message || "Failed to create order";
+            setError(errorMsg);
             throw e;
         } finally {
             setLoading(false);
@@ -127,7 +182,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             throw new Error("Wallet not connected");
         }
         setLoading(true);
-        const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, signer);
+        const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, signer);
 
         try {
             const tx = await executor.cancelOrder(params.orderId)
