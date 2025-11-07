@@ -12,7 +12,7 @@ import { polygon, arbitrum } from "wagmi/chains";
 import { http } from 'viem'
 import { createConfig, WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { LendingBorrowingProvider } from './contexts/LendingBorrowingContext.tsx'
+// import { LendingBorrowingProvider } from './contexts/LendingBorrowingContext.tsx'
 
 const config = createConfig({
     chains: [polygon, arbitrum],
@@ -31,7 +31,7 @@ createRoot(document.getElementById('root')!).render(
                 <QueryClientProvider client={queryClient}>
                     <WalletProvider>
                         <SwapProvider>
-                            <LendingBorrowingProvider>
+                            {/* <LendingBorrowingProvider> */}
                                 <LiquidityProvider>
                                     <BridgeProvider>
                                         <OrderProvider>
@@ -39,7 +39,7 @@ createRoot(document.getElementById('root')!).render(
                                         </OrderProvider>
                                     </BridgeProvider>
                                 </LiquidityProvider>
-                            </LendingBorrowingProvider>
+                            {/* </LendingBorrowingProvider> */}
                         </SwapProvider>
                     </WalletProvider>
                 </QueryClientProvider>

@@ -11,6 +11,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { TOKENS } from '../utils/SwapTokens'
+import { useWallet } from '../contexts/WalletContext'
 
 interface LiquidityData {
     poolTokens: number
@@ -25,6 +26,7 @@ interface LiquidityData {
 }
 
 const Converter1: React.FC = () => {
+    const { provider } = useWallet()
     const { removeLiquidity } = useLiquidity()
     const [percentage, setPercentage] = useState<number>(25)
     const [tokenId, setTokenId] = useState<string>("") // Sample token ID
@@ -67,7 +69,6 @@ const Converter1: React.FC = () => {
         try {
             if (!tokenId || !(window as any).ethereum) return;
 
-            const provider = new ethers.BrowserProvider((window as any).ethereum);
             const positionManager = new ethers.Contract(
                 "0xe4ae6F10ee1C8e2465D9975cb3325267A2025549",
                 POSITION_MANAGER_MINIMAL_ABI,
