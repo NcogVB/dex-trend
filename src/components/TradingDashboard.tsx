@@ -17,7 +17,7 @@ function getLanguageFromURL(): string | null {
     return results === null ? null : decodeURIComponent(results[1].replace(/\+/g, " "));
 }
 
-const EXECUTOR_ADDRESS = "0xa8a95b7fD8d317daBc55172316bF76453b970F57";
+const EXECUTOR_ADDRESS = "0xfc1224250d6f7E8aced166474849f966914D4141";
 
 const TradingDashboard: React.FC<TradingDashboardProps> = ({
     className = "",

@@ -38,7 +38,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const EXECUTOR_ADDRESS = "0xD80712A300F0c8Fb974315b63c0F048a1CFF1339";
+    const EXECUTOR_ADDRESS = "0xfc1224250d6f7E8aced166474849f966914D4141";
     const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
     const FACTORY_ABI = [
         "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
@@ -151,7 +151,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const tx = await executor.depositAndCreateOrder(
                 params.tokenIn,
                 params.tokenOut,
-                500, // 0.05% fee tier
                 poolAddress,
                 amountIn,
                 amountOutMin,
