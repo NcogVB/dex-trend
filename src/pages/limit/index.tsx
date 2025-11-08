@@ -148,16 +148,40 @@ const Limit = () => {
 
         try {
             const ttlSeconds = expiryDays * 24 * 3600
-            await createOrder({
-                tokenIn: isBuy ? toToken.address : fromToken.address,   // ✅ Token being deposited (spent)
-                tokenOut: isBuy ? fromToken.address : toToken.address,    // ✅ Token being received (wanted)
-                amountIn: fromAmount,
-                amountOutMin: (parseFloat(fromAmount) * 0.9).toFixed(6),
-                targetSqrtPriceX96: targetPrice,
-                triggerAbove: isBuy ? false : true,
-                ttlSeconds,
-                ordertype: isBuy ? 0 : 1,
-            })
+
+            // ✅ KEY FIX: Always trade in terms of fromToken (base token)
+            // Both orders will store amounts in fromToken for matching
+
+            if (isBuy) {
+                // BUY fromToken: User pays toToken, receives fromToken
+                // - Deposit: toAmount of toToken (what they pay)
+                // - Receive: fromAmount of fromToken (what they get)
+                // - For matching: we need the ORDER to represent fromAmount
+                await createOrder({
+                    tokenIn: toToken.address,      // Paying with toToken (USDT)
+                    tokenOut: fromToken.address,   // Getting fromToken (USDC)
+                    amountIn: toAmount,            // How much toToken to deposit
+                    amountOutMin: (parseFloat(fromAmount) * 0.9).toFixed(6), // Expect fromAmount out
+                    targetSqrtPriceX96: targetPrice,
+                    triggerAbove: false,
+                    ttlSeconds,
+                    ordertype: 0,
+                })
+            } else {
+                // SELL fromToken: User pays fromToken, receives toToken
+                // - Deposit: fromAmount of fromToken (what they pay)
+                // - Receive: toAmount of toToken (what they get)
+                await createOrder({
+                    tokenIn: fromToken.address,    // Paying with fromToken (USDC)
+                    tokenOut: toToken.address,     // Getting toToken (USDT)
+                    amountIn: fromAmount,          // How much fromToken to deposit
+                    amountOutMin: (parseFloat(toAmount) * 0.9).toFixed(6), // Expect toAmount out
+                    targetSqrtPriceX96: targetPrice,
+                    triggerAbove: true,
+                    ordertype: 1,
+                    ttlSeconds,
+                })
+            }
 
             await fetchOrders();
             await fetchTokenRatio(fromToken.address, toToken.address);
@@ -167,9 +191,7 @@ const Limit = () => {
             setToAmount('')
             setTargetPrice('')
         } catch (err: unknown) {
-            // const errorMessage = err instanceof Error ? err.message : String(err)
-            showToast(`❌ Failed to create order`, "error",);
-
+            showToast(`❌ Failed to create order`, "error");
             console.error('Order creation error:', err)
         } finally {
             if (isBuy) setIsCreatingBuy(false)
@@ -409,7 +431,11 @@ const Limit = () => {
                                                                 setFromAmount(o.amountIn); // ✅ use minOut for BUY
                                                             }}
                                                         >
-                                                            {o.amountIn}
+                                                            {(
+                                                                o.triggerAbove
+                                                                    ? parseFloat(o.amountIn)
+                                                                    : parseFloat(o.minOut) / 0.9
+                                                            ).toFixed(2)}{" "}
                                                         </span>
                                                         <span className="text-center">{totalAmount}</span>
                                                         <span className="text-center">{expiryDay}</span>
@@ -439,7 +465,7 @@ const Limit = () => {
                         {/* Right Side - Orders Panel + Create Order */}
                         <div className="w-full lg:w-[30%] flex flex-col gap-3">
                             {/* Orders Panel */}
-                            <div className="modern-card flex flex-col h-[350px]">
+                            <div className="modern-card flex flex-col h-[400px]">
                                 <div className="p-3 flex flex-col h-full">
                                     {/* Tabs */}
                                     <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-md px-1 py-1 text-xs w-full flex mb-2">
@@ -503,7 +529,11 @@ const Limit = () => {
                                                                             {parseFloat(o.targetSqrt).toFixed(5)}
                                                                         </span>
                                                                         <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                            {o.displayAmount}
+                                                                            {(
+                                                                                o.triggerAbove
+                                                                                    ? parseFloat(o.amountIn)
+                                                                                    : parseFloat(o.minOut) / 0.9
+                                                                            ).toFixed(2)}{" "}
                                                                         </span>
                                                                         <span className="flex-1 text-right">{totalAmount}</span>
                                                                     </li>
@@ -556,8 +586,11 @@ const Limit = () => {
                                                                             {parseFloat(o.targetSqrt).toFixed(5)}
                                                                         </span>
                                                                         <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                            {o.displayAmount}
-                                                                        </span>
+                                                                            {(
+                                                                                o.triggerAbove
+                                                                                    ? parseFloat(o.amountIn)
+                                                                                    : parseFloat(o.minOut) / 0.9
+                                                                            ).toFixed(2)}{" "}                                                                        </span>
                                                                         <span className="flex-1 text-right">{totalAmount}</span>
                                                                     </li>
                                                                 );
@@ -609,10 +642,11 @@ const Limit = () => {
 
                                                                             {/* 🔹 Middle: Order Amount */}
                                                                             <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                                {o.displayAmount}
-                                                                            </span>
-
-
+                                                                                {(
+                                                                                    o.triggerAbove
+                                                                                        ? parseFloat(o.amountIn)
+                                                                                        : parseFloat(o.minOut) / 0.9
+                                                                                ).toFixed(2)}{" "}                                                                            </span>
                                                                             {/* 🔹 Right: Total */}
                                                                             <span className="flex-1 text-right">{totalAmount}</span>
                                                                         </li>
@@ -632,7 +666,8 @@ const Limit = () => {
                                 <h2 className="text-sm font-semibold text-gray-800">Create Order</h2>
 
                                 {/* --- FROM SECTION --- */}
-                                <div className="relative group">   {/* 👈 added group here */}
+                                <div className="relative group">
+                                    {/* Main input box */}
                                     <div className="modern-input px-2 py-1.5 w-full flex items-center gap-2 border border-gray-200 rounded-md">
                                         <input
                                             type="number"
@@ -641,6 +676,8 @@ const Limit = () => {
                                             placeholder="0.0"
                                             className="flex-1 bg-transparent text-sm outline-none placeholder-gray-400"
                                         />
+
+                                        {/* Token selector */}
                                         <div className="relative" ref={fromDropdownRef}>
                                             <button
                                                 onClick={() => setIsFromDropdownOpen(!isFromDropdownOpen)}
@@ -649,8 +686,7 @@ const Limit = () => {
                                                 <img src={fromToken.img} alt={fromToken.symbol} className="w-4 h-4 rounded-full" />
                                                 <span>{fromToken.symbol}</span>
                                                 <ChevronDown
-                                                    className={`w-3 h-3 transition-transform ${isFromDropdownOpen ? "rotate-180" : ""
-                                                        }`}
+                                                    className={`w-3 h-3 transition-transform ${isFromDropdownOpen ? "rotate-180" : ""}`}
                                                 />
                                             </button>
 
@@ -676,33 +712,15 @@ const Limit = () => {
                                             )}
                                         </div>
                                     </div>
-
-                                    {/* Hover buttons (now work) */}
-                                    <div className="absolute -top-6 left-60 flex gap-1">
-                                        {[25, 50, 75, 100].map((pct) => (
-                                            <button
-                                                key={pct}
-                                                onClick={() => {
-                                                    const bal = parseFloat(fromToken.realBalance || "0");
-                                                    const calcAmt = ((bal * pct) / 100).toFixed(6);
-                                                    setFromAmount(calcAmt);
-                                                }}
-                                                className="px-2 py-0.5 rounded bg-gray-100 text-[10px] font-medium hover:bg-blue-600 hover:text-white"
-                                            >
-                                                {pct === 100 ? "MAX" : `${pct}%`}
-                                            </button>
-                                        ))}
-                                    </div>
-
-
-                                    {/* Current Rate */}
                                     {currentRate && (
-                                        <div className="text-[11px] text-gray-500 px-1 flex justify-between items-center pt-0.5 cursor-pointer">
-                                            <div onClick={() => {
-                                                if (currentRate) {
-                                                    setTargetPrice(parseFloat(currentRate).toFixed(4));
-                                                }
-                                            }}>
+                                        <div className="text-[11px] text-gray-500 px-1 flex justify-between items-center pt-1 cursor-pointer">
+                                            <div
+                                                onClick={() => {
+                                                    if (currentRate) {
+                                                        setTargetPrice(parseFloat(currentRate).toFixed(4));
+                                                    }
+                                                }}
+                                            >
                                                 1 {fromToken.symbol} = {currentRate} {toToken.symbol}
                                             </div>
                                             <div>
@@ -711,7 +729,27 @@ const Limit = () => {
                                             </div>
                                         </div>
                                     )}
+                                    {/* ✅ Percentage boxes BELOW input box */}
+                                    <div className="flex justify-between mt-2 gap-1">
+                                        {[25, 50, 75, 100].map((pct) => (
+                                            <button
+                                                key={pct}
+                                                onClick={() => {
+                                                    const bal = parseFloat(fromToken.realBalance || "0");
+                                                    const calcAmt = ((bal * pct) / 100).toFixed(6);
+                                                    setFromAmount(calcAmt);
+                                                }}
+                                                className="flex-1 text-center py-1 rounded-md bg-gray-100 text-[11px] font-medium hover:bg-blue-600 hover:text-white transition-all"
+                                            >
+                                                {pct === 100 ? "MAX" : `${pct}%`}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Current Rate + Balance */}
+
                                 </div>
+
                                 {/* --- TO SECTION --- */}
                                 <div>
 
