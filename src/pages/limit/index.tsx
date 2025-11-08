@@ -766,7 +766,7 @@ const Limit = () => {
                                 <div className="grid grid-cols-2 gap-2">
                                     {/* Target / Expiration / Current Rate */}
                                     <div className="flex flex-col">
-                                        <span className="text-gray-500">Target</span>
+                                        <span className="text-gray-500">Target Price</span>
                                         <input
                                             type="number"
                                             value={targetPrice}
