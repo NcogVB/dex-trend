@@ -21,7 +21,6 @@ type cancelParams = {
 type OrderContextType = {
     createOrder: (params: CreateOrderParams) => Promise<string>;
     cancelOrder: (params: cancelParams) => Promise<string>;
-    fetchPoolAddress: (tokenA: string, tokenB: string) => Promise<string | null>;
     fetchTokenRatio: (tokenA: string, tokenB: string) => Promise<string>;
     poolAddress: string | null;
     currentRate: string;
@@ -93,67 +92,66 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
 
-    // 🔹 Fetch pool address using factory
-    const fetchPoolAddress = useCallback(
-        async (tokenA: string, tokenB: string): Promise<string | null> => {
-            if (!tokenA || !tokenB) return null;
-            try {
-                const provider = signer
-                    ? signer.provider
-                    : new ethers.BrowserProvider((window as any).ethereum);
-                const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
-
-                const pool = await factory.getPool(tokenA, tokenB, 500); // example: 0.05% fee tier
-                if (!pool || pool === ethers.ZeroAddress) {
-                    console.warn("⚠️ No pool found for", tokenA, tokenB);
-                    setPoolAddress(null);
-                    return null;
-                }
-
-                setPoolAddress(pool);
-                console.log("✅ Pool found:", pool);
-                return pool;
-            } catch (err) {
-                console.error("❌ Failed to fetch pool:", err);
-                setPoolAddress(null);
-                return null;
-            }
-        },
-        [signer]
-    );
-
     // 🔹 Fetch live ratio directly from Executor contract
     const fetchTokenRatio = useCallback(
         async (tokenA: string, tokenB: string): Promise<string> => {
             try {
                 if (!tokenA || !tokenB) throw new Error("Missing token addresses");
 
-                // ensure pool exists
-                let pool = poolAddress;
-                if (!pool) pool = await fetchPoolAddress(tokenA, tokenB);
-                if (!pool) throw new Error("No pool found");
-
                 const provider = signer
                     ? signer.provider
                     : new ethers.BrowserProvider((window as any).ethereum);
 
+                // ✅ Step 1: Get pool address from factory
+                const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
+                const pool = await factory.getPool(tokenA, tokenB, 500);
+
+                if (!pool || pool === ethers.ZeroAddress) {
+                    console.warn("⚠️ No pool found for", tokenA, tokenB);
+                    setPoolAddress(null);
+                    setCurrentRate("0.00000000");
+                    return "0.00000000";
+                }
+
+                console.log("✅ Pool found:", pool);
+                setPoolAddress(pool);
+
+                // ✅ Step 2: Get ratio from executor contract
                 const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
 
-                // 🔸 call getTokenRatio() from the Executor contract
-                const ratio = await executor.getTokenRatio(pool, tokenA, tokenB);
-                console.log("✅ Fetched ratio:", ratio.toString());
-                // ratio is usually scaled by 1e18
-                const rate = (ethers.formatUnits(ratio, 18)).toString();
-                setCurrentRate(rate);
+                // Try tokenA/tokenB first, if it fails try tokenB/tokenA
+                let ratio;
+                let rate;
 
+                try {
+                    ratio = await executor.getTokenRatio(pool, tokenA, tokenB);
+                    console.log("✅ Fetched ratio (A→B):", ratio.toString());
+                    rate = ethers.formatUnits(ratio, 18);
+                } catch (err: any) {
+                    // If first attempt fails, try reversed order
+                    if (err.message?.includes("invalid token pair") || err.message?.includes("tokens not in pool")) {
+                        console.log("🔄 Trying reversed token order...");
+                        ratio = await executor.getTokenRatio(pool, tokenB, tokenA);
+                        console.log("✅ Fetched ratio (B→A):", ratio.toString());
+                        // Invert the ratio since we reversed the tokens
+                        const ratioValue = parseFloat(ethers.formatUnits(ratio, 18));
+                        rate = ratioValue > 0 ? (1 / ratioValue).toString() : "0";
+                    } else {
+                        throw err;
+                    }
+                }
+
+                setCurrentRate(rate);
+                console.log("✅ Final rate:", rate);
                 return rate;
             } catch (err) {
-                console.error("❌ Failed to fetch ratio:", err);
+                console.error("❌ Failed to fetch pool/ratio:", err);
+                setPoolAddress(null);
                 setCurrentRate("0.00000000");
                 return "0.00000000";
             }
         },
-        [poolAddress, fetchPoolAddress, signer]
+        [signer]
     );
 
     // 🔹 Order creation logic
@@ -165,10 +163,12 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
             const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, signer);
 
-            // Fetch decimals for both tokens
+            const tokenInContract = new ethers.Contract(params.tokenIn, ERC20_ABI, signer);
+            const tokenOutContract = new ethers.Contract(params.tokenOut, ERC20_ABI, signer);
+
             const [decimalsIn, decimalsOut] = await Promise.all([
-                18,
-                18
+                tokenInContract.decimals(),  // ✅ Fetches actual decimals
+                tokenOutContract.decimals()   // ✅ Fetches actual decimals
             ]);
 
             console.log(`📊 Token decimals: ${params.tokenIn}=${decimalsIn}, ${params.tokenOut}=${decimalsOut}`);
@@ -207,7 +207,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
 
             // Approve token if needed
-            const tokenInContract = new ethers.Contract(params.tokenIn, ERC20_ABI, signer);
             const currentAllowance = await tokenInContract.allowance(account, EXECUTOR_ADDRESS);
 
             if (currentAllowance < amountIn) {
@@ -258,7 +257,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const contextValue: OrderContextType = {
         createOrder,
         cancelOrder,
-        fetchPoolAddress,
         fetchTokenRatio,
         poolAddress,
         currentRate,

@@ -34,9 +34,7 @@ const Limit = () => {
     const [toAmount, setToAmount] = useState<string>('')
     const [targetPrice, setTargetPrice] = useState<string>("");
     const [isFromDropdownOpen, setIsFromDropdownOpen] = useState<boolean>(false)
-    const [isToDropdownOpen, setIsToDropdownOpen] = useState<boolean>(false)
     const fromDropdownRef = useRef<HTMLDivElement>(null)
-    const toDropdownRef = useRef<HTMLDivElement>(null)
     const [tokens, setTokens] = useState<Token[]>(
         TOKENS.map((t) => ({ ...t, balance: 0, realBalance: '0' }))
     )
@@ -80,12 +78,7 @@ const Limit = () => {
             ) {
                 setIsFromDropdownOpen(false)
             }
-            if (
-                toDropdownRef.current &&
-                !toDropdownRef.current.contains(target)
-            ) {
-                setIsToDropdownOpen(false)
-            }
+
         }
 
         document.addEventListener('mousedown', handleClickOutside)
@@ -93,23 +86,12 @@ const Limit = () => {
             document.removeEventListener('mousedown', handleClickOutside)
     }, [])
     useEffect(() => {
-        const interval = setInterval(() => {
-            fetchOrders();
-        }, 10000); // every 10 seconds
+        if (!fromToken || !toToken) return;
 
+        const interval = setInterval(fetchOrders, 10000);
         return () => clearInterval(interval);
-    }, []);
+    }, [fromToken, toToken]);
 
-    // Handle token swap
-    const handleSwapTokens = (): void => {
-        const tempToken = fromToken
-        const tempAmount = fromAmount
-
-        setFromToken(toToken)
-        setToToken(tempToken)
-        setFromAmount(toAmount)
-        setToAmount(tempAmount)
-    }
 
     // Handle token selection
     const handleTokenSelect = (token: Token, isFrom: boolean = true): void => {
@@ -118,7 +100,6 @@ const Limit = () => {
             setIsFromDropdownOpen(false)
         } else {
             setToToken(token)
-            setIsToDropdownOpen(false)
         }
     }
 
@@ -167,17 +148,15 @@ const Limit = () => {
 
         try {
             const ttlSeconds = expiryDays * 24 * 3600
-            const ordertype = isBuy ? 0 : 1;
-
             await createOrder({
-                tokenIn: isBuy ? toToken.address : fromToken.address,
-                tokenOut: isBuy ? fromToken.address : toToken.address,
+                tokenIn: isBuy ? toToken.address : fromToken.address,   // ✅ Token being deposited (spent)
+                tokenOut: isBuy ? fromToken.address : toToken.address,    // ✅ Token being received (wanted)
                 amountIn: fromAmount,
-                amountOutMin: (parseFloat(fromAmount) * 0.9).toFixed(6), // 10% slippage tolerance for both
-                targetSqrtPriceX96: targetPrice, // your internal conversion can handle sqrtPrice later
-                triggerAbove: isBuy ? false : true, // BUY triggers below, SELL triggers above
+                amountOutMin: (parseFloat(fromAmount) * 0.9).toFixed(6),
+                targetSqrtPriceX96: targetPrice,
+                triggerAbove: isBuy ? false : true,
                 ttlSeconds,
-                ordertype,
+                ordertype: isBuy ? 0 : 1,
             })
 
             await fetchOrders();
@@ -277,10 +256,9 @@ const Limit = () => {
                     ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96),
                     18
                 );
-                console.log("target price",targetAmount)
 
                 const displayAmount =
-                    Number(ord.orderType) === 0 ? minOut : amountIn; // BUY shows minOut, SELL shows amountIn
+                    amountIn; // BUY shows minOut, SELL shows amountIn
 
                 const orderData = {
                     id,
@@ -428,10 +406,10 @@ const Limit = () => {
                                                         <span
                                                             className="text-center cursor-pointer"
                                                             onClick={() => {
-                                                                setFromAmount(o.orderType === 0 ? o.minOut : o.amountIn); // ✅ use minOut for BUY
+                                                                setFromAmount(o.amountIn); // ✅ use minOut for BUY
                                                             }}
                                                         >
-                                                            {o.orderType === 0 ? o.minOut : o.amountIn}
+                                                            {o.amountIn}
                                                         </span>
                                                         <span className="text-center">{totalAmount}</span>
                                                         <span className="text-center">{expiryDay}</span>
@@ -728,77 +706,19 @@ const Limit = () => {
                                                 1 {fromToken.symbol} = {currentRate} {toToken.symbol}
                                             </div>
                                             <div>
-                                                Balance:{" "}
+                                                Available:{" "}
                                                 {fromToken.balance ? fromToken.balance.toFixed(3) : "0.000"}
                                             </div>
                                         </div>
                                     )}
                                 </div>
-
-                                {/* --- SWAP BUTTON --- */}
-                                <div className="flex justify-center -my-1">
-                                    <button
-                                        onClick={handleSwapTokens}
-                                        className="p-1 rounded-full hover:bg-gray-100 transition"
-                                    >
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            width="28"
-                                            height="29"
-                                            fill="none"
-                                        >
-                                            <path
-                                                fill="#000"
-                                                d="M19.876.5H8.138C3.04.5 0 3.538 0 8.634v11.718c0 5.11 3.04 8.148 8.138 8.148h11.724C24.96 28.5 28 25.462 28 20.366V8.634C28.014 3.538 24.974.5 19.876.5Zm-7.284 21c0 .14-.028.266-.084.406a1.095 1.095 0 0 1-.574.574 1.005 1.005 0 0 1-.406.084 1.056 1.056 0 0 1-.743-.308l-4.132-4.13a1.056 1.056 0 0 1 0-1.484 1.057 1.057 0 0 1 1.485 0l2.34 2.338V7.5c0-.574.476-1.05 1.05-1.05.574 0 1.064.476 1.064 1.05v14Zm8.755-9.128a1.04 1.04 0 0 1-.743.308 1.04 1.04 0 0 1-.742-.308l-2.34-2.338V21.5c0 .574-.475 1.05-1.05 1.05-.574 0-1.05-.476-1.05-1.05v-14c0-.14.028-.266.084-.406.112-.252.308-.462.574-.574a.99.99 0 0 1 .798 0c.127.056.238.126.337.224l4.132 4.13c.406.42.406 1.092 0 1.498Z"
-                                            />
-                                        </svg>
-                                    </button>
-                                </div>
-
                                 {/* --- TO SECTION --- */}
                                 <div>
-                                    <div className="modern-input px-2 py-1.5 w-full flex items-center gap-2 border border-gray-200 rounded-md">
-                                        <input
-                                            type="number"
-                                            value={toAmount}
-                                            readOnly
-                                            placeholder="0.0"
-                                            className="flex-1 bg-transparent text-sm outline-none placeholder-gray-400"
-                                        />
-                                        <div className="relative" ref={toDropdownRef}>
-                                            <button
-                                                onClick={() => setIsToDropdownOpen(!isToDropdownOpen)}
-                                                className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-gray-100"
-                                            >
-                                                <img src={toToken.img} alt={toToken.symbol} className="w-4 h-4 rounded-full" />
-                                                <span>{toToken.symbol}</span>
-                                                <ChevronDown className={`w-3 h-3 transition-transform ${isToDropdownOpen ? "rotate-180" : ""}`} />
-                                            </button>
-
-                                            {isToDropdownOpen && (
-                                                <ul className="absolute right-0 mt-1 w-40 max-h-40 overflow-y-auto bg-white rounded-md shadow-lg z-50 border border-gray-200">
-                                                    {TOKENS.filter((t) => t.symbol !== fromToken.symbol).map((t) => (
-                                                        <li
-                                                            key={t.symbol}
-                                                            onClick={() => handleTokenSelect(t, false)}
-                                                            className="flex items-center px-2 py-1 hover:bg-gray-50 cursor-pointer"
-                                                        >
-                                                            <img src={t.img} className="w-4 h-4 mr-2 rounded-full" alt={t.symbol} />
-                                                            {t.symbol}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            )}
-                                        </div>
-                                    </div>
 
                                     {currentRate && (
-                                        <div className="text-[11px] text-gray-500 px-1 flex justify-between items-center pt-0.5">
+                                        <div className="text-[11px] text-gray-500 px-1 flex justify-end items-center pt-0.5">
                                             <div>
-                                                1 {toToken.symbol} = {(1 / parseFloat(currentRate)).toFixed(8)} {fromToken.symbol}
-                                            </div>
-                                            <div>
-                                                Balance: {toToken.balance ? toToken.balance.toFixed(3) : "0.000"}
+                                                Available: {toToken.balance ? toToken.balance.toFixed(3) : "0.000"} {toToken.symbol}
                                             </div>
                                         </div>
                                     )}
@@ -819,7 +739,6 @@ const Limit = () => {
                                             className={`border rounded px-2 py-1 text-center font-medium text-xs  
                                                 }`}
                                         />
-
                                     </div>
                                     <div className="flex flex-col">
                                         <label className="text-[11px] text-gray-500">Expiry (Days)</label>
