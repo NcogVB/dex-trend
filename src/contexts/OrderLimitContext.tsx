@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useCallback } from "react";
 import { ethers, MaxUint256 } from "ethers";
 import { useWallet } from "./WalletContext";
 import ExecutorABI from "../ABI/LimitOrder.json"
@@ -11,38 +11,46 @@ type CreateOrderParams = {
     targetSqrtPriceX96: string; // decimal ratio like "1.001"
     triggerAbove: boolean;
     ttlSeconds: number;
-    ordertype: number; // 0 = BUY, 1 = SELL
+    ordertype: number;
 };
 
 type cancelParams = {
-    orderId: number
-}
+    orderId: number;
+};
+
 type OrderContextType = {
     createOrder: (params: CreateOrderParams) => Promise<string>;
     cancelOrder: (params: cancelParams) => Promise<string>;
+    fetchPoolAddress: (tokenA: string, tokenB: string) => Promise<string | null>;
+    fetchTokenRatio: (tokenA: string, tokenB: string) => Promise<string>;
+    poolAddress: string | null;
+    currentRate: string;
     loading: boolean;
     error: string | null;
 };
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
-// ERC20 ABI for fetching decimals
 const ERC20_ABI = [
     "function approve(address spender, uint256 amount) external returns (bool)",
     "function allowance(address owner, address spender) view returns (uint256)",
-    "function decimals() view returns (uint8)"
+    "function decimals() view returns (uint8)",
 ];
 
 export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { account, signer } = useWallet();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [poolAddress, setPoolAddress] = useState<string | null>(null);
+    const [currentRate, setCurrentRate] = useState<string>("0.00000000");
 
-    const EXECUTOR_ADDRESS = "0x5E468862884448829b1C9A1805ea04a0C9613dA8";
+    const EXECUTOR_ADDRESS = "0x767Ee92f68372949cFe13b3B4B4f540f45AF0f72";
     const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
+
     const FACTORY_ABI = [
-        "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
+        "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)",
     ];
+    "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
     /**
      * Convert a price ratio (e.g., "1.001") to targetPrice scaled by 1e18
      * Formula: ratio * 10^(decimalsIn - decimalsOut) * 1e18
@@ -84,11 +92,73 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return targetPriceBigInt.toString();
     };
 
-    const createOrder = async (params: CreateOrderParams): Promise<string> => {
-        if (!signer || !account) {
-            throw new Error("Wallet not connected");
-        }
 
+    // 🔹 Fetch pool address using factory
+    const fetchPoolAddress = useCallback(
+        async (tokenA: string, tokenB: string): Promise<string | null> => {
+            if (!tokenA || !tokenB) return null;
+            try {
+                const provider = signer
+                    ? signer.provider
+                    : new ethers.BrowserProvider((window as any).ethereum);
+                const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
+
+                const pool = await factory.getPool(tokenA, tokenB, 500); // example: 0.05% fee tier
+                if (!pool || pool === ethers.ZeroAddress) {
+                    console.warn("⚠️ No pool found for", tokenA, tokenB);
+                    setPoolAddress(null);
+                    return null;
+                }
+
+                setPoolAddress(pool);
+                console.log("✅ Pool found:", pool);
+                return pool;
+            } catch (err) {
+                console.error("❌ Failed to fetch pool:", err);
+                setPoolAddress(null);
+                return null;
+            }
+        },
+        [signer]
+    );
+
+    // 🔹 Fetch live ratio directly from Executor contract
+    const fetchTokenRatio = useCallback(
+        async (tokenA: string, tokenB: string): Promise<string> => {
+            try {
+                if (!tokenA || !tokenB) throw new Error("Missing token addresses");
+
+                // ensure pool exists
+                let pool = poolAddress;
+                if (!pool) pool = await fetchPoolAddress(tokenA, tokenB);
+                if (!pool) throw new Error("No pool found");
+
+                const provider = signer
+                    ? signer.provider
+                    : new ethers.BrowserProvider((window as any).ethereum);
+
+                const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
+
+                // 🔸 call getTokenRatio() from the Executor contract
+                const ratio = await executor.getTokenRatio(pool, tokenA, tokenB);
+                console.log("✅ Fetched ratio:", ratio.toString());
+                // ratio is usually scaled by 1e18
+                const rate = (ethers.formatUnits(ratio, 18)).toString();
+                setCurrentRate(rate);
+
+                return rate;
+            } catch (err) {
+                console.error("❌ Failed to fetch ratio:", err);
+                setCurrentRate("0.00000000");
+                return "0.00000000";
+            }
+        },
+        [poolAddress, fetchPoolAddress, signer]
+    );
+
+    // 🔹 Order creation logic
+    const createOrder = async (params: CreateOrderParams): Promise<string> => {
+        if (!signer || !account) throw new Error("Wallet not connected");
         setLoading(true);
         setError(null);
 
@@ -147,7 +217,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 console.log("✅ Approval done");
             }
 
-            // Create order
             const tx = await executor.depositAndCreateOrder(
                 params.tokenIn,
                 params.tokenOut,
@@ -161,41 +230,38 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 { gasLimit: 800000 }
             );
 
-            console.log("⛽ Sent tx:", tx.hash);
-            const receipt = await tx.wait();
-            console.log("✅ Order created in block:", receipt.blockNumber);
-
+            await tx.wait();
             return tx.hash;
         } catch (e: any) {
             console.error("❌ Order creation failed:", e);
-            const errorMsg = e.message || "Failed to create order";
-            setError(errorMsg);
+            setError(e.message);
             throw e;
         } finally {
             setLoading(false);
         }
     };
 
+    // 🔹 Cancel order
     const cancelOrder = async (params: cancelParams) => {
-        if (!signer || !account) {
-            throw new Error("Wallet not connected");
-        }
+        if (!signer || !account) throw new Error("Wallet not connected");
         setLoading(true);
-        const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, signer);
-
         try {
-            const tx = await executor.cancelOrder(params.orderId)
-            console.log("⛽ Sent tx:", tx.hash);
-            const receipt = await tx.wait();
-            console.log("✅ Order cancelled in block:", receipt.blockNumber);
+            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, signer);
+            const tx = await executor.cancelOrder(params.orderId);
+            await tx.wait();
             return tx.hash;
-        } catch (error) {
-            console.log(error)
+        } finally {
+            setLoading(false);
         }
-    }
+    };
+
     const contextValue: OrderContextType = {
         createOrder,
         cancelOrder,
+        fetchPoolAddress,
+        fetchTokenRatio,
+        poolAddress,
+        currentRate,
         loading,
         error,
     };

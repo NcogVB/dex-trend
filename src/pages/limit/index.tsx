@@ -18,7 +18,7 @@ interface Token {
     balance?: number;      // parsed number}
 }
 const Limit = () => {
-    const { createOrder, cancelOrder } = useOrder()
+    const { createOrder, cancelOrder, fetchTokenRatio, currentRate } = useOrder()
     const { getQuote, getTokenBalance } = useSwap()
     const { account, provider } = useWallet()
     const { showToast } = useToast();
@@ -40,33 +40,12 @@ const Limit = () => {
     const [tokens, setTokens] = useState<Token[]>(
         TOKENS.map((t) => ({ ...t, balance: 0, realBalance: '0' }))
     )
-    const [currentRate, setCurrentRate] = useState<string>("0.00000000");
-
     // fetch "current rate" whenever tokens change
     useEffect(() => {
-        const fetchRate = async () => {
-            try {
-                if (!fromToken || !toToken) return;
-
-                // fetch quote for 1 unit of fromToken
-                const quote = await getQuote({
-                    fromSymbol: fromToken.symbol as "USDC" | "USDT",
-                    toSymbol: toToken.symbol as "USDC" | "USDT",
-                    amountIn: "1",
-                });
-
-                if (quote?.amountOut) {
-                    setCurrentRate(parseFloat(quote.amountOut).toFixed(8));
-                }
-            } catch (err) {
-                console.error("Failed to fetch current rate:", err);
-                setCurrentRate("0.00000000");
-            }
-        };
-
-        fetchRate();
-    }, [fromToken, toToken, getQuote]);
-
+        if (fromToken && toToken) {
+            fetchTokenRatio(fromToken.address, toToken.address);
+        }
+    }, [fromToken, toToken]);
     useEffect(() => {
         if (
             fromAmount &&
@@ -150,7 +129,7 @@ const Limit = () => {
     }
     useEffect(() => {
         if (currentRate) {
-            setTargetPrice(Number(currentRate).toFixed(8)); // keep 8 decimals
+            setTargetPrice(Number(currentRate).toFixed(12)); // keep 8 decimals
         }
     }, [currentRate]); // ✅ only re-run when rate changes
 
@@ -193,8 +172,8 @@ const Limit = () => {
             await createOrder({
                 tokenIn: isBuy ? toToken.address : fromToken.address,
                 tokenOut: isBuy ? fromToken.address : toToken.address,
-                amountIn: isBuy ? toAmount : fromAmount,
-                amountOutMin: (parseFloat(isBuy ? fromAmount : toAmount).toFixed(6)),
+                amountIn: fromAmount,
+                amountOutMin: (parseFloat(fromAmount) * 0.9).toFixed(6), // 10% slippage tolerance for both
                 targetSqrtPriceX96: targetPrice, // your internal conversion can handle sqrtPrice later
                 triggerAbove: isBuy ? false : true, // BUY triggers below, SELL triggers above
                 ttlSeconds,
@@ -202,6 +181,7 @@ const Limit = () => {
             })
 
             await fetchOrders();
+            await fetchTokenRatio(fromToken.address, toToken.address);
             showToast(`${isBuy ? "✅ Buy" : "✅ Sell"} order created successfully!`, "success");
 
             setFromAmount('')
@@ -218,7 +198,7 @@ const Limit = () => {
         }
     }
     const MIN_ERC20_ABI = ["function decimals() view returns (uint8)"];
-    const EXECUTOR_ADDRESS = "0x5E468862884448829b1C9A1805ea04a0C9613dA8";
+    const EXECUTOR_ADDRESS = "0x767Ee92f68372949cFe13b3B4B4f540f45AF0f72";
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
     const fetchOrders = async () => {
@@ -297,6 +277,7 @@ const Limit = () => {
                     ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96),
                     18
                 );
+                console.log("target price",targetAmount)
 
                 const displayAmount =
                     Number(ord.orderType) === 0 ? minOut : amountIn; // BUY shows minOut, SELL shows amountIn
@@ -565,7 +546,7 @@ const Limit = () => {
                                                     >
                                                         {currentRate ? (
                                                             <>
-                                                                {parseFloat(currentRate).toFixed(4)}{" "}
+                                                                {parseFloat(currentRate).toFixed(18)}{" "}
                                                                 <span className="text-gray-500 ml-1">{toToken.symbol}</span>
                                                             </>
                                                         ) : (
@@ -741,7 +722,7 @@ const Limit = () => {
                                         <div className="text-[11px] text-gray-500 px-1 flex justify-between items-center pt-0.5 cursor-pointer">
                                             <div onClick={() => {
                                                 if (currentRate) {
-                                                    setTargetPrice(parseFloat(currentRate).toFixed(8));
+                                                    setTargetPrice(parseFloat(currentRate).toFixed(4));
                                                 }
                                             }}>
                                                 1 {fromToken.symbol} = {currentRate} {toToken.symbol}
