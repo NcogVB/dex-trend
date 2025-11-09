@@ -799,18 +799,18 @@ const Limit = () => {
                                 <div className="flex gap-2 mt-1">
                                     <button
                                         onClick={() => handleCreateOrder(true)}
-                                        disabled={isCreatingBuy}
+                                        disabled={isCreatingBuy || !toAmount}
                                         className={`flex-1 py-1.5 rounded-md font-semibold text-white text-xs transition ${isCreatingBuy ? 'bg-green-400 cursor-wait' : 'bg-green-600 hover:bg-green-700'
-                                            }`}
+                                            } disabled:opacity-50 disabled:cursor-not-allowed`}
                                     >
                                         {isCreatingBuy ? 'Processing…' : `Buy ${fromToken.symbol}`}
                                     </button>
 
                                     <button
                                         onClick={() => handleCreateOrder(false)}
-                                        disabled={isCreatingSell}
+                                        disabled={isCreatingSell || !toAmount}
                                         className={`flex-1 py-1.5 rounded-md font-semibold text-white text-xs transition ${isCreatingSell ? 'bg-red-400 cursor-wait' : 'bg-red-600 hover:bg-red-700'
-                                            }`}
+                                            }  disabled:opacity-50 disabled:cursor-not-allowed`}
                                     >
                                         {isCreatingSell ? 'Processing…' : `Sell ${fromToken.symbol}`}
                                     </button>

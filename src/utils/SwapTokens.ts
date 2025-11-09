@@ -23,7 +23,7 @@ export const TOKENS: Token[] = [
     {
         symbol: "ETH",
         name: "Ethereum",
-        address: "0xc671a7a0Bcef13018B384F5af9f4696Aba5Ff0F1",
+        address: "0x024b8A87BE821B27aAaecb878fDBd3F49ad3bcb2",
         img: "/images/eth.png",
     },
     {
