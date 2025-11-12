@@ -98,61 +98,57 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             try {
                 if (!tokenA || !tokenB) throw new Error("Missing token addresses");
 
-                const provider = signer
-                    ? signer.provider
-                    : new ethers.BrowserProvider((window as any).ethereum);
+                // ✅ Always use a valid provider (connected or fallback)
+                const rpcProvider =
+                    signer?.provider
+                        ? (signer.provider as ethers.Provider)
+                        : new ethers.JsonRpcProvider("https://api.skyhighblockchain.com", 1476);
 
-                // ✅ Step 1: Get pool address from factory
-                const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
+                // ✅ Step 1: Get pool address
+                const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, rpcProvider);
                 const pool = await factory.getPool(tokenA, tokenB, 500);
 
                 if (!pool || pool === ethers.ZeroAddress) {
                     console.warn("⚠️ No pool found for", tokenA, tokenB);
                     setPoolAddress(null);
-                    setCurrentRate("0.00000000");
-                    return "0.00000000";
+                    setCurrentRate("0");
+                    return "0";
                 }
 
                 console.log("✅ Pool found:", pool);
                 setPoolAddress(pool);
 
-                // ✅ Step 2: Get ratio from executor contract
-                const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
+                // ✅ Step 2: Get ratio
+                const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, rpcProvider);
 
-                // Try tokenA/tokenB first, if it fails try tokenB/tokenA
                 let ratio;
                 let rate;
 
                 try {
                     ratio = await executor.getTokenRatio(pool, tokenA, tokenB);
-                    console.log("✅ Fetched ratio (A→B):", ratio.toString());
-                    rate = ethers.formatUnits(ratio, 18);
+                    const ratioValue = parseFloat(ethers.formatUnits(ratio, 18));
+                    rate = ratioValue.toFixed(12);
                 } catch (err: any) {
-                    // If first attempt fails, try reversed order
-                    if (err.message?.includes("invalid token pair") || err.message?.includes("tokens not in pool")) {
-                        console.log("🔄 Trying reversed token order...");
-                        ratio = await executor.getTokenRatio(pool, tokenB, tokenA);
-                        console.log("✅ Fetched ratio (B→A):", ratio.toString());
-                        // Invert the ratio since we reversed the tokens
-                        const ratioValue = parseFloat(ethers.formatUnits(ratio, 18));
-                        rate = ratioValue > 0 ? (1 / ratioValue).toString() : "0";
-                    } else {
-                        throw err;
-                    }
+                    console.warn("🔁 Trying reversed order…", err.message);
+                    const reverse = await executor.getTokenRatio(pool, tokenB, tokenA);
+                    const ratioValue = parseFloat(ethers.formatUnits(reverse, 18));
+                    rate = ratioValue > 0 ? (1 / ratioValue).toFixed(12) : "0";
                 }
 
+                // ✅ Save usable number (not "0.00000000")
                 setCurrentRate(rate);
                 console.log("✅ Final rate:", rate);
                 return rate;
             } catch (err) {
                 console.error("❌ Failed to fetch pool/ratio:", err);
                 setPoolAddress(null);
-                setCurrentRate("0.00000000");
-                return "0.00000000";
+                setCurrentRate("0");
+                return "0";
             }
         },
         [signer]
     );
+
 
     // 🔹 Order creation logic
     const createOrder = async (params: CreateOrderParams): Promise<string> => {
