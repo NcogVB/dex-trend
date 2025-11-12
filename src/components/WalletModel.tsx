@@ -50,7 +50,7 @@ const WalletModal: React.FC = () => {
       setLoadingWallet(walletType)
       setConnectionStep('connecting')
 
-      await connect(walletType)
+      await connect()
 
       // Set loading state to wait for provider and signer
       setConnectionStep('loading')
