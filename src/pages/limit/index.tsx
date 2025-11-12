@@ -204,15 +204,13 @@ const Limit = () => {
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
     const fetchOrders = async () => {
         try {
-            if (!provider) {
-                console.error("Provider is not initialized");
-                return;
-            }
+            if (!provider) return;
 
             const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
-            const nextIdBN = await executor.nextOrderId();
-            const nextId = Number(nextIdBN ?? 0);
 
+            // 1️⃣ Fetch latest order ID once
+            const nextIdBN = await executor.nextOrderId();
+            const nextId = Number(nextIdBN);
             if (nextId <= 1) {
                 setUserOpenOrders([]);
                 setGeneralOpenOrders([]);
@@ -220,75 +218,69 @@ const Limit = () => {
                 return;
             }
 
+            const now = Math.floor(Date.now() / 1000);
             const decimalsCache: Record<string, number> = {};
             const userOpen: any[] = [];
             const generalOpen: any[] = [];
             const historyMap: Map<number, any> = new Map();
 
-            const batch: Promise<{ id: number; ord: any } | null>[] = [];
-            for (let id = 1; id < nextId; id++) {
-                batch.push(
-                    executor
-                        .getOrder(id)
-                        .then((ord: any) => ({ id, ord }))
-                        .catch((e) => {
-                            console.warn(`getOrder(${id}) failed:`, e?.message ?? e);
-                            return null;
-                        })
-                );
+            // 2️⃣ Batch call using chunked reads (faster parallel)
+            const ids = Array.from({ length: nextId - 1 }, (_, i) => i + 1);
+            const chunkSize = 20; // ✅ process in chunks of 20
+            const chunks = [];
+            for (let i = 0; i < ids.length; i += chunkSize) {
+                chunks.push(ids.slice(i, i + chunkSize));
             }
 
-            const settled = await Promise.all(batch);
-            const now = Math.floor(Date.now() / 1000);
+            // 3️⃣ Fetch orders in chunks in parallel
+            const allResults: { id: number; ord: any }[] = [];
+            await Promise.all(
+                chunks.map(async (chunk) => {
+                    const batch = chunk.map((id) =>
+                        executor.getOrder(id).then((ord: any) => ({ id, ord })).catch(() => null)
+                    );
+                    const settled = await Promise.all(batch);
+                    for (const res of settled) if (res) allResults.push(res);
+                })
+            );
 
-            for (const entry of settled) {
-                if (!entry) continue;
-                const { id, ord } = entry;
+            // 4️⃣ Collect unique token addresses (for decimals)
+            const uniqueTokens = new Set<string>();
+            allResults.forEach(({ ord }) => {
+                if (ord?.tokenIn) uniqueTokens.add(ord.tokenIn.toLowerCase());
+                if (ord?.tokenOut) uniqueTokens.add(ord.tokenOut.toLowerCase());
+            });
+
+            // 5️⃣ Fetch decimals in parallel (once per token)
+            await Promise.all(
+                Array.from(uniqueTokens).map(async (addr) => {
+                    try {
+                        const erc20 = new ethers.Contract(addr, MIN_ERC20_ABI, provider);
+                        decimalsCache[addr] = Number(await erc20.decimals());
+                    } catch {
+                        decimalsCache[addr] = 18;
+                    }
+                })
+            );
+
+            // 6️⃣ Process all results (fully local computation)
+            for (const { id, ord } of allResults) {
                 if (!ord?.maker) continue;
 
-                const tokenIn = ord.tokenIn;
-                const tokenOut = ord.tokenOut;
-                const lowerIn = tokenIn.toLowerCase();
-                const lowerOut = tokenOut.toLowerCase();
-
-                // Cache decimals
-                if (!(lowerIn in decimalsCache)) {
-                    try {
-                        const erc20 = new ethers.Contract(tokenIn, MIN_ERC20_ABI, provider);
-                        decimalsCache[lowerIn] = Number(await erc20.decimals());
-                    } catch {
-                        decimalsCache[lowerIn] = 18;
-                    }
-                }
-                if (!(lowerOut in decimalsCache)) {
-                    try {
-                        const erc20 = new ethers.Contract(tokenOut, MIN_ERC20_ABI, provider);
-                        decimalsCache[lowerOut] = Number(await erc20.decimals());
-                    } catch {
-                        decimalsCache[lowerOut] = 18;
-                    }
-                }
-
-                const decimalsIn = decimalsCache[lowerIn];
-                const decimalsOut = decimalsCache[lowerOut];
+                const tokenIn = ord.tokenIn.toLowerCase();
+                const tokenOut = ord.tokenOut.toLowerCase();
+                const decimalsIn = decimalsCache[tokenIn] ?? 18;
+                const decimalsOut = decimalsCache[tokenOut] ?? 18;
 
                 const amountIn = ethers.formatUnits(ord.amountIn, decimalsIn);
                 const minOut = ethers.formatUnits(ord.amountOutMin, decimalsOut);
-                const targetAmount = ethers.formatUnits(
-                    ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96),
-                    18
-                );
-
-                const displayAmount =
-                    amountIn; // BUY shows minOut, SELL shows amountIn
+                const targetAmount = ethers.formatUnits(ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96), 18);
 
                 const orderData = {
                     id,
                     maker: ord.maker,
                     tokenIn,
                     tokenOut,
-                    poolFee: Number(ord.poolFee),
-                    pool: ord.pool,
                     amountIn,
                     minOut,
                     targetSqrt: targetAmount,
@@ -297,7 +289,6 @@ const Limit = () => {
                     filled: Boolean(ord.filled),
                     cancelled: Boolean(ord.cancelled),
                     orderType: Number(ord.orderType),
-                    displayAmount, // ✅ add this
                 };
 
                 const isExpired = orderData.expiry > 0 && orderData.expiry < now;
@@ -305,42 +296,39 @@ const Limit = () => {
                 const isCancelled = Boolean(orderData.cancelled);
                 const isActive = !isFilled && !isCancelled && !isExpired;
 
-                // ✅ Match both directions of selected pair
                 const matchesTokenPair =
                     fromToken && toToken
-                        ? (lowerIn === fromToken.address.toLowerCase() &&
-                            lowerOut === toToken.address.toLowerCase()) ||
-                        (lowerIn === toToken.address.toLowerCase() &&
-                            lowerOut === fromToken.address.toLowerCase())
+                        ? (tokenIn === fromToken.address.toLowerCase() &&
+                            tokenOut === toToken.address.toLowerCase()) ||
+                        (tokenIn === toToken.address.toLowerCase() &&
+                            tokenOut === fromToken.address.toLowerCase())
                         : true;
 
                 if (matchesTokenPair) {
                     if (isActive) {
-                        // ✅ OPEN ORDERS
                         generalOpen.push(orderData);
                         if (account && ord.maker.toLowerCase() === account.toLowerCase()) {
                             userOpen.push(orderData);
                         }
-                    } else if (isFilled || isCancelled || isExpired) {
-                        // ✅ HISTORY: filled, cancelled, or expired
+                    } else {
                         historyMap.set(id, { ...orderData, expired: isExpired });
                     }
                 }
             }
 
-            // Sort newest first
+            // 7️⃣ Sort once at the end
             userOpen.sort((a, b) => b.id - a.id);
             generalOpen.sort((a, b) => b.id - a.id);
-
             const history = Array.from(historyMap.values()).sort((a, b) => b.id - a.id);
 
             setUserOpenOrders(userOpen);
             setGeneralOpenOrders(generalOpen);
             setOrderHistory(history);
         } catch (err: any) {
-            console.error("Failed to fetch orders:", err?.message ?? err);
+            console.error("🚨 Fast fetchOrders failed:", err?.message ?? err);
         }
     };
+
 
     const handleCancel = async (orderId: number) => {
         await cancelOrder({ orderId })

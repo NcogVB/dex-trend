@@ -117,12 +117,6 @@ export const TOKENS: Token[] = [
         img: "/images/leo.jpg",
     },
     {
-        symbol: "SHIB",
-        name: "Shiba Inu",
-        address: "0xC9b6B70b5c4CBA9DA3871Ea63a64E5D76d259520",
-        img: "/images/shib.png",
-    },
-    {
         symbol: "TON",
         name: "Toncoin",
         address: "0x4f665Ef2EF5336D26a6c06525DD812786E5614c6",

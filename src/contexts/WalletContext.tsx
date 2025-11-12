@@ -1,193 +1,156 @@
-// contexts/WalletContext.tsx
-"use client"
+"use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react"
-import type { ReactNode } from "react"
-import { ethers } from "ethers"
+import React, { createContext, useContext, useState, useEffect } from "react";
+import type { ReactNode } from "react";
+import { ethers } from "ethers";
 import {
     useAccount,
     useDisconnect,
     useSwitchChain,
     useConnect,
     useChainId,
-} from "wagmi"
+    useWalletClient,
+} from "wagmi";
 
-type WalletType = "metamask" | "trust" | null
+type WalletType = "metamask" | "trust" | null;
 
 interface WalletContextType {
-    account: string | null
-    provider: ethers.Provider | null
-    signer: ethers.JsonRpcSigner | null
-    isConnected: boolean
-    isConnecting: boolean
-    connectedWallet: WalletType
-    isModalOpen: boolean
-    connect: (walletType?: "metamask" | "trust") => Promise<void>
-    disconnect: () => void
-    switchToPolygon: () => Promise<void>
-    openModal: () => void
-    closeModal: () => void
-    formatAddress: (addr: string) => string
-    copyAddress: () => Promise<void>
-    viewOnExplorer: () => void
-    copySuccess: boolean
+    account: string | null;
+    provider: ethers.Provider | null;
+    signer: ethers.JsonRpcSigner | null;
+    isConnected: boolean;
+    isConnecting: boolean;
+    connectedWallet: WalletType;
+    isModalOpen: boolean;
+    connect: (walletType?: "metamask" | "trust") => Promise<void>;
+    disconnect: () => void;
+    switchToSkyHigh: () => Promise<void>;
+    openModal: () => void;
+    closeModal: () => void;
+    formatAddress: (addr: string) => string;
+    copyAddress: () => Promise<void>;
+    viewOnExplorer: () => void;
+    copySuccess: boolean;
 }
 
-const WalletContext = createContext<WalletContextType | undefined>(undefined)
+const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 interface WalletProviderProps {
-    children: ReactNode
+    children: ReactNode;
 }
 
-// Chain configuration
-const CHAIN_ID = 1476
-const RPC_URL = "https://api.skyhighblockchain.com"
-
-// ✅ Provider selector
-function getInjectedProvider(walletType?: WalletType): any | null {
-    if (typeof window === "undefined") return null
-    const w = window as any
-
-    // Multi-provider injection
-    if (w.ethereum?.providers) {
-        if (walletType === "metamask") {
-            return w.ethereum.providers.find((p: any) => p.isMetaMask)
-        }
-        if (walletType === "trust") {
-            return w.ethereum.providers.find((p: any) => p.isTrust)
-        }
-        return w.ethereum.providers[0]
-    }
-
-    // Single provider injection
-    if (walletType === "metamask" && w.ethereum?.isMetaMask) return w.ethereum
-    if (walletType === "trust" && w.ethereum?.isTrust) return w.ethereum
-
-    // Fallback
-    return w.ethereum ?? null
-}
+// 🛰 SkyHigh Chain Config
+const SKYHIGH_CHAIN_ID = 1476;
+const SKYHIGH_RPC_URL = "https://api.skyhighblockchain.com";
+const SKYHIGH_EXPLORER = "https://explorer.skyhighblockchain.com";
 
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
-    const { address, isConnecting, isConnected } = useAccount()
-    const { disconnect } = useDisconnect()
-    const { switchChainAsync } = useSwitchChain()
-    const { connectAsync, connectors } = useConnect()
-    const chainId = useChainId()
+    const { address, isConnecting, isConnected } = useAccount();
+    const { disconnect } = useDisconnect();
+    const { switchChainAsync } = useSwitchChain();
+    const { connectAsync, connectors } = useConnect();
+    const { data: walletClient } = useWalletClient();
+    const chainId = useChainId();
 
-    const [isModalOpen, setIsModalOpen] = useState(false)
-    const [copySuccess, setCopySuccess] = useState(false)
-    // ✅ Initialize provider immediately with fallback RPC
-    const [provider, setProvider] = useState<ethers.Provider | null>(
-        () => new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID)
-    )
-    const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null)
-    const [connectedWallet, setConnectedWallet] = useState<WalletType>(null)
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [copySuccess, setCopySuccess] = useState(false);
+    const [provider, setProvider] = useState<ethers.Provider>(
+        new ethers.JsonRpcProvider(SKYHIGH_RPC_URL, SKYHIGH_CHAIN_ID)
+    );
+    const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
+    const [connectedWallet, setConnectedWallet] = useState<WalletType>(null);
 
-    // Initialize provider & signer
+    // 🚀 Maintain signer sync with wagmi’s walletClient
     useEffect(() => {
-        const setup = async () => {
-            try {
-                if (!address) {
-                    // ✅ Always maintain a read-only provider for contract calls
-                    const fallbackProvider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID)
-                    setProvider(fallbackProvider)
-                    setSigner(null)
-                    return
-                }
-
-                const raw = getInjectedProvider(connectedWallet ?? undefined)
-                if (!raw) {
-                    console.warn("No injected provider found, using fallback")
-                    const fallbackProvider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID)
-                    setProvider(fallbackProvider)
-                    setSigner(null)
-                    return
-                }
-
-                // ✅ Create BrowserProvider with proper network
-                const browserProvider = new ethers.BrowserProvider(raw, CHAIN_ID)
-
-                // ✅ Get the underlying provider for read operations
-                const readProvider = browserProvider.provider || browserProvider
-
-                // Get signer for write operations
-                const s = await browserProvider.getSigner()
-
-                setProvider(readProvider as ethers.Provider)
-                setSigner(s)
-
-            } catch (err) {
-                console.error("Failed to init provider/signer:", err)
-                // ✅ Fallback to read-only provider on error
-                const fallbackProvider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID)
-                setProvider(fallbackProvider)
-                setSigner(null)
+        const syncSigner = async () => {
+            if (!isConnected || !walletClient) {
+                setSigner(null);
+                setProvider(new ethers.JsonRpcProvider(SKYHIGH_RPC_URL, SKYHIGH_CHAIN_ID));
+                return;
             }
-        }
-        setup()
-    }, [address, connectedWallet, chainId])
 
-    const formatAddress = (addr: string): string =>
-        `${addr.slice(0, 6)}...${addr.slice(-4)}`
+            try {
+                // Wrap wagmi’s walletClient in ethers
+                const ethersProvider = new ethers.BrowserProvider(walletClient as any, SKYHIGH_CHAIN_ID);
+                const ethersSigner = await ethersProvider.getSigner();
+                setProvider(ethersProvider);
+                setSigner(ethersSigner);
+            } catch (err) {
+                console.error("Failed to set signer from walletClient:", err);
+                setProvider(new ethers.JsonRpcProvider(SKYHIGH_RPC_URL, SKYHIGH_CHAIN_ID));
+                setSigner(null);
+            }
+        };
 
+        syncSigner();
+    }, [walletClient, isConnected]);
+
+    // ⚙️ Force SkyHigh chain on connect
     const connect = async (walletType?: "metamask" | "trust") => {
         try {
-            let connectorToUse = connectors[0]
+            let connectorToUse = connectors[0];
             if (walletType) {
                 const match = connectors.find((c) =>
                     walletType === "metamask"
                         ? c.id.toLowerCase().includes("meta")
                         : c.id.toLowerCase().includes("trust")
-                )
-                if (match) connectorToUse = match
-                setConnectedWallet(walletType)
+                );
+                if (match) connectorToUse = match;
+                setConnectedWallet(walletType);
             }
 
-            if (!connectorToUse) throw new Error("No wallet connector available")
+            if (!connectorToUse) throw new Error("No wallet connector available");
 
-            // ✅ Force connect to custom chain
-            await connectAsync({
+            const res = await connectAsync({
                 connector: connectorToUse,
-                chainId: CHAIN_ID,
-            })
+                chainId: SKYHIGH_CHAIN_ID,
+            });
 
-            // ✅ Verify and switch if needed
-            if (chainId !== CHAIN_ID) {
-                await switchChainAsync({ chainId: CHAIN_ID })
+            // ✅ Fixed: use res.chainId instead of res.chain.id
+            if (res.chainId !== SKYHIGH_CHAIN_ID) {
+                await switchChainAsync({ chainId: SKYHIGH_CHAIN_ID });
             }
 
         } catch (err) {
-            console.error("Connection failed:", err)
-            throw err
+            console.error("Connection failed:", err);
+            throw err;
         }
-    }
+    };
 
-    const switchToPolygon = async () => {
-        if (chainId !== CHAIN_ID) {
-            await switchChainAsync({ chainId: CHAIN_ID })
+    // 🧭 Manual switch
+    const switchToSkyHigh = async () => {
+        try {
+            if (chainId !== SKYHIGH_CHAIN_ID) {
+                await switchChainAsync({ chainId: SKYHIGH_CHAIN_ID });
+            }
+        } catch (err) {
+            console.error("Failed to switch to SkyHigh chain:", err);
         }
-    }
+    };
 
-    const openModal = () => setIsModalOpen(true)
-    const closeModal = () => setIsModalOpen(false)
+    const formatAddress = (addr: string): string =>
+        `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+
+    const openModal = () => setIsModalOpen(true);
+    const closeModal = () => setIsModalOpen(false);
 
     const copyAddress = async () => {
         if (address) {
             try {
-                await navigator.clipboard.writeText(address)
-                setCopySuccess(true)
-                setTimeout(() => setCopySuccess(false), 2000)
+                await navigator.clipboard.writeText(address);
+                setCopySuccess(true);
+                setTimeout(() => setCopySuccess(false), 2000);
             } catch (err) {
-                console.error("Failed to copy address:", err)
+                console.error("Copy failed:", err);
             }
         }
-    }
+    };
 
     const viewOnExplorer = () => {
         if (address) {
-            window.open(`https://polygonscan.com/address/${address}`, "_blank")
+            window.open(`${SKYHIGH_EXPLORER}/address/${address}`, "_blank");
         }
-    }
+    };
 
     const value: WalletContextType = {
         account: address ?? null,
@@ -199,26 +162,22 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         isModalOpen,
         connect,
         disconnect,
-        switchToPolygon,
+        switchToSkyHigh,
         openModal,
         closeModal,
         formatAddress,
         copyAddress,
         viewOnExplorer,
         copySuccess,
-    }
+    };
 
-    return (
-        <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
-    )
-}
+    return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
+};
 
 export const useWallet = (): WalletContextType => {
-    const context = useContext(WalletContext)
+    const context = useContext(WalletContext);
     if (context === undefined) {
-        throw new Error("useWallet must be used within a WalletProvider")
+        throw new Error("useWallet must be used within a WalletProvider");
     }
-    return context
-}
-
-export type { WalletType }
+    return context;
+};
