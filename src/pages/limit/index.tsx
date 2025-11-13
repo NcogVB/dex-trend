@@ -352,14 +352,33 @@ const Limit = () => {
         }
     };
     useEffect(() => {
-        if (!fromToken || !toToken || !provider) return;
+        if (!provider) return;
 
-        const timer = setTimeout(() => {
+        const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
+
+        // ---- Order Filled ----
+        executor.on("OrderFilled", (orderId) => {
+            console.log("Order filled:", Number(orderId));
+            fetchOrders();  // Reload affected order only
+        });
+
+        // ---- Order Cancelled ----
+        executor.on("OrderCancelled", (orderId) => {
+            console.log("Order cancelled:", Number(orderId));
             fetchOrders();
-        }, 300); // ⬅️ debounce 300ms
+        });
 
-        return () => clearTimeout(timer);
-    }, [fromToken, toToken]);
+        // ---- Order Created ---- (optional)
+        executor.on("OrderCreated", (orderId) => {
+            console.log("New order:", Number(orderId));
+            fetchOrders();
+        });
+
+        return () => {
+            executor.removeAllListeners();
+        };
+    }, [provider]);
+
     const handleCancel = async (orderId: number) => {
         await cancelOrder({ orderId })
         await fetchOrders();
@@ -608,7 +627,7 @@ const Limit = () => {
                                                             No History
                                                         </div>
                                                     ) : (
-                                                        <div className="flex flex-col text-xs font-medium">
+                                                        <div className="flex flex-col text-xs font-medium h-full overflow-y-auto">
                                                             <ul>
                                                                 {orderHistory
                                                                     .sort((a, b) => {
