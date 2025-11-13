@@ -365,7 +365,12 @@ const Limit = () => {
         await fetchOrders();
         console.log("Cancel order:", orderId);
     };
-
+    const sellOrdersRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (sellOrdersRef.current) {
+            sellOrdersRef.current.scrollTop = sellOrdersRef.current.scrollHeight;
+        }
+    }, [generalOpenOrders]);
     return (
         <div>
             <div className="hero-section">
@@ -529,14 +534,14 @@ const Limit = () => {
                                                         <div className="flex flex-col text-xs font-medium h-full">
 
                                                             {/* === SELL ORDERS (Top Scroll) === */}
-                                                            <div className="flex-1 overflow-y-auto">
+                                                            <div ref={sellOrdersRef} className="flex-1 overflow-y-scroll">
                                                                 <ul>
                                                                     {generalOpenOrders
                                                                         .filter(o => o.orderType === 1)
                                                                         .sort((a, b) => {
-                                                                            const distA = parseFloat(a.targetSqrt) - parseFloat(currentRate || "0");
-                                                                            const distB = parseFloat(b.targetSqrt) - parseFloat(currentRate || "0");
-                                                                            return distB - distA;
+                                                                            const amountA = a.triggerAbove ? parseFloat(a.amountIn) : parseFloat(a.minOut) / 0.9;
+                                                                            const amountB = b.triggerAbove ? parseFloat(b.amountIn) : parseFloat(b.minOut) / 0.9;
+                                                                            return amountA - amountB; // LOW → HIGH
                                                                         })
                                                                         .map(o => {
                                                                             const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
@@ -574,9 +579,9 @@ const Limit = () => {
                                                                     {generalOpenOrders
                                                                         .filter(o => o.orderType === 0)
                                                                         .sort((a, b) => {
-                                                                            const distA = parseFloat(currentRate || "0") - parseFloat(a.targetSqrt);
-                                                                            const distB = parseFloat(currentRate || "0") - parseFloat(b.targetSqrt);
-                                                                            return distA - distB;
+                                                                            const amountA = a.triggerAbove ? parseFloat(a.amountIn) : parseFloat(a.minOut) / 0.9;
+                                                                            const amountB = b.triggerAbove ? parseFloat(b.amountIn) : parseFloat(b.minOut) / 0.9;
+                                                                            return amountB - amountA; // HIGH → LOW
                                                                         })
                                                                         .map(o => {
                                                                             const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
