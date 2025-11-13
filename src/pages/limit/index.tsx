@@ -116,22 +116,38 @@ const Limit = () => {
     }, [currentRate]); // ✅ only re-run when rate changes
 
 
+    const isFetchingBalance = useRef(false);
+
     const updateBalances = useCallback(async () => {
-        if (!account) return
-        const updated = await Promise.all(
-            TOKENS.map(async (t) => {
-                const realBalance = await getTokenBalance(t.symbol).catch(() => "0")
-                return { ...t, realBalance, balance: parseFloat(realBalance) }
-            })
-        )
-        setTokens(updated)
-        setFromToken(
-            (prev) => updated.find((t) => t.symbol === prev.symbol) || updated[0]
-        )
-        setToToken(
-            (prev) => updated.find((t) => t.symbol === prev.symbol) || updated[1]
-        )
-    }, [account, getTokenBalance])
+        if (!account || !provider) return;
+
+        // Prevent duplicate calls
+        if (isFetchingBalance.current) return;
+        isFetchingBalance.current = true;
+
+        try {
+            const updated: any = [];
+
+            // IMPORTANT: fetch balances sequentially (no Promise.all)
+            for (const t of TOKENS) {
+                const bal = await getTokenBalance(t.symbol); // from another file
+                updated.push({
+                    ...t,
+                    realBalance: bal,
+                    balance: parseFloat(bal)
+                });
+            }
+
+            setTokens(updated);
+
+            setFromToken(prev => updated.find((x: Token) => x.symbol === prev.symbol) || updated[0]);
+            setToToken(prev => updated.find((x: Token) => x.symbol === prev.symbol) || updated[1]);
+
+        } finally {
+            isFetchingBalance.current = false;
+        }
+    }, [account, provider, getTokenBalance]);
+
 
     useEffect(() => {
         updateBalances()
@@ -185,6 +201,7 @@ const Limit = () => {
             }
 
             await fetchOrders();
+            await updateBalances();
             await fetchTokenRatio(fromToken.address, toToken.address);
             showToast(`${isBuy ? "✅ Buy" : "✅ Sell"} order created successfully!`, "success");
 
@@ -349,17 +366,31 @@ const Limit = () => {
         if (!fromToken || !toToken || !provider) return;
 
         fetchOrders(); // Initial fetch
+        updateBalances();
 
         const interval = setInterval(() => {
             fetchOrders();
-        }, 1000); // Run every 3 seconds
+            updateBalances();
+        }, 1000); // Run every 1 seconds
 
         return () => clearInterval(interval); // Cleanup on unmount
     }, [fromToken, toToken, provider, fetchOrders]);
+    useEffect(() => {
+        if (!fromToken || !toToken || !provider) return;
+
+        updateBalances();
+
+        const interval = setInterval(() => {
+            updateBalances();
+        }, 1000); // Run every 1 seconds
+
+        return () => clearInterval(interval); // Cleanup on unmount
+    }, [fromToken, toToken, provider, updateBalances]);
 
     const handleCancel = async (orderId: number) => {
         await cancelOrder({ orderId })
         await fetchOrders();
+        await updateBalances();
         console.log("Cancel order:", orderId);
     };
     const sellOrdersRef = useRef<HTMLDivElement>(null);
