@@ -204,12 +204,18 @@ const Limit = () => {
     const EXECUTOR_ADDRESS = "0x767Ee92f68372949cFe13b3B4B4f540f45AF0f72";
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
+    let isFetching = false; // ⬅️ Prevent overlapping fetch calls
+
     const fetchOrders = async () => {
+        if (isFetching) return; // ⬅️ STOP double fetch
+        isFetching = true;
         try {
             setLoadingOrders(true); // ⬅️ START LOADING
 
             if (!provider) {
                 setLoadingOrders(false);
+                isFetching = false;
+
                 return;
             }
 
@@ -223,6 +229,7 @@ const Limit = () => {
                 setUserOpenOrders([]);
                 setGeneralOpenOrders([]);
                 setOrderHistory([]);
+                isFetching = false;
                 setLoadingOrders(false); // ⬅️ STOP LOADING
                 return;
             }
@@ -341,21 +348,24 @@ const Limit = () => {
         } catch (err: any) {
             console.error("🚨 Fast fetchOrders failed:", err?.message ?? err);
             setLoadingOrders(false);
+            isFetching = false;
         }
     };
+    useEffect(() => {
+        if (!fromToken || !toToken || !provider) return;
 
+        const timer = setTimeout(() => {
+            fetchOrders();
+        }, 300); // ⬅️ debounce 300ms
+
+        return () => clearTimeout(timer);
+    }, [fromToken, toToken]);
     const handleCancel = async (orderId: number) => {
         await cancelOrder({ orderId })
         await fetchOrders();
         console.log("Cancel order:", orderId);
     };
 
-    // Add this useEffect to refresh orders when token selection changes
-    useEffect(() => {
-        if (fromToken && toToken && provider) {
-            fetchOrders();
-        }
-    }, [fromToken, toToken]);
     return (
         <div>
             <div className="hero-section">
