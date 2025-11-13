@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @import 'tailwindcss';
+
 html,
 body {
     scroll-behavior: smooth;
@@ -96,7 +97,7 @@ body {
     }
 }
 
-.percentage-redio-buttons input:checked ~ label {
+.percentage-redio-buttons input:checked~label {
     border: 1px solid #2563eb;
     color: #ffffff;
     background-color: #2563eb;
@@ -258,18 +259,31 @@ input[type='number'] {
 }
 
 @keyframes fade-in-down {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .animate-fade-in-down {
-  animation: fade-in-down 0.3s ease-out;
+    animation: fade-in-down 0.3s ease-out;
 }
 
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #bdbdbd;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #e5e5e5;
+}
 /* tailwind config */
