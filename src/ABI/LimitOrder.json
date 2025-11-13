@@ -235,6 +235,31 @@
 			"type": "event"
 		},
 		{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": true,
+					"internalType": "uint256",
+					"name": "orderId",
+					"type": "uint256"
+				},
+				{
+					"indexed": false,
+					"internalType": "uint256",
+					"name": "filledAmount",
+					"type": "uint256"
+				},
+				{
+					"indexed": false,
+					"internalType": "uint256",
+					"name": "remainingAmount",
+					"type": "uint256"
+				}
+			],
+			"name": "OrderPartiallyFilled",
+			"type": "event"
+		},
+		{
 			"inputs": [
 				{
 					"internalType": "address",

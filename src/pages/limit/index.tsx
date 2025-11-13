@@ -38,7 +38,6 @@ const Limit = () => {
     const [tokens, setTokens] = useState<Token[]>(
         TOKENS.map((t) => ({ ...t, balance: 0, realBalance: '0' }))
     )
-    const [loadingOrders, setLoadingOrders] = useState(true);
 
     // fetch "current rate" whenever tokens change
     useEffect(() => {
@@ -112,7 +111,7 @@ const Limit = () => {
     }
     useEffect(() => {
         if (currentRate) {
-            setTargetPrice(Number(currentRate).toFixed(12)); // keep 8 decimals
+            setTargetPrice(Number(currentRate).toFixed(4)); // keep 8 decimals
         }
     }, [currentRate]); // ✅ only re-run when rate changes
 
@@ -162,8 +161,8 @@ const Limit = () => {
                 await createOrder({
                     tokenIn: toToken.address,      // Paying with toToken (USDT)
                     tokenOut: fromToken.address,   // Getting fromToken (USDC)
-                    amountIn: toAmount,            // How much toToken to deposit
-                    amountOutMin: (parseFloat(fromAmount) * 0.9).toFixed(6), // Expect fromAmount out
+                    amountIn: fromAmount,            // How much toToken to deposit
+                    amountOutMin: toAmount, // Expect fromAmount out
                     targetSqrtPriceX96: targetPrice,
                     triggerAbove: false,
                     ttlSeconds,
@@ -177,7 +176,7 @@ const Limit = () => {
                     tokenIn: fromToken.address,    // Paying with fromToken (USDC)
                     tokenOut: toToken.address,     // Getting toToken (USDT)
                     amountIn: fromAmount,          // How much fromToken to deposit
-                    amountOutMin: (parseFloat(toAmount) * 0.9).toFixed(6), // Expect toAmount out
+                    amountOutMin: toAmount, // Expect toAmount out
                     targetSqrtPriceX96: targetPrice,
                     triggerAbove: true,
                     ordertype: 1,
@@ -201,7 +200,7 @@ const Limit = () => {
         }
     }
     const MIN_ERC20_ABI = ["function decimals() view returns (uint8)"];
-    const EXECUTOR_ADDRESS = "0x767Ee92f68372949cFe13b3B4B4f540f45AF0f72";
+    const EXECUTOR_ADDRESS = "0x0685ceAd5D9653C29B54b2B53E2c6454C074eBdB";
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
     let isFetching = false; // ⬅️ Prevent overlapping fetch calls
@@ -210,10 +209,8 @@ const Limit = () => {
         if (isFetching) return; // ⬅️ STOP double fetch
         isFetching = true;
         try {
-            setLoadingOrders(true); // ⬅️ START LOADING
 
             if (!provider) {
-                setLoadingOrders(false);
                 isFetching = false;
 
                 return;
@@ -230,7 +227,6 @@ const Limit = () => {
                 setGeneralOpenOrders([]);
                 setOrderHistory([]);
                 isFetching = false;
-                setLoadingOrders(false); // ⬅️ STOP LOADING
                 return;
             }
 
@@ -289,7 +285,7 @@ const Limit = () => {
                 const decimalsOut = decimalsCache[tokenOut] ?? 18;
 
                 const amountIn = ethers.formatUnits(ord.amountIn, decimalsIn);
-                const minOut = ethers.formatUnits(ord.amountOutMin, decimalsOut);
+                const amountOut = ethers.formatUnits(ord.amountOut, decimalsOut);
                 const targetAmount = ethers.formatUnits(
                     ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96),
                     18
@@ -301,7 +297,7 @@ const Limit = () => {
                     tokenIn,
                     tokenOut,
                     amountIn,
-                    minOut,
+                    amountOut,
                     targetSqrt: targetAmount,
                     triggerAbove: Boolean(ord.triggerAbove),
                     expiry: Number(ord.expiry),
@@ -343,41 +339,23 @@ const Limit = () => {
             setGeneralOpenOrders(generalOpen);
             setOrderHistory(history);
 
-            setLoadingOrders(false); // ⬅️ END LOADING
 
         } catch (err: any) {
             console.error("🚨 Fast fetchOrders failed:", err?.message ?? err);
-            setLoadingOrders(false);
             isFetching = false;
         }
     };
     useEffect(() => {
-        if (!provider) return;
+        if (fromToken && toToken && provider) {
+            fetchOrders(); // Initial fetch
 
-        const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
+            const interval = setInterval(() => {
+                fetchOrders();
+            }, 3000); // Run every 3 seconds
 
-        // ---- Order Filled ----
-        executor.on("OrderFilled", (orderId) => {
-            console.log("Order filled:", Number(orderId));
-            fetchOrders();  // Reload affected order only
-        });
-
-        // ---- Order Cancelled ----
-        executor.on("OrderCancelled", (orderId) => {
-            console.log("Order cancelled:", Number(orderId));
-            fetchOrders();
-        });
-
-        // ---- Order Created ---- (optional)
-        executor.on("OrderCreated", (orderId) => {
-            console.log("New order:", Number(orderId));
-            fetchOrders();
-        });
-
-        return () => {
-            executor.removeAllListeners();
-        };
-    }, [provider]);
+            return () => clearInterval(interval); // Cleanup on unmount
+        }
+    }, [fromToken, toToken, provider]);
 
     const handleCancel = async (orderId: number) => {
         await cancelOrder({ orderId })
@@ -390,6 +368,8 @@ const Limit = () => {
             sellOrdersRef.current.scrollTop = sellOrdersRef.current.scrollHeight;
         }
     }, [generalOpenOrders]);
+
+
     return (
         <div>
             <div className="hero-section">
@@ -456,7 +436,7 @@ const Limit = () => {
                                                             title="Click to set current rate as target"
                                                             onClick={() => {
                                                                 const rate = parseFloat(currentRate);
-                                                                if (!isNaN(rate)) setTargetPrice(targetPrice.toFixed(5));
+                                                                if (!isNaN(rate)) setTargetPrice(targetPrice.toFixed(4));
                                                             }}
                                                         >
                                                             {targetPrice.toFixed(5)}
@@ -464,14 +444,11 @@ const Limit = () => {
                                                         <span
                                                             className="text-center cursor-pointer"
                                                             onClick={() => {
-                                                                setFromAmount(o.amountIn); // ✅ use minOut for BUY
+                                                                setFromAmount(o.amountIn); // ✅ use amountOut for BUY
                                                             }}
                                                         >
-                                                            {(
-                                                                o.triggerAbove
-                                                                    ? parseFloat(o.amountIn)
-                                                                    : parseFloat(o.minOut) / 0.9
-                                                            ).toFixed(2)}{" "}
+                                                            {parseFloat(o.amountIn)}
+                                                            ({parseFloat(o.amountOut).toFixed(2)})
                                                         </span>
                                                         <span className="text-center">{totalAmount}</span>
                                                         <span className="text-center">{expiryDay}</span>
@@ -528,142 +505,137 @@ const Limit = () => {
                                     {/* Orders Content (scrollable area) */}
                                     <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-md flex-1 overflow-hidden">
 
-                                        {loadingOrders ? (
-                                            /* ===== LOADING STATE ===== */
-                                            <div className="flex flex-col items-center justify-center h-full text-gray-600 text-sm">
-                                                <div className="animate-spin rounded-full h-6 w-6 border-2 border-gray-400 border-t-transparent mb-2"></div>
-                                                Loading orders...
+
+                                        <>
+                                            {/* Header Row */}
+                                            <div className="px-3 py-2 flex items-center justify-between text-gray-600 font-semibold border-b border-gray-300 text-xs">
+                                                <span className="flex-1 text-left">Target Price</span>
+                                                <span className="flex-1 text-center">Order Amount</span>
+                                                <span className="flex-1 text-right">Total Amount</span>
                                             </div>
-                                        ) : (
-                                            <>
-                                                {/* Header Row */}
-                                                <div className="px-3 py-2 flex items-center justify-between text-gray-600 font-semibold border-b border-gray-300 text-xs">
-                                                    <span className="flex-1 text-left">Target Price</span>
-                                                    <span className="flex-1 text-center">Order Amount</span>
-                                                    <span className="flex-1 text-right">Total Amount</span>
-                                                </div>
 
-                                                {activeTab === "open" ? (
-                                                    /* ===== OPEN TAB ===== */
-                                                    generalOpenOrders.length === 0 ? (
-                                                        <div className="flex flex-col items-center justify-center h-full text-sm text-gray-600">
-                                                            No Open Orders
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex flex-col text-xs font-medium h-full">
-
-                                                            {/* === SELL ORDERS (Top Scroll) === */}
-                                                            <div ref={sellOrdersRef} className="flex-1 overflow-y-scroll">
-                                                                <ul>
-                                                                    {generalOpenOrders
-                                                                        .filter(o => o.orderType === 1)
-                                                                        .sort((a, b) => {
-                                                                            const amountA = a.triggerAbove ? parseFloat(a.amountIn) : parseFloat(a.minOut) / 0.9;
-                                                                            const amountB = b.triggerAbove ? parseFloat(b.amountIn) : parseFloat(b.minOut) / 0.9;
-                                                                            return amountA - amountB; // LOW → HIGH
-                                                                        })
-                                                                        .map(o => {
-                                                                            const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
-                                                                            return (
-                                                                                <li key={o.id} className="px-3 py-2 flex items-center justify-between text-red-600 hover:bg-red-50 transition">
-                                                                                    <span className="flex-1 text-left cursor-pointer" onClick={() => setTargetPrice(o.targetSqrt)}>
-                                                                                        {parseFloat(o.targetSqrt).toFixed(5)}
-                                                                                    </span>
-                                                                                    <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                                        {(o.triggerAbove ? parseFloat(o.amountIn) : parseFloat(o.minOut) / 0.9).toFixed(2)}
-                                                                                    </span>
-                                                                                    <span className="flex-1 text-right">{totalAmount}</span>
-                                                                                </li>
-                                                                            );
-                                                                        })}
-                                                                </ul>
-                                                            </div>
-
-                                                            {/* === FIXED CURRENT PRICE IN MIDDLE === */}
-                                                            <div
-                                                                onClick={() => currentRate && setTargetPrice(parseFloat(currentRate).toFixed(8))}
-                                                                className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky top-0 hover:bg-blue-50 cursor-pointer"
-                                                            >
-                                                                {currentRate ? (
-                                                                    <>
-                                                                        {parseFloat(currentRate).toFixed(18)}
-                                                                        <span className="text-gray-500 ml-1">{toToken.symbol}</span>
-                                                                    </>
-                                                                ) : "-"}
-                                                            </div>
-
-                                                            {/* === BUY ORDERS (Bottom Scroll) === */}
-                                                            <div className="flex-1 overflow-y-auto">
-                                                                <ul>
-                                                                    {generalOpenOrders
-                                                                        .filter(o => o.orderType === 0)
-                                                                        .sort((a, b) => {
-                                                                            const amountA = a.triggerAbove ? parseFloat(a.amountIn) : parseFloat(a.minOut) / 0.9;
-                                                                            const amountB = b.triggerAbove ? parseFloat(b.amountIn) : parseFloat(b.minOut) / 0.9;
-                                                                            return amountB - amountA; // HIGH → LOW
-                                                                        })
-                                                                        .map(o => {
-                                                                            const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
-                                                                            return (
-                                                                                <li key={o.id} className="px-3 py-2 flex items-center justify-between text-green-600 hover:bg-green-50 transition">
-                                                                                    <span className="flex-1 text-left cursor-pointer" onClick={() => setTargetPrice(o.targetSqrt)}>
-                                                                                        {parseFloat(o.targetSqrt).toFixed(5)}
-                                                                                    </span>
-                                                                                    <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                                        {(o.triggerAbove ? parseFloat(o.amountIn) : parseFloat(o.minOut) / 0.9).toFixed(2)}
-                                                                                    </span>
-                                                                                    <span className="flex-1 text-right">{totalAmount}</span>
-                                                                                </li>
-                                                                            );
-                                                                        })}
-                                                                </ul>
-                                                            </div>
-                                                        </div>
-                                                    )
+                                            {activeTab === "open" ? (
+                                                /* ===== OPEN TAB ===== */
+                                                generalOpenOrders.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center h-full text-sm text-gray-600">
+                                                        No Open Orders
+                                                    </div>
                                                 ) : (
-                                                    /* ===== HISTORY TAB ===== */
-                                                    orderHistory.length === 0 ? (
-                                                        <div className="flex flex-col items-center justify-center h-full text-sm text-gray-600">
-                                                            No History
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex flex-col text-xs font-medium h-full overflow-y-auto">
+                                                    <div className="flex flex-col text-xs font-medium h-full">
+
+                                                        {/* === SELL ORDERS (Top Scroll) === */}
+                                                        <div ref={sellOrdersRef} className="flex-1 overflow-y-scroll">
                                                             <ul>
-                                                                {orderHistory
+                                                                {generalOpenOrders
+                                                                    .filter(o => o.orderType === 1)
                                                                     .sort((a, b) => {
-                                                                        const diffA = Math.abs(parseFloat(a.targetSqrt) - parseFloat(currentRate || "0"));
-                                                                        const diffB = Math.abs(parseFloat(b.targetSqrt) - parseFloat(currentRate || "0"));
-                                                                        return diffA - diffB;
+                                                                        const amountA = a.triggerAbove ? parseFloat(a.amountIn) : parseFloat(a.amountOut);
+                                                                        const amountB = b.triggerAbove ? parseFloat(b.amountIn) : parseFloat(b.amountOut);
+                                                                        return amountA - amountB; // LOW → HIGH
                                                                     })
                                                                     .map(o => {
-                                                                        const isSell = o.orderType === 1;
                                                                         const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
-
                                                                         return (
-                                                                            <li
-                                                                                key={o.id}
-                                                                                className={`px-3 py-2 flex items-center justify-between transition cursor-pointer ${isSell ? "text-red-600 hover:bg-red-50" : "text-green-600 hover:bg-green-50"
-                                                                                    }`}
-                                                                            >
-                                                                                <span className="flex-1 flex items-center gap-2" onClick={() => setTargetPrice(o.targetSqrt)}>
-                                                                                    <span className="text-gray-400 font-semibold">#{o.id}</span>
-                                                                                    <span>{parseFloat(o.targetSqrt).toFixed(5)}</span>
+                                                                            <li key={o.id} className="px-3 py-2 flex items-center justify-between text-red-600 hover:bg-red-50 transition">
+                                                                                <span className="flex-1 text-left cursor-pointer" onClick={() => setTargetPrice(o.targetSqrt)}>
+                                                                                    {parseFloat(o.targetSqrt).toFixed(5)}
                                                                                 </span>
-
                                                                                 <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                                    {(o.triggerAbove ? parseFloat(o.amountIn) : parseFloat(o.minOut) / 0.9).toFixed(2)}
-                                                                                </span>
+                                                                                    {parseFloat(o.amountIn)}                                                            ({parseFloat(o.amountOut).toFixed(2)})
 
+                                                                                </span>
                                                                                 <span className="flex-1 text-right">{totalAmount}</span>
                                                                             </li>
                                                                         );
                                                                     })}
                                                             </ul>
                                                         </div>
-                                                    )
-                                                )}
-                                            </>
-                                        )}
+
+                                                        {/* === FIXED CURRENT PRICE IN MIDDLE === */}
+                                                        <div
+                                                            onClick={() => currentRate && setTargetPrice(parseFloat(currentRate).toFixed(3))}
+                                                            className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky top-0 hover:bg-blue-50 cursor-pointer"
+                                                        >
+                                                            {currentRate ? (
+                                                                <>
+                                                                    {parseFloat(currentRate).toFixed(18)}
+                                                                    <span className="text-gray-500 ml-1">{toToken.symbol}</span>
+                                                                </>
+                                                            ) : "-"}
+                                                        </div>
+
+                                                        {/* === BUY ORDERS (Bottom Scroll) === */}
+                                                        <div className="flex-1 overflow-y-auto">
+                                                            <ul>
+                                                                {generalOpenOrders
+                                                                    .filter(o => o.orderType === 0)
+                                                                    .sort((a, b) => {
+                                                                        const amountA = a.triggerAbove ? parseFloat(a.amountIn) : parseFloat(a.amountOut);
+                                                                        const amountB = b.triggerAbove ? parseFloat(b.amountIn) : parseFloat(b.amountOut);
+                                                                        return amountB - amountA; // HIGH → LOW
+                                                                    })
+                                                                    .map(o => {
+                                                                        const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
+                                                                        return (
+                                                                            <li key={o.id} className="px-3 py-2 flex items-center justify-between text-green-600 hover:bg-green-50 transition">
+                                                                                <span className="flex-1 text-left cursor-pointer" onClick={() => setTargetPrice(o.targetSqrt)}>
+                                                                                    {parseFloat(o.targetSqrt).toFixed(5)}
+                                                                                </span>
+                                                                                <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
+                                                                                    {(parseFloat(o.amountOut)).toFixed(2)}
+                                                                                </span>
+                                                                                <span className="flex-1 text-right">{totalAmount}</span>
+                                                                            </li>
+                                                                        );
+                                                                    })}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            ) : (
+                                                /* ===== HISTORY TAB ===== */
+                                                orderHistory.length === 0 ? (
+                                                    <div className="flex flex-col items-center justify-center h-full text-sm text-gray-600">
+                                                        No History
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col text-xs font-medium h-full overflow-y-auto">
+                                                        <ul>
+                                                            {orderHistory
+                                                                .sort((a, b) => {
+                                                                    const diffA = Math.abs(parseFloat(a.targetSqrt) - parseFloat(currentRate || "0"));
+                                                                    const diffB = Math.abs(parseFloat(b.targetSqrt) - parseFloat(currentRate || "0"));
+                                                                    return diffA - diffB;
+                                                                })
+                                                                .map(o => {
+                                                                    const isSell = o.orderType === 1;
+                                                                    const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
+
+                                                                    return (
+                                                                        <li
+                                                                            key={o.id}
+                                                                            className={`px-3 py-2 flex items-center justify-between transition cursor-pointer ${isSell ? "text-red-600 hover:bg-red-50" : "text-green-600 hover:bg-green-50"
+                                                                                }`}
+                                                                        >
+                                                                            <span className="flex-1 flex items-center gap-2" onClick={() => setTargetPrice(o.targetSqrt)}>
+                                                                                <span className="text-gray-400 font-semibold">#{o.id}</span>
+                                                                                <span>{parseFloat(o.targetSqrt).toFixed(5)}</span>
+                                                                            </span>
+
+                                                                            <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
+                                                                                {(parseFloat(o.amountIn)).toFixed(2)}
+                                                                            </span>
+
+                                                                            <span className="flex-1 text-right">{totalAmount}</span>
+                                                                        </li>
+                                                                    );
+                                                                })}
+                                                        </ul>
+                                                    </div>
+                                                )
+                                            )}
+                                        </>
+
                                     </div>
 
                                 </div>
@@ -723,7 +695,7 @@ const Limit = () => {
                                             <div
                                                 onClick={() => {
                                                     if (currentRate) {
-                                                        setTargetPrice(parseFloat(currentRate).toFixed(4));
+                                                        setTargetPrice(parseFloat(currentRate).toFixed(3));
                                                     }
                                                 }}
                                             >
