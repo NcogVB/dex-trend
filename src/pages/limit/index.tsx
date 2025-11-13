@@ -346,16 +346,16 @@ const Limit = () => {
         }
     };
     useEffect(() => {
-        if (fromToken && toToken && provider) {
-            fetchOrders(); // Initial fetch
+        if (!fromToken || !toToken || !provider) return;
 
-            const interval = setInterval(() => {
-                fetchOrders();
-            }, 3000); // Run every 3 seconds
+        fetchOrders(); // Initial fetch
 
-            return () => clearInterval(interval); // Cleanup on unmount
-        }
-    }, [fromToken, toToken, provider]);
+        const interval = setInterval(() => {
+            fetchOrders();
+        }, 1000); // Run every 3 seconds
+
+        return () => clearInterval(interval); // Cleanup on unmount
+    }, [fromToken, toToken, provider, fetchOrders]);
 
     const handleCancel = async (orderId: number) => {
         await cancelOrder({ orderId })
@@ -394,10 +394,11 @@ const Limit = () => {
                                 {/* This container must stretch to fill remaining height */}
                                 <div className="w-full border border-[#E5E5E5] rounded-lg overflow-hidden flex flex-col flex-1">
                                     {/* Header Row */}
-                                    <div className="grid grid-cols-7 bg-[#F3F4F6] text-xs font-semibold text-gray-700 py-2 px-3 border-b border-[#E5E5E5] shrink-0">
+                                    <div className="grid grid-cols-8 bg-[#F3F4F6] text-xs font-semibold text-gray-700 py-2 px-3 border-b border-[#E5E5E5] shrink-0">
                                         <span className="text-left">Order #</span>
                                         <span className="text-center">Target Price</span>
                                         <span className="text-center">Order Amount</span>
+                                        <span className="text-center">min Out</span>
                                         <span className="text-center">Total Amount</span>
                                         <span className="text-center">Expiry</span>
                                         <span className="text-center">Type</span>
@@ -428,7 +429,7 @@ const Limit = () => {
                                                 return (
                                                     <div
                                                         key={o.id}
-                                                        className="grid grid-cols-7 text-xs text-gray-700 py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition"
+                                                        className="grid grid-cols-8 text-xs text-gray-700 py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition"
                                                     >
                                                         <span className="text-left font-medium">#{o.id}</span>
                                                         <span
@@ -448,7 +449,11 @@ const Limit = () => {
                                                             }}
                                                         >
                                                             {parseFloat(o.amountIn)}
-                                                            ({parseFloat(o.amountOut).toFixed(2)})
+                                                        </span>
+                                                        <span
+                                                            className="text-center cursor-pointer"
+                                                        >
+                                                            {parseFloat(o.amountOut).toFixed(2)} left
                                                         </span>
                                                         <span className="text-center">{totalAmount}</span>
                                                         <span className="text-center">{expiryDay}</span>
@@ -541,7 +546,7 @@ const Limit = () => {
                                                                                     {parseFloat(o.targetSqrt).toFixed(5)}
                                                                                 </span>
                                                                                 <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                                    {parseFloat(o.amountIn)}                                                            ({parseFloat(o.amountOut).toFixed(2)})
+                                                                                    {parseFloat(o.amountIn)}
 
                                                                                 </span>
                                                                                 <span className="flex-1 text-right">{totalAmount}</span>
