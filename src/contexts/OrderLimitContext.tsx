@@ -43,7 +43,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [poolAddress, setPoolAddress] = useState<string | null>(null);
     const [currentRate, setCurrentRate] = useState<string>("0.00000000");
 
-    const EXECUTOR_ADDRESS = "0x0685ceAd5D9653C29B54b2B53E2c6454C074eBdB";
+    const EXECUTOR_ADDRESS = "0x519c11Bb3e09F89E5393c8F10A26c0D2B9b8d188";
     const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
 
     const FACTORY_ABI = [
