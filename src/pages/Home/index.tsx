@@ -7,12 +7,14 @@ import PeopleLoveSection from '../../components/PeopleLoveSection'
 import SecurelyConnectsSection from '../../components/SecurelyConnectsSection'
 import StartInSecondsSection from '../../components/StartInSecondsSection'
 import TrustSection from '../../components/TrustSection'
+import BuySellGifSection from '../../components/BuySellGif'
 
 function Home() {
     return (
         <>
             {/* <HeroSection /> */}
             <HeroSection2 />
+            <BuySellGifSection/>
             <FeatureCards />
             <SecurelyConnectsSection />
             <MarketTrend />

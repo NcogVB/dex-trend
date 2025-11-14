@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import MobileApp from './MobileApp'
 
 export default function HeroSection2() {
@@ -39,9 +40,11 @@ export default function HeroSection2() {
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                            <button className="bg-red-600 text-white hover:bg-red-700 px-8 py-3 text-base font-medium rounded-md transition-colors">
-                                Start Now
-                            </button>
+                            <Link to="/swap">
+                                <button className="bg-red-600 text-white hover:bg-red-700 px-8 py-3 text-base font-medium rounded-md transition-colors">
+                                    Start Now
+                                </button>
+                            </Link>
                             <button className="px-8 py-3 text-base font-medium rounded-md border border-red-200 text-red-700 hover:bg-red-50 transition-colors">
                                 Learn More
                             </button>
