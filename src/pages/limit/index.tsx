@@ -89,7 +89,7 @@ const Limit = () => {
     useEffect(() => {
         if (!fromToken || !toToken) return;
 
-        const interval = setInterval(fetchOrders, 10000);
+        const interval = setInterval(fetchOrders, 100);
         return () => clearInterval(interval);
     }, [fromToken, toToken]);
 
@@ -366,12 +366,10 @@ const Limit = () => {
         if (!fromToken || !toToken || !provider) return;
 
         fetchOrders(); // Initial fetch
-        updateBalances();
 
         const interval = setInterval(() => {
             fetchOrders();
-            updateBalances();
-        }, 1000); // Run every 1 seconds
+        }, 500); // Run every 1 seconds
 
         return () => clearInterval(interval); // Cleanup on unmount
     }, [fromToken, toToken, provider, fetchOrders]);
@@ -540,8 +538,6 @@ const Limit = () => {
 
                                     {/* Orders Content (scrollable area) */}
                                     <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-md flex-1 overflow-hidden">
-
-
                                         <>
                                             {/* Header Row */}
                                             <div className="px-3 py-2 flex items-center justify-between text-gray-600 font-semibold border-b border-gray-300 text-xs">
@@ -639,10 +635,15 @@ const Limit = () => {
                                                         <ul>
                                                             {orderHistory
                                                                 .sort((a, b) => {
+                                                                    // FIRST: sort by id (highest first)
+                                                                    if (b.id !== a.id) return b.id - a.id;
+
+                                                                    // SECOND (optional): keep your distance sorting for same id group
                                                                     const diffA = Math.abs(parseFloat(a.targetSqrt) - parseFloat(currentRate || "0"));
                                                                     const diffB = Math.abs(parseFloat(b.targetSqrt) - parseFloat(currentRate || "0"));
                                                                     return diffA - diffB;
                                                                 })
+
                                                                 .map(o => {
                                                                     const isSell = o.orderType === 1;
                                                                     const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
