@@ -556,7 +556,7 @@ const Limit = () => {
                                     </div>
 
                                     {/* Orders Content (scrollable area) */}
-                                    <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-md flex-1 overflow-hidden">
+                                    <div className="bg-[#F8F8F8] border border-[#E5E5E5] rounded-md flex flex-col h-full overflow-hidden">
                                         <>
                                             {/* Header Row */}
                                             <div className="px-3 py-2 flex items-center justify-between text-gray-600 font-semibold border-b border-gray-300 text-xs">
@@ -650,7 +650,7 @@ const Limit = () => {
                                                         No History
                                                     </div>
                                                 ) : (
-                                                    <div className="flex flex-col text-xs font-medium h-full overflow-y-auto">
+                                                    <div className="flex-1 flex flex-col text-xs font-medium overflow-y-auto">
                                                         <ul>
                                                             {orderHistory
                                                                 .sort((a, b) => {
