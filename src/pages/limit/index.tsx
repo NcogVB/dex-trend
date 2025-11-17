@@ -501,7 +501,7 @@ const Limit = () => {
                                                         <span
                                                             className="text-center cursor-pointer"
                                                         >
-                                                            {parseFloat(o.amountOut).toFixed(2)} left
+                                                            {parseFloat(o.amountOut).toFixed(5)} left
                                                         </span>
                                                         <span className="text-center">{totalAmount}</span>
                                                         <span className="text-center">{expiryDay}</span>
@@ -633,7 +633,7 @@ const Limit = () => {
                                                                                     {parseFloat(o.targetSqrt).toFixed(5)}
                                                                                 </span>
                                                                                 <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                                    {(parseFloat(o.amountOut)).toFixed(2)}
+                                                                                    {(parseFloat(o.amountOut)).toFixed(5)}
                                                                                 </span>
                                                                                 <span className="flex-1 text-right">{totalAmount}</span>
                                                                             </li>
