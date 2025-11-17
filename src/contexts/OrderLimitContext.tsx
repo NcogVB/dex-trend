@@ -115,7 +115,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     return "0";
                 }
 
-                console.log("✅ Pool found:", pool);
+                // console.log("✅ Pool found:", pool);
                 setPoolAddress(pool);
 
                 // ✅ Step 2: Get ratio
@@ -137,7 +137,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
                 // ✅ Save usable number (not "0.00000000")
                 setCurrentRate(rate);
-                console.log("✅ Final rate:", rate);
+                // console.log("✅ Final rate:", rate);
                 return rate;
             } catch (err) {
                 console.error("❌ Failed to fetch pool/ratio:", err);

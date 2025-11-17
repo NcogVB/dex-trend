@@ -363,16 +363,35 @@ const Limit = () => {
         }
     };
     useEffect(() => {
-        if (!fromToken || !toToken || !provider) return;
+        if (!provider) return;
 
-        fetchOrders(); // Initial fetch
+        const executor = new ethers.Contract(
+            EXECUTOR_ADDRESS,
+            ExecutorABI.abi,
+            provider
+        );
 
-        const interval = setInterval(() => {
+        // Run once on load
+        fetchOrders();
+        updateBalances();
+
+        const refresh = () => {
+            console.log("🔔 Event received → updating orders for all users");
             fetchOrders();
-        }, 500); // Run every 1 seconds
+            updateBalances();
+        };
 
-        return () => clearInterval(interval); // Cleanup on unmount
-    }, [fromToken, toToken, provider, fetchOrders]);
+        // Attach your events
+        executor.on("OrderCreated", refresh);
+        executor.on("OrderCancelled", refresh);
+
+        // Cleanup on unmount
+        return () => {
+            executor.off("OrderCreated", refresh);
+            executor.off("OrderCancelled", refresh);
+        };
+    }, [provider]);
+
     useEffect(() => {
         if (!fromToken || !toToken || !provider) return;
 
