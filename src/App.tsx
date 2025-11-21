@@ -11,6 +11,7 @@ import AmmDashboard from "./components/BotDashboard";
 import PolicyDashboard from "./pages/policy/Policy";
 // import LendingBorrowing from "./pages/LendingBorrowing/LB";
 import { ToastProvider } from "./components/Toast";
+import PreSell from "./components/PreSell";
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
             <Route path="/swap" element={<Swap />} />
+            <Route path="/presell" element={<PreSell />} />
             <Route path="/Policy" element={<PolicyDashboard />} />
             <Route path="/bridge" element={<Bridge />} />
             {/* <Route path="/LendingBorrowing" element={<LendingBorrowing />} /> */}

@@ -16,6 +16,7 @@ interface WalletContextType {
     isModalOpen: boolean;
     copySuccess: boolean;
     connect: () => Promise<void>;
+    switchToPolygon: () => Promise<void>;
     disconnect: () => void;
     switchToSkyHigh: () => Promise<void>;
     openModal: () => void;
@@ -30,6 +31,10 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 const SKYHIGH_CHAIN_ID = 1476;
 const SKYHIGH_RPC_URL = "https://api.skyhighblockchain.com";
 const SKYHIGH_EXPLORER = "https://explorer.skyhighblockchain.com";
+
+// const POLYGON_CHAIN_ID = 137
+const POLYGON_RPC = "https://polygon-rpc.com"
+const POLYGON_EXPLORER = "https://polygonscan.com"
 
 export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [account, setAccount] = useState<string | null>(null);
@@ -237,6 +242,45 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             window.ethereum?.removeListener("chainChanged", handleChainChanged);
         };
     }, []);
+    const switchToPolygon = async () => {
+        try {
+            if (!window.ethereum) throw new Error("No wallet found");
+
+            await window.ethereum.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: "0x89" }] // 137 hex
+            });
+
+            await syncWallet();
+        } catch (err: any) {
+            if (err.code === 4902) {
+                try {
+                    await window.ethereum.request({
+                        method: "wallet_addEthereumChain",
+                        params: [
+                            {
+                                chainId: "0x89",
+                                chainName: "Polygon Mainnet",
+                                rpcUrls: [POLYGON_RPC],
+                                nativeCurrency: {
+                                    name: "MATIC",
+                                    symbol: "MATIC",
+                                    decimals: 18
+                                },
+                                blockExplorerUrls: [POLYGON_EXPLORER]
+                            }
+                        ]
+                    });
+                    await syncWallet();
+                } catch (addErr) {
+                    console.error("Failed to add Polygon:", addErr);
+                }
+            } else {
+                console.error(err);
+            }
+        }
+    };
+
 
     const value: WalletContextType = {
         account,
@@ -255,6 +299,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         openModal,
         closeModal,
         formatAddress,
+        switchToPolygon,
         copyAddress,
         viewOnExplorer,
     };
