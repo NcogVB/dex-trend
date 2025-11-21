@@ -18,8 +18,8 @@ interface Token {
     balance?: number;      // parsed number}
 }
 const Limit = () => {
-    const { createOrder, cancelOrder, fetchTokenRatio, currentRate } = useOrder()
-    const { getQuote, getTokenBalance } = useSwap()
+    const { createOrder, cancelOrder, currentRate, fetchLastOrderPriceForPair } = useOrder()
+    const { getTokenBalance } = useSwap()
     const { account, provider } = useWallet()
     const { showToast } = useToast();
 
@@ -42,31 +42,32 @@ const Limit = () => {
     // fetch "current rate" whenever tokens change
     useEffect(() => {
         if (fromToken && toToken) {
-            fetchTokenRatio(fromToken.address, toToken.address);
+            fetchLastOrderPriceForPair({
+                tokenIn: fromToken.address,
+                tokenOut: toToken.address
+            });
+
         }
     }, [fromToken, toToken]);
     useEffect(() => {
-        if (
-            fromAmount &&
-            !isNaN(Number(fromAmount)) &&
-            parseFloat(fromAmount) > 0
-        ) {
-            const handler = setTimeout(async () => {
-
-                const quote = await getQuote({
-                    fromSymbol: fromToken.symbol as 'skybnb' | 'USDT',
-                    toSymbol: toToken.symbol as 'skybnb' | 'USDT',
-                    amountIn: fromAmount,
-                })
-                console.log("quote amount", quote.amountOut)
-                setToAmount(quote.amountOut)
-            }, 500)
-
-            return () => clearTimeout(handler)
-        } else {
-            setToAmount('')
+        if (!fromAmount || !targetPrice) {
+            setToAmount("");
+            return;
         }
-    }, [fromAmount, fromToken, toToken, getQuote])
+
+        const amount = parseFloat(fromAmount);
+        const price = parseFloat(targetPrice);
+
+        if (isNaN(amount) || isNaN(price) || amount <= 0 || price <= 0) {
+            setToAmount("");
+            return;
+        }
+
+        // CEX-style: total = amount × price
+        const total = amount * price;
+
+        setToAmount(total.toString());
+    }, [fromAmount, targetPrice]);
 
 
     useEffect(() => {
@@ -177,10 +178,9 @@ const Limit = () => {
                 await createOrder({
                     tokenIn: toToken.address,      // Paying with toToken (USDT)
                     tokenOut: fromToken.address,   // Getting fromToken (USDC)
-                    amountIn: fromAmount,            // How much toToken to deposit
-                    amountOutMin: toAmount, // Expect fromAmount out
-                    targetSqrtPriceX96: targetPrice,
-                    triggerAbove: false,
+                    amountIn: targetPrice,            // How much toToken to deposit
+                    amountOutMin: fromAmount, // Expect fromAmount out
+                    targetPrice: targetPrice,
                     ttlSeconds,
                     ordertype: 0,
                 })
@@ -192,9 +192,8 @@ const Limit = () => {
                     tokenIn: fromToken.address,    // Paying with fromToken (USDC)
                     tokenOut: toToken.address,     // Getting toToken (USDT)
                     amountIn: fromAmount,          // How much fromToken to deposit
-                    amountOutMin: toAmount, // Expect toAmount out
-                    targetSqrtPriceX96: targetPrice,
-                    triggerAbove: true,
+                    amountOutMin: targetPrice, // Expect toAmount out
+                    targetPrice: targetPrice,
                     ordertype: 1,
                     ttlSeconds,
                 })
@@ -202,7 +201,10 @@ const Limit = () => {
 
             await fetchOrders();
             await updateBalances();
-            await fetchTokenRatio(fromToken.address, toToken.address);
+            await fetchLastOrderPriceForPair({
+                tokenIn: fromToken.address,
+                tokenOut: toToken.address
+            });;
             showToast(`${isBuy ? "✅ Buy" : "✅ Sell"} order created successfully!`, "success");
 
             setFromAmount('')
@@ -217,25 +219,24 @@ const Limit = () => {
         }
     }
     const MIN_ERC20_ABI = ["function decimals() view returns (uint8)"];
-    const EXECUTOR_ADDRESS = "0x519c11Bb3e09F89E5393c8F10A26c0D2B9b8d188";
+    const EXECUTOR_ADDRESS = "0x34f92941C90Bba6c72fdD44F636BB3683E3fD2c5";
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
     let isFetching = false; // ⬅️ Prevent overlapping fetch calls
 
     const fetchOrders = async () => {
-        if (isFetching) return; // ⬅️ STOP double fetch
+        if (isFetching) return;
         isFetching = true;
-        try {
 
+        try {
             if (!provider) {
                 isFetching = false;
-
                 return;
             }
 
             const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
 
-            // 1️⃣ Fetch latest order ID once
+            // 1️⃣ Fetch last order ID
             const nextIdBN = await executor.nextOrderId();
             const nextId = Number(nextIdBN);
 
@@ -249,62 +250,63 @@ const Limit = () => {
 
             const now = Math.floor(Date.now() / 1000);
             const decimalsCache: Record<string, number> = {};
+
             const userOpen: any[] = [];
             const generalOpen: any[] = [];
-            const historyMap: Map<number, any> = new Map();
+            const historyList: any[] = [];
 
-            // 2️⃣ Chunk IDs
+            // 2️⃣ Fetch in chunks
             const ids = Array.from({ length: nextId - 1 }, (_, i) => i + 1);
             const chunkSize = 20;
-            const chunks = [];
+
+            const allResults: { id: number; ord: any }[] = [];
+
             for (let i = 0; i < ids.length; i += chunkSize) {
-                chunks.push(ids.slice(i, i + chunkSize));
+                const batchIds = ids.slice(i, i + chunkSize);
+
+                const batch = await Promise.all(
+                    batchIds.map((id) =>
+                        executor.getOrder(id)
+                            .then((ord: any) => ({ id, ord }))
+                            .catch(() => null)
+                    )
+                );
+
+                batch.filter(Boolean).forEach((r) => allResults.push(r || { id: 0, ord: null }));
             }
 
-            // 3️⃣ Fetch in parallel
-            const allResults: { id: number; ord: any }[] = [];
-            await Promise.all(
-                chunks.map(async (chunk) => {
-                    const batch = chunk.map((id) =>
-                        executor.getOrder(id).then((ord: any) => ({ id, ord })).catch(() => null)
-                    );
-                    const settled = await Promise.all(batch);
-                    for (const r of settled) if (r) allResults.push(r);
-                })
-            );
-
-            // 4️⃣ Build token set
+            // 3️⃣ Collect unique token decimals
             const uniqueTokens = new Set<string>();
-            allResults.forEach(({ ord }) => {
+            for (const { ord } of allResults) {
                 if (ord?.tokenIn) uniqueTokens.add(ord.tokenIn.toLowerCase());
                 if (ord?.tokenOut) uniqueTokens.add(ord.tokenOut.toLowerCase());
-            });
+            }
 
-            // 5️⃣ Fetch decimals once
             await Promise.all(
-                Array.from(uniqueTokens).map(async (addr) => {
+                Array.from(uniqueTokens).map(async (address) => {
                     try {
-                        const erc20 = new ethers.Contract(addr, MIN_ERC20_ABI, provider);
-                        decimalsCache[addr] = Number(await erc20.decimals());
+                        const erc = new ethers.Contract(address, MIN_ERC20_ABI, provider);
+                        decimalsCache[address] = Number(await erc.decimals());
                     } catch {
-                        decimalsCache[addr] = 18;
+                        decimalsCache[address] = 18;
                     }
                 })
             );
 
-            // 6️⃣ Build lists
+            // 4️⃣ Parse every order
             for (const { id, ord } of allResults) {
                 if (!ord?.maker) continue;
 
                 const tokenIn = ord.tokenIn.toLowerCase();
                 const tokenOut = ord.tokenOut.toLowerCase();
                 const decimalsIn = decimalsCache[tokenIn] ?? 18;
-                const decimalsOut = decimalsCache[tokenOut] ?? 18;
+                const originalAmountIn = ethers.formatUnits(ord.amountOutMin, decimalsIn);
 
                 const amountIn = ethers.formatUnits(ord.amountIn, decimalsIn);
-                const amountOut = ethers.formatUnits(ord.amountOut, decimalsOut);
-                const targetAmount = ethers.formatUnits(
-                    ord.targetSqrtPriceX96?.toString?.() ?? String(ord.targetSqrtPriceX96),
+
+                // 🔥 FIX: use new field targetPrice1e18
+                const targetPrice = ethers.formatUnits(
+                    ord.targetPrice1e18?.toString?.() ?? String(ord.targetPrice1e18),
                     18
                 );
 
@@ -314,54 +316,54 @@ const Limit = () => {
                     tokenIn,
                     tokenOut,
                     amountIn,
-                    amountOut,
-                    targetSqrt: targetAmount,
-                    triggerAbove: Boolean(ord.triggerAbove),
+                    originalAmountIn,
+                    targetPrice,
                     expiry: Number(ord.expiry),
                     filled: Boolean(ord.filled),
                     cancelled: Boolean(ord.cancelled),
-                    orderType: Number(ord.orderType),
+                    orderType: Number(ord.orderType), // 0 = BUY, 1 = SELL
                 };
 
-                const isExpired = orderData.expiry > 0 && orderData.expiry < now;
-                const isFilled = Boolean(orderData.filled);
-                const isCancelled = Boolean(orderData.cancelled);
-                const isActive = !isFilled && !isCancelled && !isExpired;
+                const expired = orderData.expiry < now;
+                const active = !orderData.filled && !orderData.cancelled && !expired;
 
-                const matchesTokenPair =
+                const matchesPair =
                     fromToken && toToken
-                        ? (tokenIn === fromToken.address.toLowerCase() && tokenOut === toToken.address.toLowerCase()) ||
-                        (tokenIn === toToken.address.toLowerCase() && tokenOut === fromToken.address.toLowerCase())
+                        ? (tokenIn === fromToken.address.toLowerCase() &&
+                            tokenOut === toToken.address.toLowerCase()) ||
+                        (tokenIn === toToken.address.toLowerCase() &&
+                            tokenOut === fromToken.address.toLowerCase())
                         : true;
 
-                if (matchesTokenPair) {
-                    if (isActive) {
+                if (matchesPair) {
+                    if (active) {
                         generalOpen.push(orderData);
                         if (account && ord.maker.toLowerCase() === account.toLowerCase()) {
                             userOpen.push(orderData);
                         }
                     } else {
-                        historyMap.set(id, { ...orderData, expired: isExpired });
+                        historyList.push({ ...orderData, expired });
                     }
                 }
             }
 
-            // 7️⃣ Sort
-            userOpen.sort((a, b) => b.id - a.id);
+            // 5️⃣ Sorting
             generalOpen.sort((a, b) => b.id - a.id);
-            const history = Array.from(historyMap.values()).sort((a, b) => b.id - a.id);
+            userOpen.sort((a, b) => b.id - a.id);
+            historyList.sort((a, b) => b.id - a.id);
 
-            // 8️⃣ Update state
+            // 6️⃣ Update React State
             setUserOpenOrders(userOpen);
             setGeneralOpenOrders(generalOpen);
-            setOrderHistory(history);
-
+            setOrderHistory(historyList);
 
         } catch (err: any) {
-            console.error("🚨 Fast fetchOrders failed:", err?.message ?? err);
+            console.error("🚨 fetchOrders error:", err?.message ?? err);
+        } finally {
             isFetching = false;
         }
     };
+
     useEffect(() => {
         if (!provider) return;
 
@@ -442,11 +444,10 @@ const Limit = () => {
                                 {/* This container must stretch to fill remaining height */}
                                 <div className="w-full border border-[#E5E5E5] rounded-lg overflow-hidden flex flex-col flex-1">
                                     {/* Header Row */}
-                                    <div className="grid grid-cols-8 bg-[#F3F4F6] text-xs font-semibold text-gray-700 py-2 px-3 border-b border-[#E5E5E5] shrink-0">
+                                    <div className="grid grid-cols-7 bg-[#F3F4F6] text-xs font-semibold text-gray-700 py-2 px-3 border-b border-[#E5E5E5] shrink-0">
                                         <span className="text-left">Order #</span>
                                         <span className="text-center">Target Price</span>
                                         <span className="text-center">Order Amount</span>
-                                        <span className="text-center">min Out</span>
                                         <span className="text-center">Total Amount</span>
                                         <span className="text-center">Expiry</span>
                                         <span className="text-center">Type</span>
@@ -461,56 +462,70 @@ const Limit = () => {
                                             </div>
                                         ) : (
                                             userOpenOrders.map((o) => {
-                                                const targetPrice = parseFloat(o.targetSqrt || o.targetPrice || 0);
-                                                const amountIn = parseFloat(o.amountIn || 0);
-                                                const totalAmount = (targetPrice * amountIn).toFixed(4);
+                                                // Correct target price
+                                                const targetPrice = parseFloat(
+                                                    o.targetPrice1e18
+                                                        ? ethers.formatUnits(o.targetPrice1e18, 18)
+                                                        : o.targetPrice || "0"
+                                                );
+
+                                                const isSell = Number(o.orderType) === 1;
+
+                                                // 🔥 FIXED — Only BUY orders use originalAmountIn
+                                                const displayAmount = isSell
+                                                    ? parseFloat(o.amountIn || "0")              // SELL shows remaining
+                                                    : parseFloat(o.originalAmountIn || "0");     // BUY shows original deposit
+
+                                                const total = Number.isFinite(displayAmount * targetPrice)
+                                                    ? (displayAmount * targetPrice).toFixed(6)
+                                                    : "0";
 
                                                 const expiryDate = new Date(o.expiry * 1000);
-                                                const expiryDay = expiryDate.toLocaleDateString(undefined, {
+                                                const expiryShort = expiryDate.toLocaleDateString(undefined, {
                                                     weekday: "short",
                                                     day: "2-digit",
-                                                    month: "short",
+                                                    month: "short"
                                                 });
-
-                                                const isSell = o.triggerAbove;
 
                                                 return (
                                                     <div
                                                         key={o.id}
-                                                        className="grid grid-cols-8 text-xs text-gray-700 py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition"
+                                                        className="grid grid-cols-7 text-xs text-gray-700 py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition"
                                                     >
+                                                        {/* Order # */}
                                                         <span className="text-left font-medium">#{o.id}</span>
+
+                                                        {/* Target Price */}
                                                         <span
                                                             className="text-center cursor-pointer"
-                                                            title="Click to set current rate as target"
-                                                            onClick={() => {
-                                                                const rate = parseFloat(currentRate);
-                                                                if (!isNaN(rate)) setTargetPrice(targetPrice.toFixed(4));
-                                                            }}
+                                                            onClick={() => setTargetPrice(targetPrice.toString())}
                                                         >
-                                                            {targetPrice.toFixed(5)}
+                                                            {targetPrice.toFixed(6)}
                                                         </span>
+
+                                                        {/* Order Amount */}
                                                         <span
                                                             className="text-center cursor-pointer"
-                                                            onClick={() => {
-                                                                setFromAmount(o.amountIn); // ✅ use amountOut for BUY
-                                                            }}
+                                                            onClick={() => setFromAmount(displayAmount.toString())}
                                                         >
-                                                            {parseFloat(o.amountIn)}
+                                                            {displayAmount.toFixed(6)}
                                                         </span>
-                                                        <span
-                                                            className="text-center cursor-pointer"
-                                                        >
-                                                            {parseFloat(o.amountOut).toFixed(5)} left
-                                                        </span>
-                                                        <span className="text-center">{totalAmount}</span>
-                                                        <span className="text-center">{expiryDay}</span>
+
+                                                        {/* Total */}
+                                                        <span className="text-center">{total}</span>
+
+                                                        {/* Expiry */}
+                                                        <span className="text-center">{expiryShort}</span>
+
+                                                        {/* BUY / SELL */}
                                                         <span
                                                             className={`text-center font-semibold ${isSell ? "text-red-600" : "text-green-600"
                                                                 }`}
                                                         >
                                                             {isSell ? "SELL" : "BUY"}
                                                         </span>
+
+                                                        {/* Cancel */}
                                                         <div className="flex justify-center">
                                                             <button
                                                                 onClick={() => handleCancel(o.id)}
@@ -524,10 +539,11 @@ const Limit = () => {
                                             })
                                         )}
                                     </div>
+
                                 </div>
+
                             </div>
                         </div>
-
                         {/* Right Side - Orders Panel + Create Order */}
                         <div className="w-full lg:w-[30%] flex flex-col gap-3">
                             {/* Orders Panel */}
@@ -562,7 +578,7 @@ const Limit = () => {
                                             <div className="px-3 py-2 flex items-center justify-between text-gray-600 font-semibold border-b border-gray-300 text-xs">
                                                 <span className="flex-1 text-left">Target Price</span>
                                                 <span className="flex-1 text-center">Order Amount</span>
-                                                <span className="flex-1 text-right">Total Amount</span>
+                                                <span className="flex-1 text-right">Total Value</span>
                                             </div>
 
                                             {activeTab === "open" ? (
@@ -573,29 +589,33 @@ const Limit = () => {
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col text-xs font-medium h-full">
-
                                                         {/* === SELL ORDERS (Top Scroll) === */}
                                                         <div ref={sellOrdersRef} className="flex-1 overflow-y-scroll">
                                                             <ul>
                                                                 {generalOpenOrders
-                                                                    .filter(o => o.orderType === 1)
+                                                                    .filter(o => o.orderType === 1) // SELL
                                                                     .sort((a, b) => {
-                                                                        const amountA = a.triggerAbove ? parseFloat(a.amountIn) : parseFloat(a.amountOut);
-                                                                        const amountB = b.triggerAbove ? parseFloat(b.amountIn) : parseFloat(b.amountOut);
-                                                                        return amountA - amountB; // LOW → HIGH
+                                                                        // Sell: low -> high price
+                                                                        const pa = Number(parseFloat(a.targetPrice || "0"));
+                                                                        const pb = Number(parseFloat(b.targetPrice || "0"));
+                                                                        return pa - pb;
                                                                     })
                                                                     .map(o => {
-                                                                        const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
+                                                                        const price = parseFloat(o.targetPrice || "0");
+                                                                        const amount = parseFloat(o.amountIn || "0");
+                                                                        // total value = price * amount (price is tokenIn per tokenOut; display as numeric)
+                                                                        const total = (price * amount) || 0;
                                                                         return (
                                                                             <li key={o.id} className="px-3 py-2 flex items-center justify-between text-red-600 hover:bg-red-50 transition">
-                                                                                <span className="flex-1 text-left cursor-pointer" onClick={() => setTargetPrice(o.targetSqrt)}>
-                                                                                    {parseFloat(o.targetSqrt).toFixed(5)}
+                                                                                <span className="flex-1 text-left cursor-pointer" onClick={() => setTargetPrice(String(price))}>
+                                                                                    {Number.isFinite(price) ? price.toFixed(5) : "-"}
                                                                                 </span>
-                                                                                <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                                    {parseFloat(o.amountIn)}
 
+                                                                                <span className="text-center cursor-pointer" onClick={() => setFromAmount(String(amount))}>
+                                                                                    {Number.isFinite(amount) ? amount.toFixed(6) : "0"}
                                                                                 </span>
-                                                                                <span className="flex-1 text-right">{totalAmount}</span>
+
+                                                                                <span className="flex-1 text-right">{Number.isFinite(total) ? total.toFixed(4) : "0"}</span>
                                                                             </li>
                                                                         );
                                                                     })}
@@ -604,13 +624,13 @@ const Limit = () => {
 
                                                         {/* === FIXED CURRENT PRICE IN MIDDLE === */}
                                                         <div
-                                                            onClick={() => currentRate && setTargetPrice(parseFloat(currentRate).toFixed(3))}
+                                                            onClick={() => currentRate && setTargetPrice(parseFloat(currentRate).toFixed(6))}
                                                             className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky top-0 hover:bg-blue-50 cursor-pointer"
                                                         >
                                                             {currentRate ? (
                                                                 <>
-                                                                    {parseFloat(currentRate).toFixed(18)}
-                                                                    <span className="text-gray-500 ml-1">{toToken.symbol}</span>
+                                                                    {parseFloat(currentRate).toFixed(6)}
+                                                                    <span className="text-gray-500 ml-1">{toToken?.symbol ?? ""}</span>
                                                                 </>
                                                             ) : "-"}
                                                         </div>
@@ -619,23 +639,28 @@ const Limit = () => {
                                                         <div className="flex-1 overflow-y-auto">
                                                             <ul>
                                                                 {generalOpenOrders
-                                                                    .filter(o => o.orderType === 0)
+                                                                    .filter(o => o.orderType === 0) // BUY
                                                                     .sort((a, b) => {
-                                                                        const amountA = a.triggerAbove ? parseFloat(a.amountIn) : parseFloat(a.amountOut);
-                                                                        const amountB = b.triggerAbove ? parseFloat(b.amountIn) : parseFloat(b.amountOut);
-                                                                        return amountB - amountA; // HIGH → LOW
+                                                                        // Buy: high -> low price
+                                                                        const pa = Number(parseFloat(a.targetPrice || "0"));
+                                                                        const pb = Number(parseFloat(b.targetPrice || "0"));
+                                                                        return pb - pa;
                                                                     })
                                                                     .map(o => {
-                                                                        const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
+                                                                        const price = parseFloat(o.targetPrice || "0");
+                                                                        const amount = parseFloat(o.originalAmountIn || "0");
+                                                                        const total = (price * amount) || 0;
                                                                         return (
                                                                             <li key={o.id} className="px-3 py-2 flex items-center justify-between text-green-600 hover:bg-green-50 transition">
-                                                                                <span className="flex-1 text-left cursor-pointer" onClick={() => setTargetPrice(o.targetSqrt)}>
-                                                                                    {parseFloat(o.targetSqrt).toFixed(5)}
+                                                                                <span className="flex-1 text-left cursor-pointer" onClick={() => setTargetPrice(String(price))}>
+                                                                                    {Number.isFinite(price) ? price.toFixed(5) : "-"}
                                                                                 </span>
-                                                                                <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                                    {(parseFloat(o.amountOut)).toFixed(5)}
+
+                                                                                <span className="text-center cursor-pointer" onClick={() => setFromAmount(String(amount))}>
+                                                                                    {Number.isFinite(amount) ? amount.toFixed(6) : "0"}
                                                                                 </span>
-                                                                                <span className="flex-1 text-right">{totalAmount}</span>
+
+                                                                                <span className="flex-1 text-right">{Number.isFinite(total) ? total.toFixed(4) : "0"}</span>
                                                                             </li>
                                                                         );
                                                                     })}
@@ -653,36 +678,49 @@ const Limit = () => {
                                                     <div className="flex-1 flex flex-col text-xs font-medium overflow-y-auto">
                                                         <ul>
                                                             {orderHistory
-                                                                .sort((a, b) => {
-                                                                    // FIRST: sort by id (highest first)
-                                                                    if (b.id !== a.id) return b.id - a.id;
-
-                                                                    // SECOND (optional): keep your distance sorting for same id group
-                                                                    const diffA = Math.abs(parseFloat(a.targetSqrt) - parseFloat(currentRate || "0"));
-                                                                    const diffB = Math.abs(parseFloat(b.targetSqrt) - parseFloat(currentRate || "0"));
-                                                                    return diffA - diffB;
-                                                                })
-
-                                                                .map(o => {
+                                                                .sort((a, b) => b.id - a.id)
+                                                                .map((o) => {
                                                                     const isSell = o.orderType === 1;
-                                                                    const totalAmount = (parseFloat(o.targetSqrt) * parseFloat(o.amountIn)).toFixed(2);
+
+                                                                    // FIXED — preferred field order
+                                                                    const price = Number(o.targetPrice ?? o.targetSqrt ?? 0);
+
+                                                                    // 🔥 FIXED: Show original deposited amount ALWAYS
+                                                                    const amount = Number(o.originalAmountIn ?? o.amountIn ?? 0);
+
+                                                                    // Avoid NaN
+                                                                    const total = Number.isFinite(price * amount)
+                                                                        ? (price * amount)
+                                                                        : 0;
 
                                                                     return (
                                                                         <li
                                                                             key={o.id}
-                                                                            className={`px-3 py-2 flex items-center justify-between transition cursor-pointer ${isSell ? "text-red-600 hover:bg-red-50" : "text-green-600 hover:bg-green-50"
-                                                                                }`}
+                                                                            className={`px-3 py-2 flex items-center justify-between transition cursor-pointer 
+                                                                                  ${isSell ? "text-red-600 hover:bg-red-50"
+                                                                                    : "text-green-600 hover:bg-green-50"}`}
                                                                         >
-                                                                            <span className="flex-1 flex items-center gap-2" onClick={() => setTargetPrice(o.targetSqrt)}>
+                                                                            {/* Order ID + Price */}
+                                                                            <span
+                                                                                className="flex-1 flex items-center gap-2"
+                                                                                onClick={() => setTargetPrice(price.toString())}
+                                                                            >
                                                                                 <span className="text-gray-400 font-semibold">#{o.id}</span>
-                                                                                <span>{parseFloat(o.targetSqrt).toFixed(5)}</span>
+                                                                                <span>{Number.isFinite(price) ? price.toFixed(5) : "-"}</span>
                                                                             </span>
 
-                                                                            <span className="text-center cursor-pointer" onClick={() => setFromAmount(o.displayAmount)}>
-                                                                                {(parseFloat(o.amountIn)).toFixed(2)}
+                                                                            {/* Original Amount */}
+                                                                            <span
+                                                                                className="text-center cursor-pointer"
+                                                                                onClick={() => setFromAmount(amount.toString())}
+                                                                            >
+                                                                                {Number.isFinite(amount) ? amount.toFixed(6) : "0"}
                                                                             </span>
 
-                                                                            <span className="flex-1 text-right">{totalAmount}</span>
+                                                                            {/* Total */}
+                                                                            <span className="flex-1 text-right">
+                                                                                {Number.isFinite(total) ? total.toFixed(4) : "0"}
+                                                                            </span>
                                                                         </li>
                                                                     );
                                                                 })}
@@ -691,11 +729,10 @@ const Limit = () => {
                                                 )
                                             )}
                                         </>
-
                                     </div>
-
                                 </div>
                             </div>
+
                             <div className="modern-card p-3 flex flex-col gap-3 text-xs rounded-xl border border-gray-200 bg-white">
                                 <h2 className="text-sm font-semibold text-gray-800">Create Order</h2>
 
@@ -792,10 +829,10 @@ const Limit = () => {
                                             <div>
                                                 Available: {toToken.balance ? toToken.balance.toFixed(3) : "0.000"} {toToken.symbol}
                                             </div>
+
                                         </div>
                                     )}
                                 </div>
-
                                 {/* --- TARGET PRICE + EXPIRY --- */}
                                 <div className="grid grid-cols-2 gap-2">
                                     {/* Target / Expiration / Current Rate */}
@@ -835,7 +872,7 @@ const Limit = () => {
                                         onClick={() => handleCreateOrder(true)}
                                         disabled={isCreatingBuy || !toAmount}
                                         className={`flex-1 py-1.5 rounded-md font-semibold text-white text-xs transition ${isCreatingBuy ? 'bg-green-400 cursor-wait' : 'bg-green-600 hover:bg-green-700'
-                                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                            } `}
                                     >
                                         {isCreatingBuy ? 'Processing…' : `Buy ${fromToken.symbol}`}
                                     </button>
@@ -844,7 +881,7 @@ const Limit = () => {
                                         onClick={() => handleCreateOrder(false)}
                                         disabled={isCreatingSell || !toAmount}
                                         className={`flex-1 py-1.5 rounded-md font-semibold text-white text-xs transition ${isCreatingSell ? 'bg-red-400 cursor-wait' : 'bg-red-600 hover:bg-red-700'
-                                            }  disabled:opacity-50 disabled:cursor-not-allowed`}
+                                            }  `}
                                     >
                                         {isCreatingSell ? 'Processing…' : `Sell ${fromToken.symbol}`}
                                     </button>
