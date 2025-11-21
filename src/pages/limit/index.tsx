@@ -178,7 +178,7 @@ const Limit = () => {
                 await createOrder({
                     tokenIn: toToken.address,      // Paying with toToken (USDT)
                     tokenOut: fromToken.address,   // Getting fromToken (USDC)
-                    amountIn: targetPrice,            // How much toToken to deposit
+                    amountIn: targetPrice * fromAmount,            // How much toToken to deposit
                     amountOutMin: fromAmount, // Expect fromAmount out
                     targetPrice: targetPrice,
                     ttlSeconds,
@@ -192,7 +192,7 @@ const Limit = () => {
                     tokenIn: fromToken.address,    // Paying with fromToken (USDC)
                     tokenOut: toToken.address,     // Getting toToken (USDT)
                     amountIn: fromAmount,          // How much fromToken to deposit
-                    amountOutMin: targetPrice, // Expect toAmount out
+                    amountOutMin: targetPrice * fromAmount, // Expect toAmount out
                     targetPrice: targetPrice,
                     ordertype: 1,
                     ttlSeconds,
