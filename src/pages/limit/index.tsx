@@ -169,16 +169,22 @@ const Limit = () => {
 
             // ✅ KEY FIX: Always trade in terms of fromToken (base token)
             // Both orders will store amounts in fromToken for matching
-
             if (isBuy) {
-                // BUY fromToken: User pays toToken, receives fromToken
+                const priceNum = parseFloat(targetPrice);
+                const amountNum = parseFloat(fromAmount);
+                if (isNaN(priceNum) || isNaN(amountNum)) {
+                    alert("Invalid number input");
+                    return;
+                }
+
+                const amountInBuyIN = priceNum * amountNum;                // BUY fromToken: User pays toToken, receives fromToken
                 // - Deposit: toAmount of toToken (what they pay)
                 // - Receive: fromAmount of fromToken (what they get)
                 // - For matching: we need the ORDER to represent fromAmount
                 await createOrder({
                     tokenIn: toToken.address,      // Paying with toToken (USDT)
                     tokenOut: fromToken.address,   // Getting fromToken (USDC)
-                    amountIn: targetPrice * fromAmount,            // How much toToken to deposit
+                    amountIn: amountInBuyIN.toString(),            // How much toToken to deposit
                     amountOutMin: fromAmount, // Expect fromAmount out
                     targetPrice: targetPrice,
                     ttlSeconds,
@@ -188,11 +194,19 @@ const Limit = () => {
                 // SELL fromToken: User pays fromToken, receives toToken
                 // - Deposit: fromAmount of fromToken (what they pay)
                 // - Receive: toAmount of toToken (what they get)
+                const priceNum = parseFloat(targetPrice);
+                const amountNum = parseFloat(fromAmount);
+                if (isNaN(priceNum) || isNaN(amountNum)) {
+                    alert("Invalid number input");
+                    return;
+                }
+                const amountInsellIN = priceNum * amountNum;                // BUY fromToken: User pays toToken, receives fromToken
+
                 await createOrder({
                     tokenIn: fromToken.address,    // Paying with fromToken (USDC)
                     tokenOut: toToken.address,     // Getting toToken (USDT)
                     amountIn: fromAmount,          // How much fromToken to deposit
-                    amountOutMin: targetPrice * fromAmount, // Expect toAmount out
+                    amountOutMin: amountInsellIN.toString(), // Expect toAmount out
                     targetPrice: targetPrice,
                     ordertype: 1,
                     ttlSeconds,
