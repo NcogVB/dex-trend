@@ -46,7 +46,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [error, setError] = useState<string | null>(null);
     const [currentRate, setCurrentRate] = useState<string>("0");
 
-    const EXECUTOR_ADDRESS = "0x34f92941C90Bba6c72fdD44F636BB3683E3fD2c5";
+    const EXECUTOR_ADDRESS = "0x55035f617222d3393a44bB3C8735b6122EEde800";
 
     // Convert numeric price to uint256 scaled to 1e18
     const toPrice1e18 = (value: string) => {
