@@ -153,87 +153,100 @@ const Limit = () => {
     useEffect(() => {
         updateBalances()
     }, [account, updateBalances])
+
+
     const handleCreateOrder = async (isBuy: boolean): Promise<void> => {
-        if (isBuy ? isCreatingBuy : isCreatingSell) return
+        if (isBuy ? isCreatingBuy : isCreatingSell) return;
 
-        if (!fromAmount || !toAmount || !targetPrice) {
-            alert('Please enter valid amounts and target price')
-            return
+        if (!fromAmount || !targetPrice) {
+            alert("Please enter valid order amount and target price");
+            return;
         }
 
-        if (isBuy) setIsCreatingBuy(true)
-        else setIsCreatingSell(true)
+        const priceNum = Number(targetPrice);
+        const amountNum = Number(fromAmount);
 
-        try {
-            const ttlSeconds = expiryDays * 24 * 3600
+        if (isNaN(priceNum) || isNaN(amountNum) || priceNum <= 0 || amountNum <= 0) {
+            alert("Invalid numeric input");
+            return;
+        }
 
-            // ✅ KEY FIX: Always trade in terms of fromToken (base token)
-            // Both orders will store amounts in fromToken for matching
-            if (isBuy) {
-                const priceNum = parseFloat(targetPrice);
-                const amountNum = parseFloat(fromAmount);
-                if (isNaN(priceNum) || isNaN(amountNum)) {
-                    alert("Invalid number input");
-                    return;
-                }
+        // --- Ensure UI amounts never produce bad decimals ---
+        const clean = (v: number, decimals: number = 18) =>
+            Number(v.toFixed(decimals)).toString();
 
-                const amountInBuyIN = priceNum * amountNum;                // BUY fromToken: User pays toToken, receives fromToken
-                // - Deposit: toAmount of toToken (what they pay)
-                // - Receive: fromAmount of fromToken (what they get)
-                // - For matching: we need the ORDER to represent fromAmount
-                await createOrder({
-                    tokenIn: toToken.address,      // Paying with toToken (USDT)
-                    tokenOut: fromToken.address,   // Getting fromToken (USDC)
-                    amountIn: amountInBuyIN.toString(),            // How much toToken to deposit
-                    amountOutMin: fromAmount, // Expect fromAmount out
-                    targetPrice: targetPrice,
-                    ttlSeconds,
-                    ordertype: 0,
-                })
-            } else {
-                // SELL fromToken: User pays fromToken, receives toToken
-                // - Deposit: fromAmount of fromToken (what they pay)
-                // - Receive: toAmount of toToken (what they get)
-                const priceNum = parseFloat(targetPrice);
-                const amountNum = parseFloat(fromAmount);
-                if (isNaN(priceNum) || isNaN(amountNum)) {
-                    alert("Invalid number input");
-                    return;
-                }
-                const amountInsellIN = priceNum * amountNum;                // BUY fromToken: User pays toToken, receives fromToken
+        const ttlSeconds = expiryDays * 24 * 3600;
 
-                await createOrder({
-                    tokenIn: fromToken.address,    // Paying with fromToken (USDC)
-                    tokenOut: toToken.address,     // Getting toToken (USDT)
-                    amountIn: fromAmount,          // How much fromToken to deposit
-                    amountOutMin: amountInsellIN.toString(), // Expect toAmount out
-                    targetPrice: targetPrice,
-                    ordertype: 1,
-                    ttlSeconds,
-                })
-            }
+        if (isBuy) {
+            // user wants: amountNum of FROM-TOKEN (ex: BNB)
+            // pays: price * amount in TO-TOKEN (ex: USDT)
+            setIsCreatingBuy(true)
+            const amountInBuyIN = priceNum * amountNum; // USDT cost
 
-            await fetchOrders();
-            await updateBalances();
-            await fetchLastOrderPriceForPair({
+            const safeAmountIn = clean(amountInBuyIN, 8);   // keep max 8 decimals
+            const safeAmountOutMin = clean(amountNum, 8);
+
+            console.log("BUY ORDER =>");
+            console.log("Paying tokenIn:", toToken.symbol, safeAmountIn);
+            console.log("Receiving tokenOut:", fromToken.symbol, safeAmountOutMin);
+            console.log("Target Price:", targetPrice);
+
+            await createOrder({
+                tokenIn: toToken.address,
+                tokenOut: fromToken.address,
+                amountIn: safeAmountIn,
+                amountOutMin: safeAmountOutMin,
+                targetPrice,
+                ttlSeconds,
+                ordertype: 0,
+            });
+            setIsCreatingBuy(false)
+        } else {
+            // SELL order
+            const amountInsellIN = priceNum * amountNum;
+            setIsCreatingSell(true)
+            const safeAmountIn = clean(amountNum, 8);
+            const safeAmountOutMin = clean(amountInsellIN, 8);
+
+            console.log("SELL ORDER =>");
+            console.log("Selling tokenIn:", fromToken.symbol, safeAmountIn);
+            console.log("Expecting tokenOut:", toToken.symbol, safeAmountOutMin);
+            console.log("Target Price:", targetPrice);
+
+            await createOrder({
                 tokenIn: fromToken.address,
-                tokenOut: toToken.address
-            });;
-            showToast(`${isBuy ? "✅ Buy" : "✅ Sell"} order created successfully!`, "success");
-
-            setFromAmount('')
-            setToAmount('')
-            setTargetPrice('')
-        } catch (err: unknown) {
-            showToast(`❌ Failed to create order`, "error");
-            console.error('Order creation error:', err)
-        } finally {
-            if (isBuy) setIsCreatingBuy(false)
-            else setIsCreatingSell(false)
+                tokenOut: toToken.address,
+                amountIn: safeAmountIn,
+                amountOutMin: safeAmountOutMin,
+                targetPrice,
+                ttlSeconds,
+                ordertype: 1,
+            });
+            setIsCreatingSell(false)
         }
-    }
+
+        await fetchOrders();
+        await updateBalances();
+        await fetchLastOrderPriceForPair({
+            tokenIn: fromToken.address,
+            tokenOut: toToken.address,
+        });
+
+        showToast(
+            `${isBuy ? "Buy" : "Sell"} order created successfully!`,
+            "success"
+        );
+
+        setFromAmount("");
+        setToAmount("");
+        setTargetPrice("");
+
+        if (isBuy) setIsCreatingBuy(false);
+        else setIsCreatingSell(false);
+    };
+
     const MIN_ERC20_ABI = ["function decimals() view returns (uint8)"];
-    const EXECUTOR_ADDRESS = "0x55035f617222d3393a44bB3C8735b6122EEde800";
+    const EXECUTOR_ADDRESS = "0x14e904F5FfA5748813859879f8cA20e487F407D8";
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
     let isFetching = false; // ⬅️ Prevent overlapping fetch calls

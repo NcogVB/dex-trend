@@ -46,7 +46,7 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [error, setError] = useState<string | null>(null);
     const [currentRate, setCurrentRate] = useState<string>("0");
 
-    const EXECUTOR_ADDRESS = "0x55035f617222d3393a44bB3C8735b6122EEde800";
+    const EXECUTOR_ADDRESS = "0x14e904F5FfA5748813859879f8cA20e487F407D8";
 
     // Convert numeric price to uint256 scaled to 1e18
     const toPrice1e18 = (value: string) => {
@@ -54,7 +54,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (isNaN(n) || n <= 0) throw new Error("Invalid price");
         return ethers.parseUnits(n.toString(), 18);
     };
-
     // =====================================================================
     // 📌 FETCH LAST EXECUTED ORDER PRICE FOR SPECIFIC PAIR
     // =====================================================================
@@ -66,64 +65,28 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const provider = signer.provider as ethers.Provider;
                 const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
 
-                // Query OrderMatched events
-                // event OrderMatched(uint256 buyOrderId, uint256 sellOrderId, 
-                //                    uint256 tokenInTransferred, uint256 tokenOutTransferred, 
-                //                    uint256 executionPrice1e18)
-                
-                const filter = executor.filters.OrderMatched();
-                
-                // Fetch events from recent blocks (adjust block range as needed)
-                const currentBlock = await provider.getBlockNumber();
-                const fromBlock = Math.max(0, currentBlock - 10000); // Last ~10k blocks
-                
-                const events = await executor.queryFilter(filter, fromBlock, currentBlock);
+                // call the view that returns (price1e18, blockNum, buyOrderId, sellOrderId)
+                const res = await executor.getLastExecutedPrice(tokenIn, tokenOut);
 
-                if (events.length === 0) {
+                // res may be an array-like or an object with named fields.
+                // Prefer named field, fallback to index 0.
+                const rawPrice =
+                    (res && typeof res === "object" && (res.price1e18 ?? res[0])) ?? "0";
+
+                // If nothing meaningful found, set 0
+                if (!rawPrice || rawPrice === 0) {
                     setCurrentRate("0");
                     return "0";
                 }
 
-                // Walk through events from newest to oldest
-                for (let i = events.length - 1; i >= 0; i--) {
-                    const event = events[i];
-                    if (!("args" in event)) continue;
-                    
-                    const buyOrderId = Number(event.args?.buyOrderId);
-                    const sellOrderId = Number(event.args?.sellOrderId);
-                    const executionPrice1e18 = event.args?.executionPrice1e18;
+                // formatUnits accepts BigInt / BigNumber / numeric string
+                const formatted = ethers.formatUnits(rawPrice, 18);
+                console.log("Fetched last executed price for pair:", formatted);
+                // optional: normalize to a fixed number of decimals for UI (choose as you like)
+                const normalized = Number(formatted).toString(); // keep full precision as string
 
-                    // Fetch both orders to check token pair
-                    const [buyOrder, sellOrder] = await Promise.all([
-                        executor.getOrder(buyOrderId),
-                        executor.getOrder(sellOrderId)
-                    ]);
-
-                    const buyTokenIn = buyOrder.tokenIn.toLowerCase();
-                    const buyTokenOut = buyOrder.tokenOut.toLowerCase();
-                    const sellTokenIn = sellOrder.tokenIn.toLowerCase();
-                    const sellTokenOut = sellOrder.tokenOut.toLowerCase();
-
-                    // Check if this match involves our token pair
-                    const matchA =
-                        (buyTokenIn === tokenIn.toLowerCase() && buyTokenOut === tokenOut.toLowerCase()) ||
-                        (sellTokenIn === tokenIn.toLowerCase() && sellTokenOut === tokenOut.toLowerCase());
-
-                    const matchB =
-                        (buyTokenIn === tokenOut.toLowerCase() && buyTokenOut === tokenIn.toLowerCase()) ||
-                        (sellTokenIn === tokenOut.toLowerCase() && sellTokenOut === tokenIn.toLowerCase());
-
-                    if (matchA || matchB) {
-                        const formatted = ethers.formatUnits(executionPrice1e18, 18);
-                        setCurrentRate(formatted);
-                        return formatted;
-                    }
-                }
-
-                // No matching executed orders found
-                setCurrentRate("0");
-                return "0";
-
+                setCurrentRate(normalized);
+                return normalized;
             } catch (err) {
                 console.error("⚠️ Failed fetching executed pair price:", err);
                 setCurrentRate("0");
@@ -132,6 +95,8 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         },
         [signer]
     );
+
+
 
     // =====================================================================
     // 📌 CREATE ORDER
@@ -168,7 +133,6 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const tx = await executor.depositAndCreateOrder(
                 params.tokenIn,
                 params.tokenOut,
-                ethers.ZeroAddress,
                 amountIn,
                 amountOutMin,
                 targetPrice1e18,
