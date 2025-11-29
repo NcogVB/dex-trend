@@ -6,9 +6,9 @@ import presaleABI from "../ABI/ICO.json";
 import usdtABI from "../ABI/usdt.json";
 import { useWallet } from "../contexts/WalletContext";
 
-const PRESALE = "0xb6714316dE097AA83B4E2bAf0A22FeB490fE3f98";
+const PRESALE = "0x16A310560cb01736d7e10fad7CB7c9C179e28D28";
 const USDT = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
-const DXT = "0xfE1FA246e89b016a9aD89d8fE859779a19953B60";
+const DXT = "0x4BD132de293bfA7Be268cd348dAF3079457D189b";
 const POLYGON_CHAIN_ID = 137;
 
 export default function PreSell() {
