@@ -2,23 +2,24 @@ import { useState } from "react";
 import { useWallet } from "../contexts/WalletContext";
 import { ChevronDown } from "lucide-react";
 
-// Chain Switcher Component
 const ChainSwitcher = () => {
-    const { chainId, switchToPolygon, switchToSkyHigh } = useWallet();
+    const { chainId, switchToPolygon, switchToSkyHigh, switchToBSC } = useWallet();
 
     const CHAIN =
         chainId === 137
             ? { name: "Polygon", color: "bg-purple-600" }
             : chainId === 1476
                 ? { name: "SkyHigh", color: "bg-blue-600" }
-                : { name: "Unknown", color: "bg-gray-500" };
+                : chainId === 56
+                    ? { name: "Binance", color: "bg-yellow-500" }
+                    : { name: "Unknown", color: "bg-gray-500" };
 
     const [open, setOpen] = useState(false);
 
     const handleSwitch = async (fn: () => Promise<void>) => {
         try {
-            await fn(); // Switch chain
-            window.location.reload(); // 🔥 Simple full refresh
+            await fn();
+            window.location.reload();
         } catch (error) {
             console.error(error);
         }
@@ -33,8 +34,7 @@ const ChainSwitcher = () => {
                 <div className={`w-2 h-2 mr-2 rounded-full ${CHAIN.color}`}></div>
                 {CHAIN.name}
                 <ChevronDown
-                    className={`w-4 h-4 ml-2 transition-transform ${open ? "rotate-180" : ""
-                        }`}
+                    className={`w-4 h-4 ml-2 transition-transform ${open ? "rotate-180" : ""}`}
                 />
             </button>
 
@@ -58,6 +58,13 @@ const ChainSwitcher = () => {
                             className="w-full px-4 py-2 text-left hover:bg-gray-100 text-sm"
                         >
                             Switch to SkyHigh
+                        </button>
+
+                        <button
+                            onClick={() => handleSwitch(switchToBSC)}
+                            className="w-full px-4 py-2 text-left hover:bg-gray-100 text-sm"
+                        >
+                            Switch to Binance (BSC)
                         </button>
                     </div>
                 </>

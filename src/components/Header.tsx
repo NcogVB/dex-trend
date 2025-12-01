@@ -37,6 +37,8 @@ const Header: React.FC = () => {
         formatAddress,
         copyAddress,
         viewOnExplorer,
+        chainId,
+        switchToSkyHigh,
         copySuccess,
     } = useWallet()
 
@@ -66,6 +68,24 @@ const Header: React.FC = () => {
         window.addEventListener('scroll', handleScroll, { passive: true })
         return () => window.removeEventListener('scroll', handleScroll)
     }, [lastScrollY])
+    // Auto-switch to SkyHigh on specific pages
+    useEffect(() => {
+        if (!isConnected) return;
+
+        const pathsRequiringSkyHigh = [
+            "/swap",
+            "/pool",
+            "/bridge",
+            "/exchange"
+        ];
+
+        if (pathsRequiringSkyHigh.includes(location.pathname)) {
+            if (chainId !== 1476) {
+                switchToSkyHigh();
+            }
+        }
+    }, [location.pathname, chainId, isConnected]);
+
 
     const WalletButton = () => {
         if (!isConnected) {

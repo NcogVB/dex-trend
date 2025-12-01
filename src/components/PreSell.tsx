@@ -6,10 +6,34 @@ import presaleABI from "../ABI/ICO.json";
 import usdtABI from "../ABI/usdt.json";
 import { useWallet } from "../contexts/WalletContext";
 
-const PRESALE = "0x545079A4f1D15F2F6a28cC933Cc3961A767516B0";
-const USDT = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
-const DXT = "0x7c0461f4B63f1C9746D767cF22EA4BD8B702Bb5c";
-const POLYGON_CHAIN_ID = 137;
+const CONTRACTS: Record<number, { PRESALE: string; USDT: string; DXT: string }> = {
+    137: {
+        PRESALE: "0x545079A4f1D15F2F6a28cC933Cc3961A767516B0",
+        USDT: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+        DXT: "0x7c0461f4B63f1C9746D767cF22EA4BD8B702Bb5c",
+    },
+    56: {
+        PRESALE: "0x9E7f120EA417515303A80DBF1c13a238bd1D365E",
+        USDT: "0x55d398326f99059fF775485246999027B3197955",
+        DXT: "0x610E1044C026fCf6AB24B49cad1FF4c616647636",
+    },
+};
+
+
+const DECIMALS: {
+    USDT: Record<number, number>;
+    DXT: Record<number, number>;
+} = {
+    USDT: {
+        137: 6,
+        56: 18,
+    },
+    DXT: {
+        137: 18,
+        56: 18,
+    }
+};
+
 
 export default function PreSell() {
     const {
@@ -22,7 +46,7 @@ export default function PreSell() {
 
     const [phaseId, setPhaseId] = useState(1);
     const [remaining, setRemaining] = useState("0");
-    const [price, setPrice] = useState(0);
+    const [price, setPrice] = useState(0); // human-readable price in USDT
     const [buyAmount, setBuyAmount] = useState("");
     const [dxtBalance, setDxtBalance] = useState("0");
     const [usdtBalance, setUsdtBalance] = useState("0");
@@ -38,25 +62,42 @@ export default function PreSell() {
 
     const requiredUSDT = buyAmount ? Number(buyAmount) * price : 0;
 
+    // pick contracts based on chain
+    const activeContracts = chainId ? CONTRACTS[chainId] : undefined;
+    const PRESALE = activeContracts?.PRESALE;
+    const USDT = activeContracts?.USDT;
+    const DXT = activeContracts?.DXT;
+
+    // dynamic decimals per chain
+    const usdtDecimals =
+        chainId && DECIMALS.USDT[chainId] !== undefined
+            ? DECIMALS.USDT[chainId]
+            : 18;
+
+    const dxtDecimals =
+        chainId && DECIMALS.DXT[chainId] !== undefined
+            ? DECIMALS.DXT[chainId]
+            : 18;
+
     // Load Phase Data
     async function loadPhaseData() {
-        if (!provider) return;
+        if (!provider || !PRESALE) return;
         try {
             const contract = new ethers.Contract(PRESALE, presaleABI, provider);
             const pId = await contract.currentPhaseId();
             setPhaseId(Number(pId));
 
             const ph = await contract.phases(pId);
-            const allocation = Number(ph[0]) / 1e18;
-            const priceUSDT = Number(ph[1]) / 1e6;
-            const sold = Number(ph[2]) / 1e18;
+            const allocation = Number(ph[0]) / 10 ** dxtDecimals;   // DXT allocation
+            const priceUSDT = Number(ph[1]) / 10 ** usdtDecimals;   // price in USDT
+            const sold = Number(ph[2]) / 10 ** dxtDecimals;         // DXT sold
 
             setTotalAllocation(allocation);
             setSoldAmount(sold);
             setRemaining((allocation - sold).toLocaleString());
             setPrice(priceUSDT);
 
-            const percent = (sold / allocation) * 100;
+            const percent = allocation > 0 ? (sold / allocation) * 100 : 0;
             setSoldPercent(Number(percent.toFixed(2)));
         } catch (err) {
             console.error("Phase load failed:", err);
@@ -65,14 +106,14 @@ export default function PreSell() {
 
     // Load User Stats
     async function loadUserStats() {
-        if (!provider || !account) return;
+        if (!provider || !account || !PRESALE) return;
         try {
             const contract = new ethers.Contract(PRESALE, presaleABI, provider);
             const contributed = await contract.contributed(account);
             const bought = await contract.bought(account);
 
-            setUserContributed((Number(contributed) / 1e6).toFixed(2));
-            setUserBought((Number(bought) / 1e18).toFixed(2));
+            setUserContributed((Number(contributed) / 10 ** usdtDecimals).toFixed(2));
+            setUserBought((Number(bought) / 10 ** dxtDecimals).toFixed(2));
         } catch (err) {
             console.error("User stats load failed:", err);
         }
@@ -80,16 +121,16 @@ export default function PreSell() {
 
     // Load Balances
     async function loadBalances() {
-        if (!provider || !account) return;
+        if (!provider || !account || !USDT || !DXT) return;
         try {
             const usdt = new ethers.Contract(USDT, usdtABI, provider);
-            const dxt = new ethers.Contract(DXT, usdtABI, provider);
+            const dxt = new ethers.Contract(DXT, usdtABI, provider); // assuming standard ERC20 ABI
 
             const usdtBal = await usdt.balanceOf(account);
             const dxtBal = await dxt.balanceOf(account);
 
-            setUsdtBalance((Number(usdtBal) / 1e6).toFixed(2));
-            setDxtBalance((Number(dxtBal) / 1e18).toFixed(2));
+            setUsdtBalance((Number(usdtBal) / 10 ** usdtDecimals).toFixed(2));
+            setDxtBalance((Number(dxtBal) / 10 ** dxtDecimals).toFixed(2));
         } catch (err) {
             console.error("Balance load failed:", err);
         }
@@ -97,11 +138,11 @@ export default function PreSell() {
 
     // Load Allowance
     async function loadAllowance() {
-        if (!provider || !account) return;
+        if (!provider || !account || !USDT || !PRESALE) return;
         try {
             const usdt = new ethers.Contract(USDT, usdtABI, provider);
             const allowed = await usdt.allowance(account, PRESALE);
-            setAllowance((Number(allowed) / 1e6).toString());
+            setAllowance((Number(allowed) / 10 ** usdtDecimals).toString());
         } catch (err) {
             console.error("Allowance load failed:", err);
         }
@@ -109,18 +150,21 @@ export default function PreSell() {
 
     // Load All Buyers
     async function loadBuyers() {
-        if (!provider) return;
+        if (!provider || !PRESALE) return;
         try {
             const contract = new ethers.Contract(PRESALE, presaleABI, provider);
             const allBuyers = await contract.getAllBuyers();
 
-            const buyerData = allBuyers.map((buyer: { buyer: any; totalDXTBought: any; totalUSDTPaid: any; lastPhase: any; lastPurchaseTime: any; }) => ({
-                wallet: buyer.buyer,
-                totalDXT: (Number(buyer.totalDXTBought) / 1e18).toFixed(2),
-                totalUSDT: (Number(buyer.totalUSDTPaid) / 1e6).toFixed(2),
-                lastPhase: Number(buyer.lastPhase),
-                timestamp: Number(buyer.lastPurchaseTime)
-            })).reverse().slice(0, 20);
+            const buyerData = allBuyers
+                .map((buyer: { buyer: any; totalDXTBought: any; totalUSDTPaid: any; lastPhase: any; lastPurchaseTime: any; }) => ({
+                    wallet: buyer.buyer,
+                    totalDXT: (Number(buyer.totalDXTBought) / 10 ** dxtDecimals).toFixed(2),
+                    totalUSDT: (Number(buyer.totalUSDTPaid) / 10 ** usdtDecimals).toFixed(2),
+                    lastPhase: Number(buyer.lastPhase),
+                    timestamp: Number(buyer.lastPurchaseTime)
+                }))
+                .reverse()
+                .slice(0, 20);
 
             setBuyers(buyerData);
         } catch (err) {
@@ -130,14 +174,18 @@ export default function PreSell() {
 
     // Approve USDT
     async function approveUSDT() {
-        if (!signer) return;
+        if (!signer || !USDT || !PRESALE) return alert("Connect wallet on supported network first");
         setIsApproving(true);
         try {
             const usdt = new ethers.Contract(USDT, usdtABI, signer);
-            const tx = await usdt.approve(PRESALE, ethers.parseUnits("1000000000", 6));
+            // large allowance, using dynamic decimals
+            const maxAmount = ethers.parseUnits("1000000000", usdtDecimals);
+            const tx = await usdt.approve(PRESALE, maxAmount);
+            // button text: Approving...
             await tx.wait();
             await loadAllowance();
-            await buyTokens();
+            // don't auto-buy here unless you really want that UX
+            // await buyTokens();
         } catch (err) {
             console.error(err);
             alert("Approval failed");
@@ -146,40 +194,56 @@ export default function PreSell() {
     }
 
     // Buy Tokens
+    // Buy Tokens
     async function buyTokens() {
-        if (!signer) return alert("Connect wallet first");
+        if (!signer || !PRESALE) return alert("Connect wallet first");
+        if (!buyAmount || Number(buyAmount) <= 0) return alert("Enter an amount");
+
         setIsBuying(true);
+
         try {
-            const amount = ethers.parseUnits(buyAmount, 18);
+            const amount = ethers.parseUnits(buyAmount, dxtDecimals);
             const contract = new ethers.Contract(PRESALE, presaleABI, signer);
-            const tx = await contract.buy(amount);
+
+            const tx = await contract.buy(amount, { gasLimit: 500000 });
+
             await tx.wait();
 
             alert("Purchase successful!");
             setBuyAmount("");
-            await loadPhaseData();
-            await loadBalances();
-            await loadAllowance();
-            await loadUserStats();
-            await loadBuyers();
-        } catch (err) {
+
+            setTimeout(() => {
+                loadPhaseData();
+                loadBalances();
+                loadAllowance();
+                loadUserStats();
+                loadBuyers();
+            }, 1500);
+
+        } catch (err: any) {
             console.error(err);
-            alert("Transaction failed");
+
+            if (err.code === "ACTION_REJECTED") {
+                alert("Transaction rejected");
+            } else {
+                alert("Transaction failed: " + (err.message || "Unknown error"));
+            }
         }
+
         setIsBuying(false);
     }
 
     useEffect(() => {
-        if (chainId === POLYGON_CHAIN_ID) {
-            loadPhaseData();
-            loadBalances();
-            loadAllowance();
-            loadUserStats();
-            loadBuyers();
-        }
+        if (!provider || !chainId || !CONTRACTS[chainId]) return;
+        loadPhaseData();
+        loadBalances();
+        loadAllowance();
+        loadUserStats();
+        loadBuyers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [provider, chainId, account]);
 
-    const needsApproval = requiredUSDT > Number(allowance);
+    const needsApproval = requiredUSDT > Number(allowance || "0");
 
     return (
         <div className="min-h-screen bg-white p-6">
@@ -225,17 +289,19 @@ export default function PreSell() {
                                 {buyAmount && (
                                     <div className="bg-red-100 border-2 border-red-300 rounded-lg p-3">
                                         <div className="text-xs text-red-600 font-semibold mb-1">You will pay</div>
-                                        <div className="text-xl font-bold text-red-700">{requiredUSDT.toFixed(4)} USDT</div>
+                                        <div className="text-xl font-bold text-red-700">
+                                            {requiredUSDT.toFixed(4)} USDT
+                                        </div>
                                     </div>
                                 )}
 
                                 {needsApproval ? (
                                     <button
                                         onClick={approveUSDT}
-                                        disabled={isApproving}
+                                        disabled={isApproving || !buyAmount}
                                         className="w-full py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-50 text-sm"
                                     >
-                                        {isApproving ? "Approving..." : "Approve USDT"}
+                                        {isApproving ? "Approving USDT..." : "Approve USDT"}
                                     </button>
                                 ) : (
                                     <button
@@ -243,7 +309,7 @@ export default function PreSell() {
                                         disabled={isBuying || !buyAmount}
                                         className="w-full py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-50 text-sm"
                                     >
-                                        {isBuying ? "Processing..." : "Buy Now"}
+                                        {isBuying ? "Buying DXT..." : "Buy Now"}
                                     </button>
                                 )}
                             </div>
@@ -306,7 +372,7 @@ export default function PreSell() {
                                         <div className="text-xs text-gray-600 font-semibold">Phase</div>
                                         <div className="text-xl font-bold text-gray-800">{p}</div>
                                         <div className="text-xs text-gray-600 font-semibold">
-                                            ${[0.01, 0.05, 0.10, 0.15, 0.20][p - 1]}
+                                            ${[0.01, 0.05, 0.1, 0.15, 0.2][p - 1]}
                                         </div>
                                     </div>
                                 ))}
@@ -315,7 +381,7 @@ export default function PreSell() {
 
                         {/* Buyers Table */}
                         <div className="bg-white border-2 border-red-200 rounded-xl p-5">
-                            <h2 className="text-lg font-bold mb-4 text-red-700">All Buyers</h2>
+                            <h2 className="text-lg font-bold mb-4 text-red-700">Recent Buyers</h2>
 
                             <div className="overflow-x-auto">
                                 <div className="max-h-40 overflow-y-auto">
@@ -337,7 +403,10 @@ export default function PreSell() {
                                                 </tr>
                                             ) : (
                                                 buyers.map((buyer, i) => (
-                                                    <tr key={i} className="border-b border-red-100 hover:bg-red-50 transition">
+                                                    <tr
+                                                        key={i}
+                                                        className="border-b border-red-100 hover:bg-red-50 transition"
+                                                    >
                                                         <td className="py-3 px-2">
                                                             <span className="text-red-600 font-medium">
                                                                 {formatAddress(buyer.wallet)}

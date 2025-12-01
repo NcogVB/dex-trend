@@ -17,6 +17,7 @@ interface WalletContextType {
     copySuccess: boolean;
     connect: () => Promise<void>;
     switchToPolygon: () => Promise<void>;
+    switchToBSC: () => Promise<void>;
     disconnect: () => void;
     switchToSkyHigh: () => Promise<void>;
     openModal: () => void;
@@ -28,13 +29,11 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-const SKYHIGH_CHAIN_ID = 1476;
-const SKYHIGH_RPC_URL = "https://api.skyhighblockchain.com";
-const SKYHIGH_EXPLORER = "https://explorer.skyhighblockchain.com";
-
-// const POLYGON_CHAIN_ID = 137
-const POLYGON_RPC = "https://polygon-rpc.com"
-const POLYGON_EXPLORER = "https://polygonscan.com"
+const CHAINS = {
+    SKYHIGH: { id: 1476, rpc: "https://api.skyhighblockchain.com", explorer: "https://explorer.skyhighblockchain.com", name: "SkyHigh Blockchain", symbol: "SKY" },
+    POLYGON: { id: 137, rpc: "https://polygon-rpc.com", explorer: "https://polygonscan.com", name: "Polygon Mainnet", symbol: "MATIC" },
+    BSC: { id: 56, rpc: "https://bsc-dataseed1.binance.org/", explorer: "https://bscscan.com", name: "Binance Smart Chain", symbol: "BNB" }
+};
 
 export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [account, setAccount] = useState<string | null>(null);
@@ -47,9 +46,8 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const [isConnecting, setIsConnecting] = useState(false);
 
     const isConnected = !!account && !!signer;
-    const isWrongChain = isConnected && chainId !== SKYHIGH_CHAIN_ID;
+    const isWrongChain = isConnected && chainId !== CHAINS.SKYHIGH.id;
 
-    // Initialize provider and sync wallet state
     const syncWallet = async () => {
         try {
             if (!window.ethereum) {
@@ -64,20 +62,13 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             if (accounts.length > 0) {
                 const walletSigner = await ethersProvider.getSigner();
                 const address = await walletSigner.getAddress();
-
                 setProvider(ethersProvider);
                 setSigner(walletSigner);
                 setAccount(address);
                 setChainId(Number(network.chainId));
-
-                console.log("✅ Wallet synced:", {
-                    address,
-                    chainId: Number(network.chainId),
-                    isCorrectChain: Number(network.chainId) === SKYHIGH_CHAIN_ID
-                });
+                console.log("✅ Wallet synced:", { address, chainId: Number(network.chainId) });
             } else {
-                // Not connected - use read-only provider
-                const readOnlyProvider = new ethers.JsonRpcProvider(SKYHIGH_RPC_URL, SKYHIGH_CHAIN_ID);
+                const readOnlyProvider = new ethers.JsonRpcProvider(CHAINS.SKYHIGH.rpc, CHAINS.SKYHIGH.id);
                 setProvider(readOnlyProvider);
                 setSigner(null);
                 setAccount(null);
@@ -85,42 +76,28 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             }
         } catch (err) {
             console.error("Failed to sync wallet:", err);
-            // Fallback to read-only provider
-            const readOnlyProvider = new ethers.JsonRpcProvider(SKYHIGH_RPC_URL, SKYHIGH_CHAIN_ID);
+            const readOnlyProvider = new ethers.JsonRpcProvider(CHAINS.SKYHIGH.rpc, CHAINS.SKYHIGH.id);
             setProvider(readOnlyProvider);
             setSigner(null);
             setAccount(null);
         }
     };
 
-    // Connect wallet
     const connect = async () => {
         setIsConnecting(true);
         try {
-            if (!window.ethereum) {
-                throw new Error("No wallet found. Please install MetaMask or Trust Wallet.");
-            }
+            if (!window.ethereum) throw new Error("No wallet found. Please install MetaMask or Trust Wallet.");
 
-            // Detect wallet type
-            if (window.ethereum.isMetaMask) {
-                setConnectedWallet("metamask");
-            } else if (window.ethereum.isTrust) {
-                setConnectedWallet("trust");
-            } else {
-                setConnectedWallet("unknown");
-            }
+            if (window.ethereum.isMetaMask) setConnectedWallet("metamask");
+            else if (window.ethereum.isTrust) setConnectedWallet("trust");
+            else setConnectedWallet("unknown");
 
-            // Request accounts
             await window.ethereum.request({ method: "eth_requestAccounts" });
-
-            // Sync wallet state
             await syncWallet();
 
-            // Check if we need to switch chains
             const ethersProvider = new ethers.BrowserProvider(window.ethereum);
             const network = await ethersProvider.getNetwork();
-
-            if (Number(network.chainId) !== SKYHIGH_CHAIN_ID) {
+            if (Number(network.chainId) !== CHAINS.SKYHIGH.id) {
                 console.log("⚠️ Wrong chain detected, switching to SkyHigh...");
                 await switchToSkyHigh();
             }
@@ -132,27 +109,59 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
     };
 
-    // Disconnect wallet
     const disconnect = () => {
         setAccount(null);
         setSigner(null);
         setChainId(null);
         setConnectedWallet(null);
-        const readOnlyProvider = new ethers.JsonRpcProvider(SKYHIGH_RPC_URL, SKYHIGH_CHAIN_ID);
+        const readOnlyProvider = new ethers.JsonRpcProvider(CHAINS.SKYHIGH.rpc, CHAINS.SKYHIGH.id);
         setProvider(readOnlyProvider);
     };
 
-    // Modal controls
+    const switchChain = async (chain: typeof CHAINS.SKYHIGH | typeof CHAINS.POLYGON | typeof CHAINS.BSC) => {
+        try {
+            if (!window.ethereum) throw new Error("No wallet found");
+            await window.ethereum.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: `0x${chain.id.toString(16)}` }],
+            });
+            await syncWallet();
+        } catch (err: any) {
+            if (err.code === 4902) {
+                try {
+                    await window.ethereum.request({
+                        method: "wallet_addEthereumChain",
+                        params: [{
+                            chainId: `0x${chain.id.toString(16)}`,
+                            chainName: chain.name,
+                            rpcUrls: [chain.rpc],
+                            nativeCurrency: { name: chain.symbol, symbol: chain.symbol, decimals: 18 },
+                            blockExplorerUrls: [chain.explorer],
+                        }],
+                    });
+                    await syncWallet();
+                } catch (addErr) {
+                    console.error(`Failed to add ${chain.name}:`, addErr);
+                    throw addErr;
+                }
+            } else {
+                throw err;
+            }
+        }
+    };
+
+    const switchToSkyHigh = () => switchChain(CHAINS.SKYHIGH);
+    const switchToPolygon = () => switchChain(CHAINS.POLYGON);
+    const switchToBSC = () => switchChain(CHAINS.BSC);
+
     const openModal = () => setIsModalOpen(true);
     const closeModal = () => setIsModalOpen(false);
 
-    // Format address
     const formatAddress = (addr: string): string => {
         if (!addr) return "";
         return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
     };
 
-    // Copy address to clipboard
     const copyAddress = async () => {
         if (account) {
             try {
@@ -165,76 +174,24 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
     };
 
-    // View address on block explorer
     const viewOnExplorer = () => {
         if (account) {
-            window.open(`${SKYHIGH_EXPLORER}/address/${account}`, "_blank");
+            window.open(`${CHAINS.SKYHIGH.explorer}/address/${account}`, "_blank");
         }
     };
 
-    // Switch to SkyHigh chain
-    const switchToSkyHigh = async () => {
-        try {
-            if (!window.ethereum) throw new Error("No wallet found");
-
-            await window.ethereum.request({
-                method: "wallet_switchEthereumChain",
-                params: [{ chainId: `0x${SKYHIGH_CHAIN_ID.toString(16)}` }],
-            });
-
-            // Re-sync after switch
-            await syncWallet();
-        } catch (err: any) {
-            // Chain not added - try to add it
-            if (err.code === 4902) {
-                try {
-                    await window.ethereum.request({
-                        method: "wallet_addEthereumChain",
-                        params: [
-                            {
-                                chainId: `0x${SKYHIGH_CHAIN_ID.toString(16)}`,
-                                chainName: "SkyHigh Blockchain",
-                                rpcUrls: [SKYHIGH_RPC_URL],
-                                nativeCurrency: {
-                                    name: "SkyHigh",
-                                    symbol: "SKY",
-                                    decimals: 18,
-                                },
-                                blockExplorerUrls: ["https://explorer.skyhighblockchain.com"],
-                            },
-                        ],
-                    });
-                    await syncWallet();
-                } catch (addErr) {
-                    console.error("Failed to add SkyHigh chain:", addErr);
-                    throw addErr;
-                }
-            } else {
-                throw err;
-            }
-        }
-    };
-
-    // Listen for account and chain changes
     useEffect(() => {
         if (!window.ethereum) return;
 
         const handleAccountsChanged = (accounts: string[]) => {
-            if (accounts.length === 0) {
-                disconnect();
-            } else {
-                syncWallet();
-            }
+            if (accounts.length === 0) disconnect();
+            else syncWallet();
         };
 
-        const handleChainChanged = () => {
-            syncWallet();
-        };
+        const handleChainChanged = () => syncWallet();
 
         window.ethereum.on("accountsChanged", handleAccountsChanged);
         window.ethereum.on("chainChanged", handleChainChanged);
-
-        // Initial sync
         syncWallet();
 
         return () => {
@@ -242,65 +199,11 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             window.ethereum?.removeListener("chainChanged", handleChainChanged);
         };
     }, []);
-    const switchToPolygon = async () => {
-        try {
-            if (!window.ethereum) throw new Error("No wallet found");
-
-            await window.ethereum.request({
-                method: "wallet_switchEthereumChain",
-                params: [{ chainId: "0x89" }] // 137 hex
-            });
-
-            await syncWallet();
-        } catch (err: any) {
-            if (err.code === 4902) {
-                try {
-                    await window.ethereum.request({
-                        method: "wallet_addEthereumChain",
-                        params: [
-                            {
-                                chainId: "0x89",
-                                chainName: "Polygon Mainnet",
-                                rpcUrls: [POLYGON_RPC],
-                                nativeCurrency: {
-                                    name: "MATIC",
-                                    symbol: "MATIC",
-                                    decimals: 18
-                                },
-                                blockExplorerUrls: [POLYGON_EXPLORER]
-                            }
-                        ]
-                    });
-                    await syncWallet();
-                } catch (addErr) {
-                    console.error("Failed to add Polygon:", addErr);
-                }
-            } else {
-                console.error(err);
-            }
-        }
-    };
-
 
     const value: WalletContextType = {
-        account,
-        provider,
-        signer,
-        isConnected,
-        isConnecting,
-        chainId,
-        isWrongChain,
-        connectedWallet,
-        isModalOpen,
-        copySuccess,
-        connect,
-        disconnect,
-        switchToSkyHigh,
-        openModal,
-        closeModal,
-        formatAddress,
-        switchToPolygon,
-        copyAddress,
+        account, provider, signer, isConnected, isConnecting, chainId, isWrongChain,
+        connectedWallet, isModalOpen, copySuccess, connect, disconnect, switchToSkyHigh,
+        openModal, switchToBSC, closeModal, formatAddress, switchToPolygon, copyAddress,
         viewOnExplorer,
     };
 
@@ -309,13 +212,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
 export const useWallet = (): WalletContextType => {
     const context = useContext(WalletContext);
-    if (!context) {
-        throw new Error("useWallet must be used within a WalletProvider");
-    }
+    if (!context) throw new Error("useWallet must be used within a WalletProvider");
     return context;
 };
 
-// Type declaration for window.ethereum
 declare global {
     interface Window {
         ethereum?: any;
