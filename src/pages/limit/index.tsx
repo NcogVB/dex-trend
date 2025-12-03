@@ -460,7 +460,11 @@ const Limit = () => {
                                 <TradingDashboard
                                     fullScreen
                                     showOrders={false}
-                                    pair={`${fromToken.symbol}${toToken.symbol}`}
+                                    pair={
+                                        fromToken.symbol === "MATIC"
+                                            ? "POLUSDT"
+                                            : `${fromToken.symbol}${toToken.symbol}`
+                                    }
                                 />
                             </div>
 
