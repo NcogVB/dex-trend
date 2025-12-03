@@ -77,7 +77,8 @@ const Header: React.FC = () => {
             "/swap",
             "/pool",
             "/bridge",
-            "/exchange"
+            "/exchange",
+            "/PoolData"
         ];
 
         if (location.pathname === "/presell") {
