@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 
-const API_URL = "http://localhost:4000/stats";
+const API_URL = "https://api.dex-trend.com/stats";
 
 interface LiquidityEntry {
   buyLiquidity: string;

@@ -27,7 +27,7 @@ function App() {
             <Route path="/Policy" element={<PolicyDashboard />} />
             <Route path="/bridge" element={<Bridge />} />
             {/* <Route path="/LendingBorrowing" element={<LendingBorrowing />} /> */}
-            <Route path="/poolData" element={<AmmDashboard />} />
+            <Route path="/Dashboard" element={<AmmDashboard />} />
             <Route path="/exchange" element={<Limit />} />
             <Route path="/pool" element={<Pool />} />
             <Route path="/addlp" element={<ConverterPool />} />

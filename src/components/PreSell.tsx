@@ -8,14 +8,14 @@ import { useWallet } from "../contexts/WalletContext";
 
 const CONTRACTS: Record<number, { PRESALE: string; USDT: string; DXT: string }> = {
     137: {
-        PRESALE: "0x545079A4f1D15F2F6a28cC933Cc3961A767516B0",
+        PRESALE: "0x7a98cd1810e9c447a7d442c1Dd4b4C58A9698d7F",
         USDT: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
-        DXT: "0x7c0461f4B63f1C9746D767cF22EA4BD8B702Bb5c",
+        DXT: "0xCc676Ee363b94AD93D255Ec37375cc8f966EfCfF",
     },
     56: {
-        PRESALE: "0x9E7f120EA417515303A80DBF1c13a238bd1D365E",
+        PRESALE: "0xc927a357Ae3dEC46BF7eBB047942B488f8c01238",
         USDT: "0x55d398326f99059fF775485246999027B3197955",
-        DXT: "0x610E1044C026fCf6AB24B49cad1FF4c616647636",
+        DXT: "0x6987b2ac4CCf7f48e5B0eF4C2F499F49f81f37b3",
     },
 };
 
@@ -372,7 +372,7 @@ export default function PreSell() {
                                         <div className="text-xs text-gray-600 font-semibold">Phase</div>
                                         <div className="text-xl font-bold text-gray-800">{p}</div>
                                         <div className="text-xs text-gray-600 font-semibold">
-                                            ${[0.01, 0.05, 0.1, 0.15, 0.2][p - 1]}
+                                            ${[0.025, 0.05, 0.1, 0.15, 0.2][p - 1]}
                                         </div>
                                     </div>
                                 ))}
