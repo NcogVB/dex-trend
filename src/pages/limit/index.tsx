@@ -87,13 +87,6 @@ const Limit = () => {
         return () =>
             document.removeEventListener('mousedown', handleClickOutside)
     }, [])
-    useEffect(() => {
-        if (!fromToken || !toToken) return;
-
-        const interval = setInterval(fetchOrders, 100);
-        return () => clearInterval(interval);
-    }, [fromToken, toToken]);
-
 
     // Handle token selection
     const handleTokenSelect = (token: Token, isFrom: boolean = true): void => {
@@ -249,178 +242,177 @@ const Limit = () => {
     const EXECUTOR_ADDRESS = "0x14e904F5FfA5748813859879f8cA20e487F407D8";
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
-    let isFetching = false; // ⬅️ Prevent overlapping fetch calls
+    const currentTokensRef = useRef({ from: fromToken, to: toToken });
 
+    // 🧠 MEMORY CACHE: Stores orders so we don't re-fetch on token switch
+    const ordersCache = useRef(new Map<number, any>());
+    const isFetchingRef = useRef(false);
+    const decimalsCache = useRef<Record<string, number>>({});
+    // This runs INSTANTLY (no network)
+    const refreshUI = useCallback(() => {
+        const now = Math.floor(Date.now() / 1000);
+        const userOpen: any[] = [];
+        const generalOpen: any[] = [];
+        const historyList: any[] = [];
+
+        // 🔥 FIX: Read from REF, not state. This is always fresh.
+        const { from, to } = currentTokensRef.current;
+
+        if (!from || !to) return; // Safety check
+
+        ordersCache.current.forEach((order) => {
+            // Match against the LIVE selected tokens
+            const matchesPair =
+                (order.tokenIn === from.address.toLowerCase() && order.tokenOut === to.address.toLowerCase()) ||
+                (order.tokenIn === to.address.toLowerCase() && order.tokenOut === from.address.toLowerCase());
+
+            if (matchesPair) {
+                const expired = order.expiry < now;
+                const active = !order.filled && !order.cancelled && !expired;
+
+                if (active) {
+                    generalOpen.push(order);
+                    if (account && order.maker.toLowerCase() === account.toLowerCase()) {
+                        userOpen.push(order);
+                    }
+                } else {
+                    historyList.push({ ...order, expired });
+                }
+            }
+        });
+
+        const sortFn = (a: any, b: any) => b.id - a.id;
+        setGeneralOpenOrders(generalOpen.sort(sortFn));
+        setUserOpenOrders(userOpen.sort(sortFn));
+        setOrderHistory(historyList.sort(sortFn));
+
+    }, [account]); // Removed fromToken/toToken dependency since we use refs
+    useEffect(() => {
+        currentTokensRef.current = { from: fromToken, to: toToken };
+    }, [fromToken, toToken]);
     const fetchOrders = async () => {
-        if (isFetching) return;
-        isFetching = true;
+        if (isFetchingRef.current || !provider) return;
+        isFetchingRef.current = true;
 
         try {
-            if (!provider) {
-                isFetching = false;
-                return;
-            }
-
             const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
 
-            // 1️⃣ Fetch last order ID
-            const nextIdBN = await executor.nextOrderId();
-            const nextId = Number(nextIdBN);
+            // 1. Get Chain State
+            const nextId = Number(await executor.nextOrderId());
+            const now = Math.floor(Date.now() / 1000);
 
             if (nextId <= 1) {
-                setUserOpenOrders([]);
-                setGeneralOpenOrders([]);
-                setOrderHistory([]);
-                isFetching = false;
+                ordersCache.current.clear();
+                refreshUI(); // Clear UI
                 return;
             }
 
-            const now = Math.floor(Date.now() / 1000);
-            const decimalsCache: Record<string, number> = {};
+            // 2. Identify IDs to fetch
+            //    Fetch NEW IDs + update status of ACTIVE IDs
+            const idsToFetch: number[] = [];
+            const lastKnownId = ordersCache.current.size > 0 ? Math.max(...ordersCache.current.keys()) : 0;
 
-            const userOpen: any[] = [];
-            const generalOpen: any[] = [];
-            const historyList: any[] = [];
+            // New IDs
+            for (let i = lastKnownId + 1; i < nextId; i++) idsToFetch.push(i);
 
-            // 2️⃣ Fetch in chunks
-            const ids = Array.from({ length: nextId - 1 }, (_, i) => i + 1);
-            const chunkSize = 20;
+            // Re-check Active IDs (to see if they filled/expired)
+            ordersCache.current.forEach(o => {
+                if (!o.filled && !o.cancelled && o.expiry > now) idsToFetch.push(o.id);
+            });
 
-            const allResults: { id: number; ord: any }[] = [];
+            // 3. Batch Fetch (Chunk size 50 for speed)
+            const uniqueIds = [...new Set(idsToFetch)];
+            if (uniqueIds.length > 0) {
+                const chunkSize = 50;
+                const fetchedResults: any[] = [];
 
-            for (let i = 0; i < ids.length; i += chunkSize) {
-                const batchIds = ids.slice(i, i + chunkSize);
+                for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+                    const batch = await Promise.all(
+                        uniqueIds.slice(i, i + chunkSize).map(id =>
+                            executor.getOrder(id).then((ord: any) => ({ id, ord })).catch(() => null)
+                        )
+                    );
+                    fetchedResults.push(...batch.filter(Boolean));
+                }
 
-                const batch = await Promise.all(
-                    batchIds.map((id) =>
-                        executor.getOrder(id)
-                            .then((ord: any) => ({ id, ord }))
-                            .catch(() => null)
-                    )
+                // 4. Resolve Decimals (Optimized)
+                const uniqueTokens = new Set<string>();
+                fetchedResults.forEach(({ ord }) => {
+                    if (ord?.tokenIn) uniqueTokens.add(ord.tokenIn.toLowerCase());
+                    if (ord?.tokenOut) uniqueTokens.add(ord.tokenOut.toLowerCase());
+                });
+
+                await Promise.all(
+                    Array.from(uniqueTokens).map(async (addr) => {
+                        if (decimalsCache.current[addr]) return;
+                        try {
+                            const erc = new ethers.Contract(addr, MIN_ERC20_ABI, provider);
+                            decimalsCache.current[addr] = Number(await erc.decimals());
+                        } catch { decimalsCache.current[addr] = 18; }
+                    })
                 );
 
-                batch.filter(Boolean).forEach((r) => allResults.push(r || { id: 0, ord: null }));
-            }
+                // 5. Parse & Store in Cache
+                for (const { id, ord } of fetchedResults) {
+                    if (!ord?.maker) continue;
 
-            // 3️⃣ Collect unique token decimals
-            const uniqueTokens = new Set<string>();
-            for (const { ord } of allResults) {
-                if (ord?.tokenIn) uniqueTokens.add(ord.tokenIn.toLowerCase());
-                if (ord?.tokenOut) uniqueTokens.add(ord.tokenOut.toLowerCase());
-            }
+                    const tokenIn = ord.tokenIn.toLowerCase();
+                    const decimalsIn = decimalsCache.current[tokenIn] ?? 18;
 
-            await Promise.all(
-                Array.from(uniqueTokens).map(async (address) => {
-                    try {
-                        const erc = new ethers.Contract(address, MIN_ERC20_ABI, provider);
-                        decimalsCache[address] = Number(await erc.decimals());
-                    } catch {
-                        decimalsCache[address] = 18;
-                    }
-                })
-            );
-
-            // 4️⃣ Parse every order
-            for (const { id, ord } of allResults) {
-                if (!ord?.maker) continue;
-
-                const tokenIn = ord.tokenIn.toLowerCase();
-                const tokenOut = ord.tokenOut.toLowerCase();
-                const decimalsIn = decimalsCache[tokenIn] ?? 18;
-                const originalAmountIn = ethers.formatUnits(ord.amountOutMin, decimalsIn);
-
-                const amountIn = ethers.formatUnits(ord.amountIn, decimalsIn);
-
-                // 🔥 FIX: use new field targetPrice1e18
-                const targetPrice = ethers.formatUnits(
-                    ord.targetPrice1e18?.toString?.() ?? String(ord.targetPrice1e18),
-                    18
-                );
-
-                const orderData = {
-                    id,
-                    maker: ord.maker,
-                    tokenIn,
-                    tokenOut,
-                    amountIn,
-                    originalAmountIn,
-                    targetPrice,
-                    expiry: Number(ord.expiry),
-                    filled: Boolean(ord.filled),
-                    cancelled: Boolean(ord.cancelled),
-                    orderType: Number(ord.orderType), // 0 = BUY, 1 = SELL
-                };
-
-                const expired = orderData.expiry < now;
-                const active = !orderData.filled && !orderData.cancelled && !expired;
-
-                const matchesPair =
-                    fromToken && toToken
-                        ? (tokenIn === fromToken.address.toLowerCase() &&
-                            tokenOut === toToken.address.toLowerCase()) ||
-                        (tokenIn === toToken.address.toLowerCase() &&
-                            tokenOut === fromToken.address.toLowerCase())
-                        : true;
-
-                if (matchesPair) {
-                    if (active) {
-                        generalOpen.push(orderData);
-                        if (account && ord.maker.toLowerCase() === account.toLowerCase()) {
-                            userOpen.push(orderData);
-                        }
-                    } else {
-                        historyList.push({ ...orderData, expired });
-                    }
+                    const orderData = {
+                        id,
+                        maker: ord.maker,
+                        tokenIn,
+                        tokenOut: ord.tokenOut.toLowerCase(),
+                        amountIn: ethers.formatUnits(ord.amountIn, decimalsIn),
+                        originalAmountIn: ethers.formatUnits(ord.amountOutMin, decimalsIn),
+                        targetPrice: ethers.formatUnits(ord.targetPrice1e18?.toString() ?? "0", 18),
+                        expiry: Number(ord.expiry),
+                        filled: Boolean(ord.filled),
+                        cancelled: Boolean(ord.cancelled),
+                        orderType: Number(ord.orderType),
+                    };
+                    ordersCache.current.set(id, orderData);
                 }
             }
 
-            // 5️⃣ Sorting
-            generalOpen.sort((a, b) => b.id - a.id);
-            userOpen.sort((a, b) => b.id - a.id);
-            historyList.sort((a, b) => b.id - a.id);
+            // 6. Update the UI with the data we have
+            refreshUI();
 
-            // 6️⃣ Update React State
-            setUserOpenOrders(userOpen);
-            setGeneralOpenOrders(generalOpen);
-            setOrderHistory(historyList);
-
-        } catch (err: any) {
-            console.error("🚨 fetchOrders error:", err?.message ?? err);
+        } catch (err) {
+            console.error("Fetch error:", err);
         } finally {
-            isFetching = false;
+            isFetchingRef.current = false;
         }
     };
+    // Effect 1: FAST SWITCHING (Runs when tokens change)
+    useEffect(() => {
+        refreshUI();
+    }, [fromToken, toToken, refreshUI]);
 
+    // Effect 2: BACKGROUND SYNC (Runs on load & interval)
     useEffect(() => {
         if (!provider) return;
 
-        const executor = new ethers.Contract(
-            EXECUTOR_ADDRESS,
-            ExecutorABI.abi,
-            provider
-        );
-
-        // Run once on load
+        // Initial fetch
         fetchOrders();
         updateBalances();
 
-        const refresh = () => {
-            console.log("🔔 Event received → updating orders for all users");
-            fetchOrders();
-            updateBalances();
-        };
+        const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
+        const refresh = () => { fetchOrders(); updateBalances(); };
 
-        // Attach your events
         executor.on("OrderCreated", refresh);
         executor.on("OrderCancelled", refresh);
 
-        // Cleanup on unmount
+        // Poll every 5 seconds (keeps data fresh without DDOSing)
+        const interval = setInterval(fetchOrders, 5000);
+
         return () => {
             executor.off("OrderCreated", refresh);
             executor.off("OrderCancelled", refresh);
+            clearInterval(interval);
         };
     }, [provider]);
-
     useEffect(() => {
         if (!fromToken || !toToken || !provider) return;
 
