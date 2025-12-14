@@ -2,7 +2,6 @@ import { Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import Limit from "./pages/limit";
 import Pool from "./pages/pool";
-import Bridge from "./pages/bridge";
 import Swap from "./pages/swap";
 import ConverterPool from "./components/ConverterPool";
 import Converter1 from "./components/Converter1";
@@ -25,7 +24,6 @@ function App() {
             <Route path="/swap" element={<Swap />} />
             <Route path="/presell" element={<PreSell />} />
             <Route path="/Policy" element={<PolicyDashboard />} />
-            <Route path="/bridge" element={<Bridge />} />
             {/* <Route path="/LendingBorrowing" element={<LendingBorrowing />} /> */}
             <Route path="/Dashboard" element={<AmmDashboard />} />
             <Route path="/exchange" element={<Limit />} />

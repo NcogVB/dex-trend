@@ -1,9 +1,9 @@
 import { ChevronDown, CircleQuestionMarkIcon } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { useSwap } from '../contexts/SwapContext'
 import { useWallet } from '../contexts/WalletContext'
 import { TOKENS } from '../utils/SwapTokens'
+import { useSwap } from '../hooks/useSwap'
 
 interface Token {
     symbol: string

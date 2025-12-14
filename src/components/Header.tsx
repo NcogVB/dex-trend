@@ -39,7 +39,7 @@ const Header: React.FC = () => {
         viewOnExplorer,
         chainId,
         switchToSkyHigh,
-        switchToPolygon,
+        switchToBSC,
         copySuccess,
     } = useWallet()
 
@@ -48,6 +48,7 @@ const Header: React.FC = () => {
         { name: 'Pool', href: 'pool', path: '/pool' },
         { name: 'Bridge', href: 'https://bridge.skyhighblockchain.com/', path: '', external: true },
         { name: 'Exchange', href: 'exchange', path: '/exchange' },
+        { name: 'Presell', href: 'Presell', path: '/Presell' },
         // { name: 'Dashboard', href: 'Dashboard', path: '/Dashboard' },
     ]
 
@@ -81,12 +82,11 @@ const Header: React.FC = () => {
             "/PoolData"
         ];
 
-        if (location.pathname === "/presell") {
-            // Block SkyHigh chain on presell page
+        if (location.pathname === "/Presell") {
             if (chainId === 1476) {
-                switchToPolygon();
+                switchToBSC();
             } else if (chainId !== 137 && chainId !== 56) {
-                switchToPolygon();
+                switchToBSC();
             }
         } else if (pathsRequiringSkyHigh.includes(location.pathname)) {
             if (chainId !== 1476) {

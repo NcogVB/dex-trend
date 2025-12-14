@@ -3,7 +3,7 @@ import { useWallet } from "../contexts/WalletContext";
 import { ChevronDown } from "lucide-react";
 
 const ChainSwitcher = () => {
-    const { chainId, switchToPolygon, switchToSkyHigh, switchToBSC } = useWallet();
+    const { chainId, switchToSkyHigh, switchToBSC } = useWallet();
 
     const CHAIN =
         chainId === 137
@@ -46,12 +46,7 @@ const ChainSwitcher = () => {
                     />
 
                     <div className="absolute right-0 mt-2 w-48 z-20 bg-white border rounded-lg shadow-lg py-2">
-                        <button
-                            onClick={() => handleSwitch(switchToPolygon)}
-                            className="w-full px-4 py-2 text-left hover:bg-gray-100 text-sm"
-                        >
-                            Switch to Polygon
-                        </button>
+
 
                         <button
                             onClick={() => handleSwitch(switchToSkyHigh)}

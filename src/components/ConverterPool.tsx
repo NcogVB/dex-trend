@@ -1,10 +1,10 @@
 import React, { useState } from "react"
-import { useLiquidity } from "../contexts/LiquidityContext"
 import { useWallet } from "../contexts/WalletContext"
 import { ethers } from "ethers"
 import { ArrowLeft, ChevronDown } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { TOKENS } from "../utils/SwapTokens"
+import { useLiquidity } from "../hooks/useLiquidity"
 
 const ConverterPool: React.FC = () => {
     const { addLiquidity, loading } = useLiquidity()

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { useLiquidity } from '../contexts/LiquidityContext'
 import { Token } from '@uniswap/sdk-core'
 import { Pool, Position } from '@uniswap/v3-sdk'
 import { ethers } from 'ethers'
@@ -12,6 +11,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { TOKENS } from '../utils/SwapTokens'
 import { useWallet } from '../contexts/WalletContext'
+import { useLiquidity } from '../hooks/useLiquidity'
 
 interface LiquidityData {
     poolTokens: number

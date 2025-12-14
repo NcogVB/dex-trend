@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import TradingDashboard from '../../components/TradingDashboard'
 import { ChevronDown } from 'lucide-react'
-import { useOrder } from '../../contexts/OrderLimitContext'
-import { useSwap } from '../../contexts/SwapContext'
 import ExecutorABI from "../../ABI/LimitOrder.json";
 import { ethers } from 'ethers'
 import { useWallet } from '../../contexts/WalletContext'
 import { TOKENS } from '../../utils/SwapTokens'
 import { useToast } from '../../components/Toast'
+import { useSwap } from '../../hooks/useSwap';
+import { useOrder } from '../../hooks/useOrder';
 
 interface Token {
     symbol: string
