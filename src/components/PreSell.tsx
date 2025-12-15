@@ -40,9 +40,10 @@ export default function PreSell() {
     const [totalAllocation, setTotalAllocation] = useState(0);
     const [soldAmount, setSoldAmount] = useState(0);
     const [soldPercent, setSoldPercent] = useState(0);
-    const [buyers, setBuyers] = useState<Array<any>>([]);
+    const [buyers, setBuyers] = useState<Array<{ wallet: string; totalDXT: string; totalUSDT: string; lastPhase: number; timestamp: number }>>([]);
     const [userContributed, setUserContributed] = useState("0");
     const [userBought, setUserBought] = useState("0");
+    const [copied, setCopied] = useState("");
 
     // Derived
     const requiredUSDT = buyAmount ? Number(buyAmount) * price : 0;
@@ -52,7 +53,7 @@ export default function PreSell() {
         try {
             // 1. Global Data (Phase, Buyers) - Use Fast RPC
             const presaleRead = new ethers.Contract(CONTRACTS.PRESALE, presaleABI, READ_PROVIDER);
-            
+
             const [pId, buyersRaw] = await Promise.all([
                 presaleRead.currentPhaseId(),
                 presaleRead.getAllBuyers()
@@ -113,25 +114,12 @@ export default function PreSell() {
     }, [refreshData]);
 
     // --- Actions ---
-    const approveUSDT = async () => {
-        if (!signer) return alert("Connect wallet");
-        if (chainId !== CHAIN_ID) return alert("Please switch network to Binance Smart Chain");
-        
-        setIsApproving(true);
-        try {
-            const usdt = new ethers.Contract(CONTRACTS.USDT, usdtABI, signer);
-            const tx = await usdt.approve(CONTRACTS.PRESALE, ethers.parseUnits("1000000000", DECIMALS.USDT));
-            await tx.wait();
-            refreshData();
-        } catch (e) { console.error(e); alert("Approval failed"); }
-        setIsApproving(false);
-    };
 
     const buyTokens = async () => {
         if (!signer) return alert("Connect wallet");
         if (chainId !== CHAIN_ID) return alert("Please switch network to Binance Smart Chain");
         if (!buyAmount || Number(buyAmount) <= 0) return alert("Enter amount");
-        
+
         setIsBuying(true);
         try {
             const contract = new ethers.Contract(CONTRACTS.PRESALE, presaleABI, signer);
@@ -147,6 +135,62 @@ export default function PreSell() {
         setIsBuying(false);
     };
 
+    // Updated: Approve & Buy Sequence
+    const approveAndBuy = async () => {
+        if (!signer) return alert("Connect wallet");
+        if (chainId !== CHAIN_ID) return alert("Please switch network to Binance Smart Chain");
+
+        setIsApproving(true);
+        try {
+            // 1. Approve Logic
+            const usdt = new ethers.Contract(CONTRACTS.USDT, usdtABI, signer);
+            const tx = await usdt.approve(CONTRACTS.PRESALE, ethers.parseUnits("1000000000", DECIMALS.USDT));
+            await tx.wait();
+
+            // 2. Refresh Allowance in Background
+            refreshData();
+
+            // 3. Chain the Buy Logic Immediately
+            setIsApproving(false); // Done approving
+            await buyTokens(); // Trigger buy immediately
+
+        } catch (e) {
+            console.error(e);
+            alert("Approval failed");
+            setIsApproving(false);
+        }
+    };
+
+    // Helper: Add Token to MetaMask
+    const addTokenToWallet = async () => {
+        if (window.ethereum) {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_watchAsset',
+                    params: {
+                        type: 'ERC20',
+                        options: {
+                            address: CONTRACTS.DXT,
+                            symbol: 'DXT',
+                            decimals: 18,
+                        },
+                    },
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        } else {
+            alert("MetaMask not found");
+        }
+    };
+
+    // Helper: Copy to Clipboard
+    const copyToClipboard = (text: any, type: any) => {
+        navigator.clipboard.writeText(text);
+        setCopied(type);
+        setTimeout(() => setCopied(""), 2000);
+    };
+
     const needsApproval = Number(buyAmount || "0") * price > Number(allowance);
 
     return (
@@ -154,17 +198,45 @@ export default function PreSell() {
             <div className="max-w-7xl mx-auto">
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    {[
-                        { l: "Your USDT", v: usdtBalance },
-                        { l: "Your DXT", v: dxtBalance },
-                        { l: "Total Contributed", v: `${userContributed} USDT` },
-                        { l: "Total Purchased", v: `${userBought} DXT` }
-                    ].map((stat, i) => (
-                        <div key={i} className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
-                            <div className="text-xs text-red-600 font-semibold mb-1">{stat.l}</div>
-                            <div className="text-2xl font-bold text-red-700">{stat.v}</div>
+                    {/* USDT Balance */}
+                    <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+                        <div className="text-xs text-red-600 font-semibold mb-1">Your USDT</div>
+                        <div className="text-2xl font-bold text-red-700">{usdtBalance}</div>
+                    </div>
+
+                    {/* DXT Balance + Add to MM Button */}
+                    <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 relative group">
+                        <div className="text-xs text-red-600 font-semibold mb-1">Your DXT</div>
+                        <div className="flex items-center justify-between">
+                            <div className="text-2xl font-bold text-red-700">{dxtBalance}</div>
+                            <button
+                                onClick={addTokenToWallet}
+                                className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 rounded shadow transition flex items-center gap-1"
+                                title="Add DXT to MetaMask"
+                            >
+                                {/* REPLACE "/metamask.png" WITH YOUR ACTUAL IMAGE PATH */}
+                                <img
+                                    src="/images/metamask.png"
+                                    alt="MetaMask"
+                                    width={16}
+                                    height={16}
+                                />
+                                Add To Wallet
+                            </button>
                         </div>
-                    ))}
+                    </div>
+
+                    {/* Contributed */}
+                    <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+                        <div className="text-xs text-red-600 font-semibold mb-1">Total Contributed</div>
+                        <div className="text-2xl font-bold text-red-700">{userContributed} USDT</div>
+                    </div>
+
+                    {/* Purchased */}
+                    <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+                        <div className="text-xs text-red-600 font-semibold mb-1">Total Purchased</div>
+                        <div className="text-2xl font-bold text-red-700">{userBought} DXT</div>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -190,25 +262,59 @@ export default function PreSell() {
                                     </div>
                                 )}
                                 <button
-                                    onClick={needsApproval ? approveUSDT : buyTokens}
+                                    // If needs approval, we call approveAndBuy (which chains both). If not, just buyTokens.
+                                    onClick={needsApproval ? approveAndBuy : buyTokens}
                                     disabled={isApproving || isBuying || !buyAmount}
                                     className="w-full py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition disabled:opacity-50 text-sm"
                                 >
-                                    {needsApproval 
-                                        ? (isApproving ? "Approving..." : "Approve USDT") 
+                                    {needsApproval
+                                        ? (isApproving ? "Approving..." : "Approve & Buy")
                                         : (isBuying ? "Buying..." : "Buy Now")}
                                 </button>
                             </div>
                         </div>
 
                         {/* Phase Info */}
-                        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5">
+                        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5 mb-6">
                             <h3 className="text-base font-bold mb-3 text-red-700">Phase {phaseId} Details</h3>
                             <div className="space-y-2 text-sm">
                                 <div className="flex justify-between"><span className="text-gray-600">Price per DXT</span><span className="font-bold text-red-700">${price}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">Allocation</span><span className="font-bold text-gray-800">{totalAllocation.toLocaleString()}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">Sold</span><span className="font-bold text-gray-800">{soldAmount.toLocaleString()}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">Remaining</span><span className="font-bold text-red-600">{remaining}</span></div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white border-2 border-gray-200 rounded-xl p-4">
+                            <h3 className="text-sm font-bold mb-3 text-gray-700">Contract Addresses</h3>
+                            <div className="space-y-3">
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-1 flex justify-between">
+                                        <span>Presale Contract</span>
+                                        {copied === "presale" && <span className="text-green-600 font-bold">Copied!</span>}
+                                    </div>
+                                    <div
+                                        onClick={() => copyToClipboard(CONTRACTS.PRESALE, "presale")}
+                                        className="bg-gray-100 p-2 rounded text-xs text-gray-600 break-all cursor-pointer hover:bg-gray-200 transition"
+                                        title="Click to copy"
+                                    >
+                                        {CONTRACTS.PRESALE}
+                                    </div>
+                                </div>
+                                {/* DXT Address */}
+                                <div>
+                                    <div className="text-xs text-gray-500 mb-1 flex justify-between">
+                                        <span>DXT Token</span>
+                                        {copied === "dxt" && <span className="text-green-600 font-bold">Copied!</span>}
+                                    </div>
+                                    <div
+                                        onClick={() => copyToClipboard(CONTRACTS.DXT, "dxt")}
+                                        className="bg-gray-100 p-2 rounded text-xs text-gray-600 break-all cursor-pointer hover:bg-gray-200 transition"
+                                        title="Click to copy"
+                                    >
+                                        {CONTRACTS.DXT}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

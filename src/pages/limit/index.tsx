@@ -612,21 +612,24 @@ const Limit = () => {
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-col text-xs font-medium h-full">
+
                                                         {/* === SELL ORDERS (Top Scroll) === */}
+                                                        {/* FIXED: 'overflow-y-scroll' forces the scrollbar to stay visible. 
+                                This prevents the width from jumping (shaking) when data updates.
+                            */}
                                                         <div ref={sellOrdersRef} className="flex-1 overflow-y-scroll">
                                                             <ul>
                                                                 {generalOpenOrders
                                                                     .filter(o => o.orderType === 1) // SELL
                                                                     .sort((a, b) => {
-                                                                        // Sell: low -> high price
+                                                                        // FIXED: Sort High -> Low
                                                                         const pa = Number(parseFloat(a.targetPrice || "0"));
                                                                         const pb = Number(parseFloat(b.targetPrice || "0"));
-                                                                        return pa - pb;
+                                                                        return pb - pa;
                                                                     })
                                                                     .map(o => {
                                                                         const price = parseFloat(o.targetPrice || "0");
                                                                         const amount = parseFloat(o.amountIn || "0");
-                                                                        // total value = price * amount (price is tokenIn per tokenOut; display as numeric)
                                                                         const total = (price * amount) || 0;
                                                                         return (
                                                                             <li key={o.id} className="px-3 py-2 flex items-center justify-between text-red-600 hover:bg-red-50 transition">
@@ -648,7 +651,7 @@ const Limit = () => {
                                                         {/* === FIXED CURRENT PRICE IN MIDDLE === */}
                                                         <div
                                                             onClick={() => currentRate && setTargetPrice(parseFloat(currentRate).toFixed(6))}
-                                                            className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky top-0 hover:bg-blue-50 cursor-pointer"
+                                                            className="px-3 py-2 flex items-center justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white sticky z-10 hover:bg-blue-50 cursor-pointer"
                                                         >
                                                             {currentRate ? (
                                                                 <>
@@ -659,7 +662,7 @@ const Limit = () => {
                                                         </div>
 
                                                         {/* === BUY ORDERS (Bottom Scroll) === */}
-                                                        <div className="flex-1 overflow-y-auto">
+                                                        <div className="flex-1 overflow-y-scroll">
                                                             <ul>
                                                                 {generalOpenOrders
                                                                     .filter(o => o.orderType === 0) // BUY
@@ -698,49 +701,32 @@ const Limit = () => {
                                                         No History
                                                     </div>
                                                 ) : (
-                                                    <div className="flex-1 flex flex-col text-xs font-medium overflow-y-auto">
+                                                    <div className="flex-1 flex flex-col text-xs font-medium overflow-y-scroll">
                                                         <ul>
                                                             {orderHistory
                                                                 .sort((a, b) => b.id - a.id)
                                                                 .map((o) => {
                                                                     const isSell = o.orderType === 1;
-
-                                                                    // FIXED — preferred field order
                                                                     const price = Number(o.targetPrice ?? o.targetSqrt ?? 0);
-
-                                                                    // 🔥 FIXED: Show original deposited amount ALWAYS
                                                                     const amount = Number(o.originalAmountIn ?? o.amountIn ?? 0);
-
-                                                                    // Avoid NaN
-                                                                    const total = Number.isFinite(price * amount)
-                                                                        ? (price * amount)
-                                                                        : 0;
+                                                                    const total = Number.isFinite(price * amount) ? (price * amount) : 0;
 
                                                                     return (
                                                                         <li
                                                                             key={o.id}
                                                                             className={`px-3 py-2 flex items-center justify-between transition cursor-pointer 
-                                                                                  ${isSell ? "text-red-600 hover:bg-red-50"
+                                                    ${isSell ? "text-red-600 hover:bg-red-50"
                                                                                     : "text-green-600 hover:bg-green-50"}`}
                                                                         >
-                                                                            {/* Order ID + Price */}
-                                                                            <span
-                                                                                className="flex-1 flex items-center gap-2"
-                                                                                onClick={() => setTargetPrice(price.toString())}
-                                                                            >
+                                                                            <span className="flex-1 flex items-center gap-2" onClick={() => setTargetPrice(price.toString())}>
                                                                                 <span className="text-gray-400 font-semibold">#{o.id}</span>
                                                                                 <span>{Number.isFinite(price) ? price.toFixed(5) : "-"}</span>
                                                                             </span>
 
-                                                                            {/* Original Amount */}
-                                                                            <span
-                                                                                className="text-center cursor-pointer"
-                                                                                onClick={() => setFromAmount(amount.toString())}
-                                                                            >
+                                                                            <span className="text-center cursor-pointer" onClick={() => setFromAmount(amount.toString())}>
                                                                                 {Number.isFinite(amount) ? amount.toFixed(6) : "0"}
                                                                             </span>
 
-                                                                            {/* Total */}
                                                                             <span className="flex-1 text-right">
                                                                                 {Number.isFinite(total) ? total.toFixed(4) : "0"}
                                                                             </span>
