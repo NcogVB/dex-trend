@@ -8,7 +8,7 @@ import Converter1 from "./components/Converter1";
 import Home from "./pages/Home";
 import AmmDashboard from "./components/BotDashboard";
 import PolicyDashboard from "./pages/policy/Policy";
-// import LendingBorrowing from "./pages/LendingBorrowing/LB";
+import LendingBorrowing from "./pages/LendingBorrowing/LB";
 import { ToastProvider } from "./components/Toast";
 import PreSell from "./components/PreSell";
 
@@ -24,7 +24,7 @@ function App() {
             <Route path="/swap" element={<Swap />} />
             <Route path="/presell" element={<PreSell />} />
             <Route path="/Policy" element={<PolicyDashboard />} />
-            {/* <Route path="/LendingBorrowing" element={<LendingBorrowing />} /> */}
+            <Route path="/LendingBorrowing" element={<LendingBorrowing />} />
             <Route path="/Dashboard" element={<AmmDashboard />} />
             <Route path="/exchange" element={<Limit />} />
             <Route path="/pool" element={<Pool />} />

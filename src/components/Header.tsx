@@ -7,26 +7,33 @@ import {
     Copy,
     ExternalLink,
     LogOut,
-} from 'lucide-react'
-import React, { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useWallet } from '../contexts/WalletContext'
-import ChainSwitcher from './ChainSwitcher'
-import WalletModal from './WalletModel'
+    ArrowRightLeft,
+    Layers,
+    Globe,
+    BarChart3,
+    BookOpen,
+    Rocket
+} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { useWallet } from '../contexts/WalletContext';
+import ChainSwitcher from './ChainSwitcher';
+import WalletModal from './WalletModel';
 
 interface NavItem {
-    name: string
-    href: string
-    path: string
-    external?: boolean
+    name: string;
+    href: string;
+    path: string;
+    external?: boolean;
+    icon?: React.ReactNode;
 }
 
 const Header: React.FC = () => {
-    const location = useLocation()
-    const [isNavOpen, setIsNavOpen] = useState<boolean>(false)
-    const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState<boolean>(false)
-    const [isVisible, setIsVisible] = useState<boolean>(true)
-    const [lastScrollY, setLastScrollY] = useState<number>(0)
+    const location = useLocation();
+    const [isNavOpen, setIsNavOpen] = useState<boolean>(false);
+    const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState<boolean>(false);
+    const [isVisible, setIsVisible] = useState<boolean>(true);
+    const [lastScrollY, setLastScrollY] = useState<number>(0);
 
     const {
         account,
@@ -41,35 +48,37 @@ const Header: React.FC = () => {
         switchToSkyHigh,
         switchToBSC,
         copySuccess,
-    } = useWallet()
+    } = useWallet();
 
     const navItems: NavItem[] = [
-        { name: 'Swap', href: 'swap', path: '/swap' },
-        { name: 'Pool', href: 'pool', path: '/pool' },
-        { name: 'Bridge', href: 'https://bridge.skyhighblockchain.com/', path: '', external: true },
-        { name: 'Exchange', href: 'exchange', path: '/exchange' },
-        { name: 'Presell', href: 'Presell', path: '/Presell' },
-        // { name: 'Dashboard', href: 'Dashboard', path: '/Dashboard' },
-    ]
+        { name: 'Swap', href: 'swap', path: '/swap', icon: <ArrowRightLeft className="w-4 h-4" /> },
+        { name: 'Pool', href: 'pool', path: '/pool', icon: <Layers className="w-4 h-4" /> },
+        { name: 'Bridge', href: 'https://bridge.skyhighblockchain.com/', path: '', external: true, icon: <Globe className="w-4 h-4" /> },
+        { name: 'Exchange', href: 'exchange', path: '/exchange', icon: <BarChart3 className="w-4 h-4" /> },
+        { name: 'Lending', href: 'LendingBorrowing', path: '/LendingBorrowing', icon: <BookOpen className="w-4 h-4" /> },
+        { name: 'policy', href: 'policy', path: '/policy', icon: <Layers className="w-4 h-4" /> },
+        { name: 'Launchpad', href: 'Presell', path: '/Presell', icon: <Rocket className="w-4 h-4" /> },
+    ];
 
     // Scroll hide logic
     useEffect(() => {
         const handleScroll = (): void => {
-            const currentScrollY = window.scrollY
+            const currentScrollY = window.scrollY;
 
             if (currentScrollY < lastScrollY) {
-                setIsVisible(true)
+                setIsVisible(true);
             } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
-                setIsVisible(false)
-                setIsWalletDropdownOpen(false)
+                setIsVisible(false);
+                setIsWalletDropdownOpen(false);
             }
 
-            setLastScrollY(currentScrollY)
-        }
+            setLastScrollY(currentScrollY);
+        };
 
-        window.addEventListener('scroll', handleScroll, { passive: true })
-        return () => window.removeEventListener('scroll', handleScroll)
-    }, [lastScrollY])
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [lastScrollY]);
+
     // Auto-switch to SkyHigh on specific pages
     useEffect(() => {
         if (!isConnected) return;
@@ -79,6 +88,8 @@ const Header: React.FC = () => {
             "/pool",
             "/bridge",
             "/exchange",
+            "/policy",
+            "/LendingBorrowing",
             "/PoolData"
         ];
 
@@ -93,31 +104,31 @@ const Header: React.FC = () => {
                 switchToSkyHigh();
             }
         }
-    }, [location.pathname, chainId, isConnected]);
+    }, [location.pathname, chainId, isConnected, switchToBSC, switchToSkyHigh]);
 
     const WalletButton = () => {
         if (!isConnected) {
             return (
                 <button
                     onClick={openModal}
-                    className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-red-600 px-5 py-2.5 rounded-lg text-white text-sm font-medium shadow hover:opacity-90 transition"
+                    className="flex items-center gap-2 bg-black text-white px-5 py-2.5 rounded-full text-sm font-semibold shadow-md hover:scale-105 hover:shadow-lg transition-all duration-200 active:scale-95"
                 >
                     <Wallet className="w-4 h-4" />
-                    Connect Wallet
+                    <span>Connect</span>
                 </button>
-            )
+            );
         }
 
         return (
             <div className="relative">
                 <button
                     onClick={() => setIsWalletDropdownOpen(!isWalletDropdownOpen)}
-                    className="flex items-center gap-2 bg-gray-100 px-4 py-2.5 rounded-lg text-sm font-medium border hover:bg-gray-200 transition"
+                    className="flex items-center gap-2 bg-white/50 backdrop-blur-sm border border-gray-200 px-4 py-2 rounded-full text-sm font-medium hover:bg-white hover:shadow-sm transition-all duration-200"
                 >
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    {formatAddress(account!)}
+                    <div className={`w-2 h-2 rounded-full ${chainId ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500'}`}></div>
+                    <span className="text-gray-700">{formatAddress(account!)}</span>
                     <ChevronDown
-                        className={`w-4 h-4 transition-transform ${isWalletDropdownOpen ? 'rotate-180' : ''}`}
+                        className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${isWalletDropdownOpen ? 'rotate-180' : ''}`}
                     />
                 </button>
 
@@ -127,93 +138,118 @@ const Header: React.FC = () => {
                             className="fixed inset-0 z-10"
                             onClick={() => setIsWalletDropdownOpen(false)}
                         />
-                        <div className="absolute right-0 mt-2 w-64 z-20 bg-white border rounded-xl shadow-lg py-3">
-                            <div className="px-4 pb-3 border-b">
-                                <p className="text-xs text-gray-500">Connected via {connectedWallet}</p>
-                                <p className="text-sm font-mono mt-1 break-all">{account}</p>
+                        <div className="absolute right-0 mt-3 w-72 z-20 bg-white/95 backdrop-blur-xl border border-gray-100 rounded-2xl shadow-2xl overflow-hidden ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="p-4 bg-gray-50/50 border-b border-gray-100">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Connected</span>
+                                    <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold border border-green-200">
+                                        Active
+                                    </span>
+                                </div>
+                                <p className="text-sm font-bold text-gray-800 break-all font-mono">{account}</p>
+                                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                    via {connectedWallet}
+                                </p>
                             </div>
 
-                            <button
-                                onClick={copyAddress}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100"
-                            >
-                                <Copy className="w-4 h-4" />
-                                {copySuccess ? "Copied!" : "Copy Address"}
-                            </button>
+                            <div className="p-2 space-y-1">
+                                <button
+                                    onClick={copyAddress}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 transition-colors group"
+                                >
+                                    <div className="p-1.5 rounded-md bg-gray-100 group-hover:bg-white group-hover:shadow-sm transition-all">
+                                        <Copy className="w-4 h-4" />
+                                    </div>
+                                    {copySuccess ? <span className="text-green-600">Copied!</span> : "Copy Address"}
+                                </button>
 
-                            <button
-                                onClick={viewOnExplorer}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100"
-                            >
-                                <ExternalLink className="w-4 h-4" />
-                                View on Explorer
-                            </button>
+                                <button
+                                    onClick={viewOnExplorer}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 transition-colors group"
+                                >
+                                    <div className="p-1.5 rounded-md bg-gray-100 group-hover:bg-white group-hover:shadow-sm transition-all">
+                                        <ExternalLink className="w-4 h-4" />
+                                    </div>
+                                    View on Explorer
+                                </button>
 
-                            <button
-                                onClick={disconnect}
-                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t mt-2 pt-2"
-                            >
-                                <LogOut className="w-4 h-4" />
-                                Disconnect
-                            </button>
+                                <div className="my-1 border-t border-gray-100"></div>
+
+                                <button
+                                    onClick={disconnect}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors group"
+                                >
+                                    <div className="p-1.5 rounded-md bg-red-100 group-hover:bg-white group-hover:shadow-sm transition-all">
+                                        <LogOut className="w-4 h-4" />
+                                    </div>
+                                    Disconnect Wallet
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}
             </div>
-        )
-    }
+        );
+    };
 
     return (
         <>
             <header
-                className={`sticky top-0 z-50 w-full bg-white/90 backdrop-blur-md transition-transform duration-300 
-            ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}
+                className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-in-out ${isVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
+                    }`}
             >
-                <div className="container mx-auto flex h-16 items-center justify-between px-4">
+                <div className="absolute inset-0 bg-white/70 backdrop-blur-xl border-b border-white/20 shadow-sm"></div>
 
-                    {/* Logo */}
-                    <Link to="/" className="flex items-center gap-2">
-                        <img src="/images/dex.jpeg" alt="Dextrend Logo" className="h-9 w-9 rounded-full object-cover" />
-                        <span className="text-lg font-bold tracking-wide">Dextrend</span>
+                <div className="container mx-auto relative h-[72px] flex items-center justify-between px-4 lg:px-8">
+
+                    <Link to="/" className="flex items-center gap-3 group z-10">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-blue-500 rounded-full blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                            <img src="/images/dex.jpeg" alt="Dextrend" className="h-10 w-10 rounded-full object-cover relative ring-2 ring-white shadow-sm" />
+                        </div>
+                        <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600">
+                            Dextrend
+                        </span>
                     </Link>
 
-                    {/* Centered Navigation */}
-                    <nav className="absolute left-1/2 transform -translate-x-1/2 hidden md:flex items-center gap-8">
-                        {navItems.map((item, index) =>
-                            item.external ? (
+                    <nav className="hidden lg:flex items-center absolute left-1/2 -translate-x-1/2 bg-gray-100/50 p-1.5 rounded-full border border-gray-200/50 backdrop-blur-sm">
+                        {navItems.map((item, index) => {
+                            const isActive = location.pathname === item.path && !item.external;
+                            return item.external ? (
                                 <a
                                     key={index}
                                     href={item.href}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-sm font-medium transition text-gray-600 hover:text-gray-900"
+                                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-500 rounded-full hover:text-gray-900 hover:bg-white hover:shadow-sm transition-all duration-200"
                                 >
+                                    {item.icon}
                                     {item.name}
                                 </a>
                             ) : (
                                 <Link
                                     key={index}
                                     to={item.href}
-                                    className={`text-sm font-medium transition ${location.pathname === item.path
-                                        ? "text-red-600"
-                                        : "text-gray-600 hover:text-gray-900"
+                                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${isActive
+                                            ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200"
+                                            : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                                         }`}
                                 >
+                                    {item.icon}
                                     {item.name}
                                 </Link>
-                            )
-                        )}
+                            );
+                        })}
                     </nav>
 
-
-                    {/* Right Controls */}
-                    <div className="flex items-center gap-3">
-                        <ChainSwitcher />
+                    <div className="flex items-center gap-3 z-10">
+                        <div className="hidden sm:block">
+                            <ChainSwitcher />
+                        </div>
                         <WalletButton />
 
-                        {/* Mobile nav toggle */}
                         <button
-                            className="md:hidden p-2 text-gray-600 hover:text-gray-900"
+                            className="lg:hidden p-2 text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors"
                             onClick={() => setIsNavOpen(!isNavOpen)}
                         >
                             {isNavOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -221,40 +257,57 @@ const Header: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Mobile Navigation */}
-                {isNavOpen && (
-                    <>
-                        <div className="md:hidden border-t bg-white shadow-md">
-                            <nav className="px-4 py-4 space-y-3">
-                                {navItems.map((item, index) =>
-                                    item.external ? (
-                                        <a
-                                            key={index}
-                                            href={item.href}
-                                            target="_blank"
-                                            className="block text-gray-700 font-medium"
-                                        >
-                                            {item.name}
-                                        </a>
-                                    ) : (
-                                        <Link
-                                            key={index}
-                                            to={item.href}
-                                            className="block text-gray-700 font-medium"
-                                            onClick={() => setIsNavOpen(false)}
-                                        >
-                                            {item.name}
-                                        </Link>
-                                    )
-                                )}
-                            </nav>
+                <div
+                    className={`lg:hidden absolute top-[72px] left-0 w-full bg-white border-b border-gray-100 shadow-xl transition-all duration-300 ease-in-out origin-top ${isNavOpen ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0 h-0 overflow-hidden'
+                        }`}
+                >
+                    <div className="p-4 space-y-2">
+                        <div className="sm:hidden mb-4 pb-4 border-b border-gray-100 flex justify-center">
+                            <ChainSwitcher />
                         </div>
-                    </>
-                )}
-            </header>
-            <WalletModal />
-        </>
-    )
-}
 
-export default Header
+                        {navItems.map((item, index) => {
+                            const isActive = location.pathname === item.path;
+                            return item.external ? (
+                                <a
+                                    key={index}
+                                    href={item.href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-3 px-4 py-3 text-gray-600 font-medium rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                                >
+                                    <span className="p-2 bg-gray-100 rounded-lg text-gray-500">
+                                        {item.icon}
+                                    </span>
+                                    {item.name}
+                                    <ExternalLink className="w-3 h-3 ml-auto text-gray-400" />
+                                </a>
+                            ) : (
+                                <Link
+                                    key={index}
+                                    to={item.href}
+                                    onClick={() => setIsNavOpen(false)}
+                                    className={`flex items-center gap-3 px-4 py-3 font-medium rounded-xl transition-colors ${isActive
+                                            ? "bg-blue-50 text-blue-600"
+                                            : "text-gray-600 hover:bg-gray-50 active:bg-gray-100"
+                                        }`}
+                                >
+                                    <span className={`p-2 rounded-lg ${isActive ? "bg-white text-blue-600 shadow-sm" : "bg-gray-100 text-gray-500"}`}>
+                                        {item.icon}
+                                    </span>
+                                    {item.name}
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </div>
+            </header>
+
+            <WalletModal />
+
+            <div className="h-[72px]" />
+        </>
+    );
+};
+
+export default Header;

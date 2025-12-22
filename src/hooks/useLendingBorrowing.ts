@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import { useWallet } from "../contexts/WalletContext"; // Adjust path as needed
 import SimpleLendingBorrowingABI from "../ABI/LB.json"; // Adjust path as needed
 
-const CONTRACT_ADDRESS = "0x21718A6E1076137534f6c30a1Be5D2e02b1ca18C"; // 🔹 Replace with deployed address
+const CONTRACT_ADDRESS = "0x12fe4C3D3a84513D04641997dc6E3D1Dea2e5585"; // 🔹 Replace with deployed address
 
 interface CollateralPosition {
     token: string;

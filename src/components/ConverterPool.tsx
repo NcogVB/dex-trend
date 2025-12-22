@@ -1,178 +1,234 @@
-import React, { useState } from "react"
-import { useWallet } from "../contexts/WalletContext"
-import { ethers } from "ethers"
-import { ArrowLeft, ChevronDown } from "lucide-react"
-import { useNavigate } from "react-router-dom"
-import { TOKENS } from "../utils/SwapTokens"
-import { useLiquidity } from "../hooks/useLiquidity"
+import React, { useState, useRef, useEffect } from "react";
+import { useWallet } from "../contexts/WalletContext";
+import { ethers } from "ethers";
+import { ArrowLeft, ChevronDown, Plus, Layers, Loader2, Info } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { TOKENS } from "../utils/SwapTokens";
+import { useLiquidity } from "../hooks/useLiquidity";
 
 const ConverterPool: React.FC = () => {
-    const { addLiquidity, loading } = useLiquidity()
-    const { provider } = useWallet()
-    const navigate = useNavigate()
+    const { addLiquidity, loading } = useLiquidity();
+    const { provider } = useWallet();
+    const navigate = useNavigate();
 
-    const [fromToken, setFromToken] = useState(TOKENS[0])
-    const [toToken, setToToken] = useState(TOKENS[1])
-    const [amount, setAmount] = useState<string>("")
-    const [isAdding, setIsAdding] = useState(false)
+    const [fromToken, setFromToken] = useState(TOKENS[0]);
+    const [toToken, setToToken] = useState(TOKENS[1]);
+    const [amount, setAmount] = useState<string>("");
+    const [isAdding, setIsAdding] = useState(false);
 
-    const [showFromDropdown, setShowFromDropdown] = useState(false)
-    const [showToDropdown, setShowToDropdown] = useState(false)
+    const [showFromDropdown, setShowFromDropdown] = useState(false);
+    const [showToDropdown, setShowToDropdown] = useState(false);
 
-    const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7"
+    // Refs for clicking outside dropdowns
+    const fromRef = useRef<HTMLDivElement>(null);
+    const toRef = useRef<HTMLDivElement>(null);
+
+    const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
     const FACTORY_ABI = [
         "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
-    ]
+    ];
+
+    // Close dropdowns when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (fromRef.current && !fromRef.current.contains(event.target as Node)) {
+                setShowFromDropdown(false);
+            }
+            if (toRef.current && !toRef.current.contains(event.target as Node)) {
+                setShowToDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const handleAddLiquidity = async () => {
-        if (!amount) {
-            alert("Enter an amount")
-            return
+        if (!amount || parseFloat(amount) <= 0) {
+            alert("Please enter a valid amount");
+            return;
         }
-        setIsAdding(true)
+        setIsAdding(true);
         try {
-            const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider)
-            console.log("factory", factory)
-            const poolAddress = await factory.getPool(fromToken.address, toToken.address, 500)
+            const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
+            // Checking for 0.05% pool (500)
+            const poolAddress = await factory.getPool(fromToken.address, toToken.address, 500);
+
             if (poolAddress === ethers.ZeroAddress) {
-                alert("No pool exists for this pair. Create pool first.")
-                setIsAdding(false)
-                return
+                alert("No pool exists for this pair (0.05%). Please create the pool first.");
+                setIsAdding(false);
+                return;
             }
 
-            console.log("Pool:", poolAddress)
+            console.log("Pool Found:", poolAddress);
 
             await addLiquidity({
                 tokenA: fromToken.address,
                 tokenB: toToken.address,
                 amountA: amount,
-                amountB: amount, // ✅ single input used for both
-            })
+                amountB: amount, // Logic: Adding equal raw amounts (or as per hook logic)
+            });
 
-            alert("Liquidity added successfully!")
-            setAmount("")
+            alert("Liquidity added successfully!");
+            setAmount("");
         } catch (err) {
-            console.error("Error adding liquidity:", err)
-            alert("Failed to add liquidity")
+            console.error("Error adding liquidity:", err);
+            alert("Failed to add liquidity. Check console for details.");
         } finally {
-            setIsAdding(false)
+            setIsAdding(false);
         }
-    }
+    };
 
     return (
-        <div className="flex items-center justify-center px-4 min-h-screen">
-            <div className="w-full p-[3.5px] md:rounded-[40px] rounded-[20px] max-w-[500px]">
-                <div className="bg-white shadow-lg border border-gray-200 w-full md:rounded-[40px] rounded-[20px] px-6 py-8">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="flex items-center gap-1 text-sm px-4 py-2 text-black hover:text-[#DC2626]"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        Back
-                    </button>
+        <div className="flex items-center justify-center px-4 min-h-[90vh] bg-gray-50/50">
+            <div className="w-full max-w-[480px]">
+                <div className="bg-white shadow-xl border border-gray-100 rounded-3xl overflow-hidden relative">
 
-                    <h2 className="mt-4 mb-6 font-bold text-2xl text-center">Add Liquidity</h2>
-
-                    {/* From token dropdown */}
-                    <div className="mb-4 relative">
-                        <label className="block mb-2 text-sm font-medium">From Token</label>
-                        <div
-                            className="flex items-center gap-2 border rounded-lg p-2 cursor-pointer bg-gray-50 hover:bg-gray-100 transition"
-                            onClick={() => setShowFromDropdown(!showFromDropdown)}
+                    {/* Header */}
+                    <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-white">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="p-2 -ml-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors"
                         >
-                            <img src={fromToken.img} alt="" className="w-6 h-6 rounded-full" />
-                            <span className="font-medium">{fromToken.symbol}</span>
-                            <ChevronDown className="ml-auto w-4 h-4 text-gray-500" />
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <h2 className="font-bold text-lg text-gray-800">Add Liquidity</h2>
+                        <div className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                            <Layers size={18} />
+                        </div>
+                    </div>
+
+                    <div className="p-6 space-y-6">
+
+                        {/* Pair Selection Area */}
+                        <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3 block">
+                                Select Pair
+                            </label>
+
+                            <div className="flex items-center gap-3">
+                                {/* Token A Selector */}
+                                <div className="relative flex-1" ref={fromRef}>
+                                    <button
+                                        onClick={() => setShowFromDropdown(!showFromDropdown)}
+                                        className="w-full flex items-center justify-between bg-white border border-gray-200 px-3 py-2.5 rounded-xl shadow-sm hover:border-blue-400 transition-all"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <img src={fromToken.img} alt="" className="w-6 h-6 rounded-full border border-gray-100" />
+                                            <span className="font-bold text-gray-700">{fromToken.symbol}</span>
+                                        </div>
+                                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                                    </button>
+
+                                    {showFromDropdown && (
+                                        <div className="absolute top-full left-0 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl z-20 overflow-hidden max-h-56 overflow-y-auto">
+                                            {TOKENS.filter(t => t.symbol !== toToken.symbol).map((t) => (
+                                                <button
+                                                    key={t.symbol}
+                                                    onClick={() => {
+                                                        setFromToken(t);
+                                                        setShowFromDropdown(false);
+                                                    }}
+                                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                                                >
+                                                    <img src={t.img} className="w-6 h-6 rounded-full" alt="" />
+                                                    <span className="font-medium text-gray-700">{t.symbol}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="text-gray-400">
+                                    <Plus size={16} />
+                                </div>
+
+                                {/* Token B Selector */}
+                                <div className="relative flex-1" ref={toRef}>
+                                    <button
+                                        onClick={() => setShowToDropdown(!showToDropdown)}
+                                        className="w-full flex items-center justify-between bg-white border border-gray-200 px-3 py-2.5 rounded-xl shadow-sm hover:border-blue-400 transition-all"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <img src={toToken.img} alt="" className="w-6 h-6 rounded-full border border-gray-100" />
+                                            <span className="font-bold text-gray-700">{toToken.symbol}</span>
+                                        </div>
+                                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                                    </button>
+
+                                    {showToDropdown && (
+                                        <div className="absolute top-full right-0 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl z-20 overflow-hidden max-h-56 overflow-y-auto">
+                                            {TOKENS.filter(t => t.symbol !== fromToken.symbol).map((t) => (
+                                                <button
+                                                    key={t.symbol}
+                                                    onClick={() => {
+                                                        setToToken(t);
+                                                        setShowToDropdown(false);
+                                                    }}
+                                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                                                >
+                                                    <img src={t.img} className="w-6 h-6 rounded-full" alt="" />
+                                                    <span className="font-medium text-gray-700">{t.symbol}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Fee Tier Badge */}
+                            <div className="flex justify-end mt-2">
+                                <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                    0.05% Fee Tier
+                                </span>
+                            </div>
                         </div>
 
-                        {showFromDropdown && (
-                            <div className="absolute mt-2 w-full bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto z-50">
-                                <ul className="divide-y divide-gray-100">
-                                    {TOKENS
-                                        .filter((t) => t.symbol !== toToken.symbol)
-                                        .map((t) => (
-                                            <li
-                                                key={t.symbol}
-                                                onClick={() => {
-                                                    setFromToken(t);
-                                                    setShowFromDropdown(false);
-                                                }}
-                                                className="flex items-center px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                                            >
-                                                <img src={t.img} alt="" className="w-6 h-6 rounded-full mr-3" />
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium">{t.symbol}</span>
-                                                    <span className="text-xs text-gray-500">{t.name}</span>
-                                                </div>
-                                            </li>
-                                        ))}
-                                </ul>
+                        {/* Amount Input */}
+                        <div>
+                            <div className="flex justify-between mb-2">
+                                <label className="text-sm font-medium text-gray-600">Deposit Amount</label>
+                                <span className="text-xs text-gray-400 flex items-center gap-1">
+                                    <Info size={12} /> Applies to both assets
+                                </span>
                             </div>
-                        )}
-                    </div>
-
-                    {/* To token dropdown */}
-                    <div className="mb-4 relative">
-                        <label className="block mb-2 text-sm font-medium">To Token</label>
-                        <div
-                            className="flex items-center gap-2 border rounded-lg p-2 cursor-pointer bg-gray-50 hover:bg-gray-100 transition"
-                            onClick={() => setShowToDropdown(!showToDropdown)}
-                        >
-                            <img src={toToken.img} alt="" className="w-6 h-6 rounded-full" />
-                            <span className="font-medium">{toToken.symbol}</span>
-                            <ChevronDown className="ml-auto w-4 h-4 text-gray-500" />
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    placeholder="0.00"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-4 text-2xl font-bold text-gray-900 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder-gray-300"
+                                />
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                    <span className="text-xs font-bold text-gray-400 uppercase">UNITS</span>
+                                </div>
+                            </div>
                         </div>
 
-                        {showToDropdown && (
-                            <div className="absolute mt-2 w-full bg-white border rounded-lg shadow-lg max-h-64 overflow-y-auto z-50">
-                                <ul className="divide-y divide-gray-100">
-                                    {TOKENS
-                                        .filter((t) => t.symbol !== fromToken.symbol)
-                                        .map((t) => (
-                                            <li
-                                                key={t.symbol}
-                                                onClick={() => {
-                                                    setToToken(t);
-                                                    setShowToDropdown(false);
-                                                }}
-                                                className="flex items-center px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                                            >
-                                                <img src={t.img} alt="" className="w-6 h-6 rounded-full mr-3" />
-                                                <div className="flex flex-col">
-                                                    <span className="font-medium">{t.symbol}</span>
-                                                    <span className="text-xs text-gray-500">{t.name}</span>
-                                                </div>
-                                            </li>
-                                        ))}
-                                </ul>
-                            </div>
-                        )}
+                        {/* Action Button */}
+                        <button
+                            onClick={handleAddLiquidity}
+                            disabled={isAdding || loading || !amount}
+                            className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2
+                                ${isAdding || loading
+                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
+                                    : "bg-gradient-to-r from-red-600 to-red-500 text-white"
+                                }`}
+                        >
+                            {isAdding || loading ? (
+                                <>
+                                    <Loader2 className="animate-spin w-5 h-5" />
+                                    Processing...
+                                </>
+                            ) : (
+                                "Confirm Deposit"
+                            )}
+                        </button>
                     </div>
-
-
-                    {/* Single input for amount */}
-                    <div className="mb-4">
-                        <label className="block mb-2">Amount</label>
-                        <input
-                            type="number"
-                            placeholder="0.0"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            className="w-full p-2 border rounded"
-                        />
-                    </div>
-
-                    <button
-                        onClick={handleAddLiquidity}
-                        disabled={isAdding || loading}
-                        className="mt-6 w-full bg-[#DC2626] text-white rounded-full py-3 font-semibold disabled:opacity-50"
-                    >
-                        {isAdding ? "Adding Liquidity..." : "Add Liquidity"}
-                    </button>
                 </div>
             </div>
         </div>
-    )
-}
+    );
+};
 
-export default ConverterPool
+export default ConverterPool;

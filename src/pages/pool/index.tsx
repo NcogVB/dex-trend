@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Wallet } from "lucide-react";
+import { Wallet, Plus, Minus, Layers, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ethers } from "ethers";
 import { Token } from "@uniswap/sdk-core";
@@ -158,7 +158,6 @@ const Pool = () => {
                         getTokenData(token1),
                     ]);
 
-                    // ✅ Hard safeguard against undefined decimals
                     const dec0 = Number.isFinite(data0.decimals) ? data0.decimals : 18;
                     const dec1 = Number.isFinite(data1.decimals) ? data1.decimals : 18;
 
@@ -227,99 +226,162 @@ const Pool = () => {
         }
     };
 
+    const SkeletonLoader = () => (
+        <div className="space-y-4 animate-pulse">
+            {[1, 2, 3].map((i) => (
+                <div key={i} className="h-24 bg-gray-100 rounded-xl w-full border border-gray-200" />
+            ))}
+        </div>
+    );
 
     return (
-        <div>
-            <div className="hero-section">
-                <div className="flex-grow flex flex-col items-center px-4 pt-[40px] md:pt-[88px] container mx-auto w-full">
-                    <div className="modern-card mt-[56px] w-full max-w-[690px] mx-auto px-4">
-                        <div className="w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
-                            {/* Tabs */}
-                            <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">
+        <div className="min-h-screen bg-gray-50/50">
+            <div className="container mx-auto px-4 py-8 max-w-2xl">
+                {/* Header Card */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+                    {/* Navigation Pills */}
+                    <div className="flex justify-center mb-8">
+                        <div className="inline-flex bg-gray-100/80 p-1.5 rounded-xl border border-gray-200">
+                            <Link
+                                to="/swap"
+                                className="px-6 py-2.5 rounded-lg text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors"
+                            >
+                                Swap
+                            </Link>
+                            <Link
+                                to="/pool"
+                                className="px-6 py-2.5 rounded-lg bg-white text-blue-600 font-bold text-sm shadow-sm ring-1 ring-black/5"
+                            >
+                                Pool
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* Action Buttons Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <Link
+                            to="/addlp"
+                            className="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl border border-blue-200 transition-all duration-200 group"
+                        >
+                            <div className="bg-white p-2.5 rounded-full mb-2 shadow-sm group-hover:scale-110 transition-transform">
+                                <Plus size={20} className="text-blue-600" />
+                            </div>
+                            <span className="font-bold text-sm">New Position</span>
+                        </Link>
+
+                        <Link
+                            to="/removelp"
+                            className="flex flex-col items-center justify-center p-4 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl border border-gray-200 transition-all duration-200 group"
+                        >
+                            <div className="bg-white p-2.5 rounded-full mb-2 shadow-sm group-hover:scale-110 transition-transform">
+                                <Minus size={20} className="text-gray-600" />
+                            </div>
+                            <span className="font-bold text-sm">Remove Liquidity</span>
+                        </Link>
+                    </div>
+                </div>
+
+                {/* Positions Section */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                            <Layers size={18} className="text-blue-500" />
+                            Your Positions
+                        </h3>
+                        {positions.length > 0 && !loading && (
+                            <span className="bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
+                                {positions.length}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="p-6">
+                        {!account ? (
+                            <div className="text-center py-12">
+                                <div className="bg-orange-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Wallet className="w-8 h-8 text-orange-500" />
+                                </div>
+                                <h4 className="text-gray-900 font-bold mb-1">Wallet Not Connected</h4>
+                                <p className="text-gray-500 text-sm mb-4">Connect your wallet to view your liquidity positions.</p>
+                            </div>
+                        ) : loading ? (
+                            <SkeletonLoader />
+                        ) : positions.length === 0 ? (
+                            <div className="text-center py-12">
+                                <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-200">
+                                    <AlertCircle className="w-8 h-8 text-gray-400" />
+                                </div>
+                                <h4 className="text-gray-900 font-bold mb-1">No Active Positions</h4>
+                                <p className="text-gray-500 text-sm mb-6">You don't have any liquidity positions yet.</p>
                                 <Link
-                                    to="/swap"
-                                    className="rounded-[6px] text-[#888888] font-medium text-sm px-[20px] py-[10px] cursor-pointer hover:text-[#333333] transition-colors"
+                                    to="/addlp"
+                                    className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition"
                                 >
-                                    Exchange
-                                </Link>
-                                <Link
-                                    to="/pool"
-                                    className="rounded-[6px] bg-white text-[#DC2626] font-semibold text-sm px-[20px] py-[10px] cursor-pointer shadow-sm"
-                                >
-                                    Pool
+                                    <Plus size={16} />
+                                    Create Your First Position
                                 </Link>
                             </div>
-
-                            {/* Buttons */}
-                            <Link
-                                to="/addlp"
-                                className="modern-button relative z-10 w-full flex items-center justify-center space-x-2 mb-6 py-4 !bg-red-600 !text-white hover:!bg-red-700"
-                            >
-                                <Wallet />
-                                <span>Add Liquidity</span>
-                            </Link>
-
-                            <Link
-                                to="/removelp"
-                                className="modern-button relative z-10 w-full flex items-center justify-center space-x-2 mb-6 py-4 !bg-red-600 !text-white hover:!bg-red-700"
-                            >
-                                <Wallet />
-                                <span>Remove Liquidity</span>
-                            </Link>
-
-                            {/* Positions */}
-                            <div className="relative z-10 modern-card p-6 text-center">
-                                {loading ? (
-                                    <p className="text-gray-500">Loading positions...</p>
-                                ) : positions.length > 0 ? (
-                                    <div className="max-h-[420px] overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-                                        {positions.map((p) => (
-                                            <div
-                                                key={p.tokenId}
-                                                className="border border-gray-200 rounded-lg p-3 bg-gray-50 text-left shadow-sm hover:shadow-md transition-all duration-200"
-                                            >
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <div className="font-semibold text-red-600 text-sm">
-                                                        #{p.tokenId}
+                        ) : (
+                            /* SCROLLABLE CONTAINER */
+                            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                                {positions.map((p) => (
+                                    <div
+                                        key={p.tokenId}
+                                        className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+                                    >
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex -space-x-2">
+                                                    <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] font-bold">
+                                                        {p.symbol0[0]}
                                                     </div>
-                                                    <div className="text-xs text-gray-500">
-                                                        {(Number(p.fee) / 10000).toFixed(2)}% fee
+                                                    <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] font-bold">
+                                                        {p.symbol1[0]}
                                                     </div>
                                                 </div>
-
-                                                <div className="text-sm text-gray-800 font-medium mb-2">
-                                                    {p.symbol0}/{p.symbol1}
-                                                </div>
-
-                                                <div className="flex flex-col text-xs text-gray-700 space-y-1">
-                                                    <div>
-                                                        {p.symbol0}:{" "}
-                                                        <span className="font-semibold">
-                                                            {p.amount0.toFixed(6)}
+                                                <div>
+                                                    <div className="font-bold text-gray-900 flex items-center gap-2">
+                                                        {p.symbol0} / {p.symbol1}
+                                                        <span className="bg-gray-100 text-gray-600 text-[10px] px-1.5 py-0.5 rounded border border-gray-200">
+                                                            {(Number(p.fee) / 10000).toFixed(2)}%
                                                         </span>
                                                     </div>
-                                                    <div>
-                                                        {p.symbol1}:{" "}
-                                                        <span className="font-semibold">
-                                                            {p.amount1.toFixed(6)}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-gray-500">
-                                                        Tick range: {p.tickLower} → {p.tickUpper}
+                                                    <div className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                                                        In Range
                                                     </div>
                                                 </div>
                                             </div>
-                                        ))}
+                                            <span className="text-xs font-mono text-gray-400">#{p.tokenId}</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4 bg-gray-50/50 rounded-lg p-3 border border-gray-100">
+                                            <div>
+                                                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold mb-1">
+                                                    {p.symbol0} Amount
+                                                </p>
+                                                <p className="font-mono font-medium text-gray-700 text-sm">
+                                                    {p.amount0.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold mb-1">
+                                                    {p.symbol1} Amount
+                                                </p>
+                                                <p className="font-mono font-medium text-gray-700 text-sm">
+                                                    {p.amount1.toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-3 flex justify-between items-center text-xs text-gray-500 border-t border-gray-100 pt-3">
+                                            <span>Min: {p.tickLower}</span>
+                                            <span>Max: {p.tickUpper}</span>
+                                        </div>
                                     </div>
-                                ) : (
-                                    <div className="text-[#333333] font-semibold text-xl leading-7 max-w-[380px] mx-auto">
-                                        {account
-                                            ? "No active liquidity positions found."
-                                            : "Connect your wallet to view positions."}
-                                    </div>
-                                )}
+                                ))}
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>

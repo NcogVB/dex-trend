@@ -1,308 +1,364 @@
-import { useState, useCallback, useEffect } from "react";
-import { ChevronDown } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { ChevronDown, TrendingUp, Activity, } from "lucide-react";
 import { useWallet } from "../../contexts/WalletContext";
 import { TOKENS } from "../../utils/SwapTokens";
-import LendingBorrowingABI from "../../ABI/LB.json";
 import { ethers } from "ethers";
 import { ERC20_ABI } from "../../contexts/ABI";
 
+const LENDING_ABI = [
+    "function depositCollateral(address token, uint256 amount) external",
+    "function withdrawCollateral(uint256 amount) external",
+    "function borrow(address borrowToken, uint256 amount) external",
+    "function repay(uint256 amount) external",
+    "function collaterals(address) view returns (address token, uint256 amount)",
+    "function debts(address) view returns (address token, uint256 principal, uint256 interestIndex, uint256 lastAccrued)",
+    "function getHealthFactor(address user) view returns (uint256)",
+    "function getBorrowAPRPercent() view returns (uint256)",
+    "function maxLTV() view returns (uint256)"
+];
+
+const CONTRACT_ADDRESS = "0x602bf26b70BE787ed2973dd8bB93c83c1B5B7f31";
+
 const LendingBorrowing = () => {
     const { account, provider, signer } = useWallet();
-    const CONTRACT_ADDRESS = "0x602bf26b70BE787ed2973dd8bB93c83c1B5B7f31";
 
-    const [tokens, setTokens] = useState(
-        TOKENS.map((t) => ({ ...t, balance: 0, realBalance: "0" }))
-    );
-    const [activeTab, setActiveTab] = useState("supply");
-    const [supplyToken, setSupplyToken] = useState(tokens[0]);
-    const [borrowToken, setBorrowToken] = useState(tokens[1]);
-    const [supplyAmount, setSupplyAmount] = useState("");
-    const [borrowAmount, setBorrowAmount] = useState("");
-    const [isSupplyDropdownOpen, setIsSupplyDropdownOpen] = useState(false);
-    const [isBorrowDropdownOpen, setIsBorrowDropdownOpen] = useState(false);
+    const [tokens, setTokens] = useState(TOKENS.map((t) => ({ ...t, balance: "0.00" })));
+    const [activeTab, setActiveTab] = useState<"supply" | "borrow">("supply");
+    const [actionType, setActionType] = useState<"deposit" | "withdraw" | "borrow" | "repay">("deposit");
 
-    const [userCollateral, setUserCollateral] = useState({
-        token: "",
-        amount: "0",
+    const [selectedToken, setSelectedToken] = useState(tokens[0]);
+    const [amount, setAmount] = useState("");
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    const [userStats, setUserStats] = useState({
+        collateralToken: ethers.ZeroAddress,
+        collateralAmount: "0",
+        debtToken: ethers.ZeroAddress,
+        debtAmount: "0",
+        healthFactor: "0",
+        borrowAPY: "0",
+        maxLTV: "0"
     });
 
-    const [userDebt, setUserDebt] = useState({
-        token: "",
-        principal: "0",
-        interestIndex: "0",
-    });
+    const getContract = () => new ethers.Contract(CONTRACT_ADDRESS, LENDING_ABI, signer);
 
-    const getContract = () =>
-        new ethers.Contract(CONTRACT_ADDRESS, LendingBorrowingABI.abi, signer);
-
-    // 🔹 Fetch token balances
-    const getTokenBalance = useCallback(
-        async (tokenAddress: string) => {
-            if (!account) return "0";
-            try {
-                const token = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-                const bal = await token.balanceOf(account);
-                return ethers.formatUnits(bal, 18);
-            } catch (err) {
-                console.error("Balance error:", err);
-                return "0";
-            }
-        },
-        [account]
-    );
-
-    const updateBalances = useCallback(async () => {
-        if (!account) return;
-        const updated = await Promise.all(
-            tokens.map(async (t) => {
-                const realBalance = await getTokenBalance(t.address);
-                return { ...t, realBalance, balance: parseFloat(realBalance) };
-            })
-        );
-        setTokens(updated);
-        setSupplyToken(
-            (prev) => updated.find((t) => t.symbol === prev.symbol) || updated[0]
-        );
-        setBorrowToken(
-            (prev) => updated.find((t) => t.symbol === prev.symbol) || updated[1]
-        );
-    }, [account, getTokenBalance]);
+    const formatEth = (val: any) => ethers.formatUnits(val, 18);
+    const parseEth = (val: string) => ethers.parseUnits(val, 18);
 
     useEffect(() => {
-        updateBalances();
-    }, [account, updateBalances]);
+        function handleClickOutside(event: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
-    // 🔹 Fetch user collateral & debt
-    // 🔹 Fetch user collateral & debt
-    const fetchUserPositions = useCallback(async () => {
-        if (!account) return;
+    const fetchData = useCallback(async () => {
+        if (!account || !provider) return;
+
         try {
-            const contract = getContract();
+            const lendingContract = new ethers.Contract(CONTRACT_ADDRESS, LENDING_ABI, provider);
 
-            // Fetch both in parallel
-            const [collateralData, debtData] = await Promise.all([
-                contract.collaterals(account),
-                contract.debts(account),
+            const [colData, debtData, hf, apy, ltv] = await Promise.all([
+                lendingContract.collaterals(account),
+                lendingContract.debts(account),
+                lendingContract.getHealthFactor(account),
+                lendingContract.getBorrowAPRPercent(),
+                lendingContract.maxLTV()
             ]);
 
-            // collateralData = [tokenAddress, amount]
-            // debtData = [token, principal, interestIndex, lastAccrued]
-
-            const collateralToken = collateralData[0];
-            const collateralAmount = collateralData[1]
-                ? ethers.formatUnits(collateralData[1], 18)
-                : "0";
-
-            const debtToken = debtData[0];
-            const principal = debtData[1] ? ethers.formatUnits(debtData[1], 18) : "0";
-            const interestIndex = debtData[2]
-                ? ethers.formatUnits(debtData[2], 18)
-                : "0";
-
-            setUserCollateral({
-                token: collateralToken,
-                amount: collateralAmount,
+            setUserStats({
+                collateralToken: colData[0],
+                collateralAmount: formatEth(colData[1]),
+                debtToken: debtData[0],
+                debtAmount: formatEth(debtData[1]),
+                healthFactor: formatEth(hf),
+                borrowAPY: (parseFloat(formatEth(apy)) * 100).toFixed(2),
+                maxLTV: (parseFloat(formatEth(ltv)) * 100).toFixed(0)
             });
 
-            setUserDebt({
-                token: debtToken,
-                principal,
-                interestIndex,
+            const balancePromises = tokens.map(async (t) => {
+                try {
+                    const tokenContract = new ethers.Contract(t.address, ERC20_ABI, provider);
+                    const bal = await tokenContract.balanceOf(account);
+                    return { ...t, balance: formatEth(bal) };
+                } catch (e) {
+                    console.error(`Error fetching balance for ${t.symbol}`, e);
+                    return { ...t, balance: "0.00" };
+                }
             });
+
+            const updatedTokens = await Promise.all(balancePromises);
+            setTokens(updatedTokens);
+
+            const currentSelected = updatedTokens.find(t => t.address === selectedToken.address);
+            if (currentSelected) setSelectedToken(currentSelected);
+
         } catch (err) {
-            console.error("Error fetching user data:", err);
-            setUserCollateral({ token: "", amount: "0" });
-            setUserDebt({ token: "", principal: "0", interestIndex: "0" });
+            console.error("Fetch Data Error:", err);
         }
     }, [account, provider]);
 
-
     useEffect(() => {
-        if (account) fetchUserPositions();
-    }, [account, supplyToken, borrowToken, fetchUserPositions]);
+        fetchData();
+        const interval = setInterval(fetchData, 15000);
+        return () => clearInterval(interval);
+    }, [fetchData]);
 
-    // 🔹 Deposit Collateral
-    const depositCollateral = async (tokenAddress: string, amount: string) => {
+    const handleTabChange = (tab: "supply" | "borrow") => {
+        setActiveTab(tab);
+        if (tab === "supply") setActionType("deposit");
+        else setActionType("borrow");
+        setAmount("");
+    };
+
+    const executeTransaction = async () => {
+        if (!amount || parseFloat(amount) <= 0) return alert("Enter a valid amount");
+        setIsLoading(true);
+
         try {
             const contract = getContract();
-            const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
-            const amt = ethers.parseUnits(amount, 18);
 
-            const approveTx = await token.approve(CONTRACT_ADDRESS, amt);
-            await approveTx.wait();
+            if (actionType === "deposit" || actionType === "repay") {
+                const targetTokenAddr = actionType === "repay"
+                    ? (userStats.debtToken !== ethers.ZeroAddress ? userStats.debtToken : selectedToken.address)
+                    : selectedToken.address;
 
-            const tx = await contract.depositCollateral(tokenAddress, amt);
+                const tokenContract = new ethers.Contract(targetTokenAddr, ERC20_ABI, signer);
+
+                const approveTx = await tokenContract.approve(CONTRACT_ADDRESS, parseEth(amount));
+                await approveTx.wait();
+            }
+
+            let tx;
+            if (actionType === "deposit") {
+                if (parseFloat(userStats.collateralAmount) > 0 && selectedToken.address.toLowerCase() !== userStats.collateralToken.toLowerCase()) {
+                    throw new Error(`You already have ${userStats.collateralAmount} collateral. You can only deposit more of the same token.`);
+                }
+                tx = await contract.depositCollateral(selectedToken.address, parseEth(amount));
+            }
+            else if (actionType === "withdraw") {
+                tx = await contract.withdrawCollateral(parseEth(amount));
+            }
+            else if (actionType === "borrow") {
+                tx = await contract.borrow(selectedToken.address, parseEth(amount));
+            }
+            else if (actionType === "repay") {
+                tx = await contract.repay(parseEth(amount));
+            }
+
             await tx.wait();
+            alert(`✅ ${actionType.toUpperCase()} Successful!`);
+            setAmount("");
+            fetchData();
 
-            alert("✅ Collateral deposited successfully!");
-            await fetchUserPositions();
-        } catch (err) {
-            console.error("Deposit collateral error:", err);
-            alert("❌ Deposit failed. Check console.");
+        } catch (err: any) {
+            console.error(err);
+            alert(`❌ Error: ${err.reason || err.message || err.data?.message || "Transaction failed"}`);
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    // 🔹 Borrow
-    const borrow = async (borrowTokenAddress: string, amount: string) => {
-        try {
-            const contract = getContract();
-            const amt = ethers.parseUnits(amount, 18);
-
-            const tx = await contract.borrow(borrowTokenAddress, amt);
-            await tx.wait();
-
-            alert("✅ Borrow successful!");
-            await fetchUserPositions();
-        } catch (err) {
-            console.error("Borrow error:", err);
-            alert("❌ Borrow failed. Check console.");
-        }
+    const getMaxAmount = () => {
+        if (actionType === "deposit") return selectedToken.balance;
+        if (actionType === "withdraw") return userStats.collateralAmount;
+        if (actionType === "repay") return userStats.debtAmount; // Logic simplification: repay full debt
+        return "0";
     };
 
-    const handleAction = async () => {
-        if (!account) return alert("Connect your wallet first!");
+    const hfValue = parseFloat(userStats.healthFactor);
+    const hfColor = hfValue > 2 ? "text-green-500" : hfValue > 1 ? "text-yellow-500" : "text-red-500";
 
-        if (activeTab === "supply") {
-            if (!supplyAmount || supplyAmount === "0")
-                return alert("Enter a valid amount");
-            await depositCollateral(supplyToken.address, supplyAmount);
-        } else {
-            if (!borrowAmount || borrowAmount === "0")
-                return alert("Enter a valid amount");
-            await borrow(borrowToken.address, borrowAmount);
+    const getActiveToken = () => {
+        if (actionType === 'repay' && userStats.debtToken !== ethers.ZeroAddress) {
+            const t = tokens.find(t => t.address.toLowerCase() === userStats.debtToken.toLowerCase());
+            return t || selectedToken;
         }
-
-        await updateBalances();
+        if (actionType === 'withdraw' && parseFloat(userStats.collateralAmount) > 0) {
+            const t = tokens.find(t => t.address.toLowerCase() === userStats.collateralToken.toLowerCase());
+            return t || selectedToken;
+        }
+        return selectedToken;
     };
+
+    const activeDisplayToken = getActiveToken();
+    const isTokenLocked = (actionType === 'repay' && parseFloat(userStats.debtAmount) > 0) ||
+        (actionType === 'withdraw' && parseFloat(userStats.collateralAmount) > 0);
 
     return (
-        <div className="w-full p-[3.5px] md:rounded-[12px] rounded-[12px]">
-            <div className="modern-card w-full px-[20px] md:px-[40px] py-[30px] md:py-[40px]">
+        <div className="flex items-center justify-center min-h-[80vh] w-full px-4 mt-4">
+            <div className="w-full max-w-[480px] bg-white border border-gray-200 shadow-2xl rounded-3xl overflow-hidden relative">
+
+                <div className="bg-gray-50/50 px-6 py-5 border-b border-gray-100 grid grid-cols-3 gap-2">
+                    <div className="flex flex-col">
+                        <span className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1 flex items-center gap-1">
+                            <Activity size={10} /> Health
+                        </span>
+                        <span className={`text-xl font-bold ${hfColor}`}>
+                            {hfValue > 100 ? "∞" : hfValue.toFixed(2)}
+                        </span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                        <span className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1 flex items-center gap-1">
+                            <TrendingUp size={10} /> Max LTV
+                        </span>
+                        <span className="text-xl font-bold text-gray-800">{userStats.maxLTV}%</span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                        <span className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1">APR</span>
+                        <span className="text-xl font-bold text-red-500">{userStats.borrowAPY}%</span>
+                    </div>
+                </div>
 
                 {/* Tabs */}
-                <div className="relative z-10 bg-[#F8F8F8] inline-flex px-2 py-1.5 rounded-[8px] border border-[#E5E5E5] mb-6 gap-1">
+                <div className="p-1 bg-gray-100/80 mx-6 mt-6 rounded-xl flex relative">
                     <button
-                        onClick={() => setActiveTab("supply")}
-                        className={`rounded-[6px] px-[20px] py-[10px] text-sm font-semibold ${activeTab === "supply"
-                            ? "bg-white text-[#16A34A] shadow-sm"
-                            : "text-[#888888] hover:text-[#333333]"
+                        onClick={() => handleTabChange("supply")}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${activeTab === "supply" ? "bg-white text-green-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
                             }`}
                     >
                         Supply
                     </button>
                     <button
-                        onClick={() => setActiveTab("borrow")}
-                        className={`rounded-[6px] px-[20px] py-[10px] text-sm font-semibold ${activeTab === "borrow"
-                            ? "bg-white text-[#DC2626] shadow-sm"
-                            : "text-[#888888] hover:text-[#333333]"
+                        onClick={() => handleTabChange("borrow")}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${activeTab === "borrow" ? "bg-white text-blue-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
                             }`}
                     >
                         Borrow
                     </button>
                 </div>
 
-                {!account && (
-                    <div className="mb-4 p-3 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800">
-                        Connect your wallet to start lending or borrowing
+                {/* Sub Action Toggles */}
+                <div className="px-8 mt-4 flex gap-6">
+                    {activeTab === "supply" ? (
+                        <>
+                            <button onClick={() => setActionType("deposit")} className={`text-sm font-semibold transition-colors ${actionType === "deposit" ? "text-green-600" : "text-gray-300"}`}>Deposit</button>
+                            <button onClick={() => setActionType("withdraw")} className={`text-sm font-semibold transition-colors ${actionType === "withdraw" ? "text-green-600" : "text-gray-300"}`}>Withdraw</button>
+                        </>
+                    ) : (
+                        <>
+                            <button onClick={() => setActionType("borrow")} className={`text-sm font-semibold transition-colors ${actionType === "borrow" ? "text-blue-600" : "text-gray-300"}`}>Borrow</button>
+                            <button onClick={() => setActionType("repay")} className={`text-sm font-semibold transition-colors ${actionType === "repay" ? "text-blue-600" : "text-gray-300"}`}>Repay</button>
+                        </>
+                    )}
+                </div>
+
+                {/* Input Area */}
+                <div className="px-6 py-6">
+                    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 transition-all hover:border-gray-300">
+                        <div className="flex justify-between mb-3">
+                            <span className="text-xs font-semibold text-gray-400">Amount</span>
+                            <span className="text-xs font-semibold text-gray-500">
+                                Max: {actionType === "deposit" ? activeDisplayToken.balance :
+                                    actionType === "withdraw" ? parseFloat(userStats.collateralAmount).toFixed(4) :
+                                        actionType === "repay" ? parseFloat(userStats.debtAmount).toFixed(4) :
+                                            activeDisplayToken.balance}
+                            </span>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <input
+                                type="number"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full bg-transparent text-3xl font-bold text-gray-800 placeholder-gray-200 outline-none"
+                            />
+
+                            {/* Token Selector with Scrollbar */}
+                            <div className="relative" ref={dropdownRef}>
+                                <button
+                                    onClick={() => !isTokenLocked && setIsDropdownOpen(!isDropdownOpen)}
+                                    className={`flex items-center gap-2 bg-white pl-2 pr-3 py-1.5 rounded-full shadow-sm border border-gray-200 transition ${isTokenLocked ? 'opacity-80 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+                                >
+                                    <img src={activeDisplayToken.img} className="w-7 h-7 rounded-full object-cover" alt="token" />
+                                    <span className="font-bold text-gray-700 text-sm">{activeDisplayToken.symbol}</span>
+                                    {!isTokenLocked && <ChevronDown size={14} className="text-gray-400" />}
+                                </button>
+
+                                {/* Dropdown Menu */}
+                                {isDropdownOpen && !isTokenLocked && (
+                                    <div className="absolute right-0 top-12 w-64 bg-white border border-gray-100 shadow-xl rounded-xl z-50 overflow-hidden">
+                                        <div className="max-h-[240px] overflow-y-auto custom-scrollbar">
+                                            {tokens.map((token) => (
+                                                <button
+                                                    key={token.symbol}
+                                                    onClick={() => {
+                                                        setSelectedToken(token);
+                                                        setIsDropdownOpen(false);
+                                                    }}
+                                                    className="flex items-center justify-between w-full px-4 py-3 hover:bg-gray-50 transition border-b border-gray-50 last:border-0"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <img src={token.img} className="w-8 h-8 rounded-full shadow-sm" alt={token.symbol} />
+                                                        <div className="text-left">
+                                                            <p className="font-bold text-sm text-gray-800">{token.symbol}</p>
+                                                            <p className="text-[10px] text-gray-400">{token.name}</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs font-medium text-gray-500">
+                                                        {parseFloat(token.balance).toFixed(2)}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Max Button */}
+                        <div className="flex justify-end mt-3">
+                            <button
+                                onClick={() => setAmount(getMaxAmount())}
+                                className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded bg-gray-200 text-gray-500 hover:bg-gray-300 transition`}
+                            >
+                                Use Max
+                            </button>
+                        </div>
                     </div>
-                )}
 
-                {/* Input Fields */}
-                {activeTab === "supply" ? (
-                    <>
-                        {/* Supply Input */}
-                        <div className="modern-input flex justify-between items-center px-[16px] py-[16px]">
-                            <input
-                                type="number"
-                                value={supplyAmount}
-                                onChange={(e) => setSupplyAmount(e.target.value)}
-                                placeholder="0.000"
-                                className="text-[#333333] font-semibold text-[20px] bg-transparent border-none outline-none flex-1 mr-4 placeholder-[#888888]"
-                            />
-                            <button
-                                onClick={() => setIsSupplyDropdownOpen((o) => !o)}
-                                className="flex items-center gap-2"
-                            >
-                                <img src={supplyToken.img} className="w-6 h-6 rounded-full" />
-                                <span>{supplyToken.symbol}</span>
-                                <ChevronDown
-                                    className={`transition-transform ${isSupplyDropdownOpen ? "rotate-180" : ""
-                                        }`}
-                                />
-                            </button>
+                    {/* Stats Summary */}
+                    <div className="mt-5 space-y-2 px-1">
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-400 font-medium">Collateral Value</span>
+                            <span className="font-bold text-gray-700">
+                                {parseFloat(userStats.collateralAmount).toFixed(4)}
+                                <span className="text-xs text-gray-400 ml-1">
+                                    {userStats.collateralToken !== ethers.ZeroAddress ? TOKENS.find(t => t.address.toLowerCase() === userStats.collateralToken.toLowerCase())?.symbol : ""}
+                                </span>
+                            </span>
                         </div>
+                        <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-400 font-medium">Borrowed Value</span>
+                            <span className="font-bold text-gray-700">
+                                {parseFloat(userStats.debtAmount).toFixed(4)}
+                                <span className="text-xs text-gray-400 ml-1">
+                                    {userStats.debtToken !== ethers.ZeroAddress ? TOKENS.find(t => t.address.toLowerCase() === userStats.debtToken.toLowerCase())?.symbol : ""}
+                                </span>
+                            </span>
+                        </div>
+                    </div>
 
-                        {/* User Info */}
-                        <div className="mt-[36px] modern-card px-[20px] py-[20px] flex justify-between">
-                            <div>
-                                <span className="text-[#888888] text-sm">Your Collateral</span>
-                                <p className="text-[#16A34A] font-semibold text-[18px] mt-2">
-                                    {userCollateral.amount} {supplyToken.symbol}
-                                </p>
-                            </div>
-                            <div>
-                                <span className="text-[#888888] text-sm">Your Debt</span>
-                                <p className="text-[#DC2626] font-semibold text-[18px] mt-2">
-                                    {userDebt.principal} {borrowToken.symbol}
-                                </p>
-                            </div>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        {/* Borrow Input */}
-                        <div className="modern-input flex justify-between items-center px-[16px] py-[16px]">
-                            <input
-                                type="number"
-                                value={borrowAmount}
-                                onChange={(e) => setBorrowAmount(e.target.value)}
-                                placeholder="0.000"
-                                className="text-[#333333] font-semibold text-[20px] bg-transparent border-none outline-none flex-1 mr-4 placeholder-[#888888]"
-                            />
-                            <button
-                                onClick={() => setIsBorrowDropdownOpen((o) => !o)}
-                                className="flex items-center gap-2"
-                            >
-                                <img src={borrowToken.img} className="w-6 h-6 rounded-full" />
-                                <span>{borrowToken.symbol}</span>
-                                <ChevronDown
-                                    className={`transition-transform ${isBorrowDropdownOpen ? "rotate-180" : ""
-                                        }`}
-                                />
-                            </button>
-                        </div>
-
-                        {/* User Info */}
-                        <div className="mt-[36px] modern-card px-[20px] py-[20px] flex justify-between">
-                            <div>
-                                <span className="text-[#888888] text-sm">Your Collateral</span>
-                                <p className="text-[#16A34A] font-semibold text-[18px] mt-2">
-                                    {userCollateral.amount} {supplyToken.symbol}
-                                </p>
-                            </div>
-                            <div>
-                                <span className="text-[#888888] text-sm">Your Debt</span>
-                                <p className="text-[#DC2626] font-semibold text-[18px] mt-2">
-                                    {userDebt.principal} {borrowToken.symbol}
-                                </p>
-                            </div>
-                        </div>
-                    </>
-                )}
-
-                {/* Action Button */}
-                <button
-                    onClick={handleAction}
-                    disabled={!account || (!supplyAmount && !borrowAmount)}
-                    className={`modern-button mt-[25px] md:mt-[40px] w-full p-[16px] text-center ${activeTab === "supply" ? "bg-[#16A34A]" : "bg-[#DC2626]"
-                        } text-white font-semibold rounded-[8px] hover:opacity-90 transition`}
-                >
-                    {!account
-                        ? "Connect Wallet"
-                        : activeTab === "supply"
-                            ? "Supply"
-                            : "Borrow"}
-                </button>
+                    {/* Action Button */}
+                    <button
+                        onClick={executeTransaction}
+                        disabled={isLoading || !account}
+                        className={`w-full mt-6 py-4 rounded-xl font-bold text-lg text-white shadow-lg transform transition active:scale-[0.98] ${!account ? "bg-gray-400 cursor-not-allowed" :
+                            activeTab === "supply"
+                                ? "bg-[#16A34A] hover:bg-[#15803d]"
+                                : "bg-[#2563EB] hover:bg-[#1d4ed8]"
+                            }`}
+                    >
+                        {isLoading ? "Processing..." : !account ? "Connect Wallet" : `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} ${activeDisplayToken.symbol}`}
+                    </button>
+                </div>
             </div>
         </div>
     );
