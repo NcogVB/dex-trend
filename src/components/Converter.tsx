@@ -1,4 +1,4 @@
-import { ChevronDown, ArrowRight, ArrowDown, Settings, Wallet, Loader2, CircleHelp } from 'lucide-react'
+import { ChevronDown,  Settings, Wallet, Loader2, CircleHelp, ArrowRightLeft, ArrowUpDown } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useWallet } from '../contexts/WalletContext'
@@ -157,8 +157,8 @@ const Converter = () => {
                                     key={val}
                                     onClick={() => setSlippageTolerance(val)}
                                     className={`px-4 py-1.5 text-sm font-medium rounded-lg border transition-all ${slippageTolerance === val
-                                            ? 'bg-red-600 border-red-600 text-white'
-                                            : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                                        ? 'bg-red-600 border-red-600 text-white'
+                                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                                         }`}
                                 >
                                     {val}%
@@ -253,16 +253,16 @@ const Converter = () => {
                     </div>
 
                     {/* SWITCH ARROW */}
-                    <div className="flex items-center justify-center md:pt-6">
+                    <div className="flex items-center justify-center ">
                         <button
                             onClick={switchTokens}
                             className="p-3 rounded-full bg-gray-50 text-gray-500 hover:text-red-600 hover:bg-red-50 border border-gray-200 transition-all shadow-sm active:scale-95"
+                            aria-label="Switch tokens"
                         >
-                            <ArrowRight className="hidden md:block" size={20} />
-                            <ArrowDown className="block md:hidden" size={20} />
+                            <ArrowRightLeft className="hidden md:block" size={20} />
+                            <ArrowUpDown className="block md:hidden" size={20} />
                         </button>
                     </div>
-
                     {/* TO SECTION */}
                     <div className="flex-1 flex flex-col gap-3">
                         <div className="flex justify-between items-center px-1">
@@ -348,7 +348,7 @@ const Converter = () => {
                         </div>
                     </div>
 
-                  <div className="flex-[2] w-full">
+                    <div className="flex-[2] w-full">
                         {!account ? (
                             <button className="w-full py-2.5 rounded-lg bg-red-50 text-red-600 text-sm font-semibold hover:bg-red-100 transition-all flex items-center justify-center gap-2">
                                 <Wallet size={16} /> Connect Wallet
@@ -359,14 +359,14 @@ const Converter = () => {
                                 disabled={isSwapping || !fromAmount || parseFloat(fromAmount) <= 0 || parseFloat(fromAmount) > fromToken.balance}
                                 className={`w-full py-2.5 rounded-lg font-semibold text-sm shadow-sm transition-all flex items-center justify-center gap-2
                                     ${(!fromAmount || parseFloat(fromAmount) <= 0 || parseFloat(fromAmount) > fromToken.balance)
-                                        ? 'bg-gray-100 text-gray-400 shadow-none cursor-not-allowed' 
+                                        ? 'bg-gray-100 text-gray-400 shadow-none cursor-not-allowed'
                                         : 'bg-red-600 text-white hover:bg-red-700 shadow-red-200'
                                     }
                                 `}
                             >
-                                {isSwapping ? <><Loader2 className="animate-spin" size={16} /> Swapping...</> : 
-                                 parseFloat(fromAmount) > fromToken.balance ? `Insufficient ${fromToken.symbol}` :
-                                 !fromAmount ? 'Enter Amount' : 'Swap Now'}
+                                {isSwapping ? <><Loader2 className="animate-spin" size={16} /> Swapping...</> :
+                                    parseFloat(fromAmount) > fromToken.balance ? `Insufficient ${fromToken.symbol}` :
+                                        !fromAmount ? 'Enter Amount' : 'Swap Now'}
                             </button>
                         )}
                     </div>

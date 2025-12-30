@@ -23,7 +23,7 @@ interface PoolData {
 
 
 const USDT_ADDRESS = "0x188D71EE19cB9976213BBa3867ED5EdAA04e6E78";
-const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7"; // Replace with actual factory address
+const FACTORY_ADDRESS = "0x339AA0Da8ffC7a6fc98Bf2FC53a17dEEf36F0D9c3"; // Replace with actual factory address
 const RPC_URL = "https://api.skyhighblockchain.com";
 const FIXED_FEE = 500;
 

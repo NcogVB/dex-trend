@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { ethers } from "ethers";
 import {
     Shield,
@@ -10,7 +10,8 @@ import {
     CheckCircle,
     AlertCircle,
     Clock,
-    ArrowRight
+    ArrowRight,
+    ChevronDown
 } from "lucide-react";
 import DeFiInsuranceABI from "./ABI.json";
 import { useWallet } from "../../contexts/WalletContext";
@@ -41,6 +42,20 @@ const PolicyDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [isAssetOpen, setIsAssetOpen] = useState(false);
+    const [isQuoteOpen, setIsQuoteOpen] = useState(false);
+
+    const assetRef = useRef<HTMLDivElement>(null);
+    const quoteRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function handleClickOutside(event: any) {
+            if (assetRef.current && !assetRef.current.contains(event.target)) setIsAssetOpen(false);
+            if (quoteRef.current && !quoteRef.current.contains(event.target)) setIsQuoteOpen(false);
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     // Stats
     const [premiumRate, setPremiumRate] = useState<string>("0%");
@@ -56,14 +71,12 @@ const PolicyDashboard: React.FC = () => {
         threshold: "",
     });
 
-    // 🔹 Initialize Contract
     useEffect(() => {
         if (!signer) return;
-        const instance = new ethers.Contract(CONTRACT_ADDRESS, DeFiInsuranceABI.abi, signer);
+        const instance = new ethers.Contract(CONTRACT_ADDRESS, DeFiInsuranceABI, signer);
         setContract(instance);
     }, [signer]);
 
-    // 🔹 Fetch Policies
     const fetchPolicies = useCallback(async () => {
         if (!contract || !account) return;
         setRefreshing(true);
@@ -73,7 +86,6 @@ const PolicyDashboard: React.FC = () => {
             const count = Number(counter);
             const allPolicies: Policy[] = [];
 
-            // Batch fetching could be optimized in production, simplified here
             for (let i = 1; i <= count; i++) {
                 const p = await contract.getPolicyDetails(i);
                 if (p.holder.toLowerCase() === account.toLowerCase()) {
@@ -129,9 +141,6 @@ const PolicyDashboard: React.FC = () => {
 
         setSubmitting(true);
         try {
-            // Need to approve premium token? (Usually quote token). 
-            // Skipping approval UI for brevity, assuming standard ETH/Native or previously approved.
-
             const tx = await contract.purchasePolicy(
                 form.assetToken,
                 form.quoteToken,
@@ -175,8 +184,8 @@ const PolicyDashboard: React.FC = () => {
 
     if (!account) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
-            <div className="bg-blue-50 p-6 rounded-full mb-4">
-                <Shield className="w-16 h-16 text-blue-500" />
+            <div className="bg-red-50 p-6 rounded-full mb-4">
+                <Shield className="w-16 h-16 text-red-500" />
             </div>
             <h2 className="text-2xl font-bold text-gray-800">DeFi Insurance Protocol</h2>
             <p className="text-gray-500 mt-2 max-w-md">Connect your wallet to purchase coverage, view active policies, and manage claims.</p>
@@ -191,7 +200,7 @@ const PolicyDashboard: React.FC = () => {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                            <Shield className="text-blue-600 fill-blue-100" />
+                            <Shield className="text-red-600 fill-red-100" />
                             Insurance Dashboard
                         </h1>
                         <p className="text-sm text-gray-500 mt-1">Protect your assets against price drops</p>
@@ -211,7 +220,7 @@ const PolicyDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-md transition">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
-                            <Coins size={48} className="text-blue-500" />
+                            <Coins size={48} className="text-red-500" />
                         </div>
                         <p className="text-sm font-medium text-gray-500">Premium Rate</p>
                         <h3 className="text-2xl font-bold text-gray-900 mt-1">{premiumRate}</h3>
@@ -251,40 +260,82 @@ const PolicyDashboard: React.FC = () => {
                         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 sticky top-24">
                             <div className="mb-6 pb-4 border-b border-gray-100">
                                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                    <Plus className="w-5 h-5 text-blue-600" />
+                                    <Plus className="w-5 h-5 text-red-600" />
                                     Create Policy
                                 </h2>
                                 <p className="text-xs text-gray-500 mt-1">Define parameters for your coverage</p>
                             </div>
-
                             <div className="space-y-4">
-                                {/* Token Selection */}
+                                {/* Token Selection Row */}
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1.5">
+
+                                    {/* ASSET TOKEN DROPDOWN */}
+                                    <div className="space-y-1.5 relative" ref={assetRef}>
                                         <label className="text-xs font-semibold text-gray-500 ml-1">Asset Token</label>
-                                        <select
-                                            value={form.assetToken}
-                                            onChange={(e) => setForm({ ...form, assetToken: e.target.value })}
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                        <button
+                                            onClick={() => setIsAssetOpen(!isAssetOpen)}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm flex justify-between items-center outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
                                         >
-                                            <option value="">Asset</option>
-                                            {TOKENS.map(t => (
-                                                <option key={t.address} value={t.address}>{t.symbol}</option>
-                                            ))}
-                                        </select>
+                                            <span className={!form.assetToken ? "text-gray-400" : "text-gray-700 font-medium"}>
+                                                {form.assetToken ? getTokenSymbol(form.assetToken) : "Select Asset"}
+                                            </span>
+                                            <ChevronDown size={16} className="text-gray-400" />
+                                        </button>
+
+                                        {/* Scrollable Dropdown List */}
+                                        {isAssetOpen && (
+                                            <div className="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                    {TOKENS.map((t) => (
+                                                        <div
+                                                            key={t.address}
+                                                            onClick={() => {
+                                                                setForm({ ...form, assetToken: t.address });
+                                                                setIsAssetOpen(false);
+                                                            }}
+                                                            className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 flex items-center gap-2 transition-colors border-b border-gray-50 last:border-0"
+                                                        >
+                                                            {/* Optional: Add Token Image here if available in t.img */}
+                                                            {t.symbol}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="space-y-1.5">
+
+                                    {/* QUOTE TOKEN DROPDOWN */}
+                                    <div className="space-y-1.5 relative" ref={quoteRef}>
                                         <label className="text-xs font-semibold text-gray-500 ml-1">Quote Token</label>
-                                        <select
-                                            value={form.quoteToken}
-                                            onChange={(e) => setForm({ ...form, quoteToken: e.target.value })}
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                        <button
+                                            onClick={() => setIsQuoteOpen(!isQuoteOpen)}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm flex justify-between items-center outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
                                         >
-                                            <option value="">Quote</option>
-                                            {TOKENS.map(t => (
-                                                <option key={t.address} value={t.address}>{t.symbol}</option>
-                                            ))}
-                                        </select>
+                                            <span className={!form.quoteToken ? "text-gray-400" : "text-gray-700 font-medium"}>
+                                                {form.quoteToken ? getTokenSymbol(form.quoteToken) : "Select Quote"}
+                                            </span>
+                                            <ChevronDown size={16} className="text-gray-400" />
+                                        </button>
+
+                                        {/* Scrollable Dropdown List */}
+                                        {isQuoteOpen && (
+                                            <div className="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
+                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                    {TOKENS.map((t) => (
+                                                        <div
+                                                            key={t.address}
+                                                            onClick={() => {
+                                                                setForm({ ...form, quoteToken: t.address });
+                                                                setIsQuoteOpen(false);
+                                                            }}
+                                                            className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 flex items-center gap-2 transition-colors border-b border-gray-50 last:border-0"
+                                                        >
+                                                            {t.symbol}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -297,7 +348,7 @@ const PolicyDashboard: React.FC = () => {
                                             value={form.notional}
                                             onChange={(e) => setForm({ ...form, notional: e.target.value })}
                                             placeholder="0.00"
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
                                         />
                                         <span className="absolute right-4 top-3 text-xs text-gray-400 font-medium">Units</span>
                                     </div>
@@ -311,7 +362,7 @@ const PolicyDashboard: React.FC = () => {
                                             value={form.duration}
                                             onChange={(e) => setForm({ ...form, duration: e.target.value })}
                                             placeholder="30"
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
                                         />
                                     </div>
                                     <div className="space-y-1.5">
@@ -321,7 +372,7 @@ const PolicyDashboard: React.FC = () => {
                                             value={form.threshold}
                                             onChange={(e) => setForm({ ...form, threshold: e.target.value })}
                                             placeholder="20"
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
                                         />
                                     </div>
                                 </div>
@@ -329,7 +380,7 @@ const PolicyDashboard: React.FC = () => {
                                 <button
                                     onClick={createPolicy}
                                     disabled={submitting}
-                                    className="w-full mt-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3.5 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                                    className="w-full mt-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3.5 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                                 >
                                     {submitting ? (
                                         <>Processing...</>
@@ -346,7 +397,7 @@ const PolicyDashboard: React.FC = () => {
                         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                             <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                                 <h3 className="font-bold text-gray-800">Your Policies</h3>
-                                <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">
+                                <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-1 rounded-full">
                                     {policies.length} Total
                                 </span>
                             </div>
@@ -428,7 +479,7 @@ const PolicyDashboard: React.FC = () => {
                                                             {p.active && !p.claimed && (
                                                                 <button
                                                                     onClick={() => handleClaim(p.policyId)}
-                                                                    className="bg-white border border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm"
+                                                                    className="bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm"
                                                                 >
                                                                     Submit Claim
                                                                 </button>

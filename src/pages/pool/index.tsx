@@ -6,8 +6,8 @@ import { Token } from "@uniswap/sdk-core";
 import { Pool as UniPool, Position } from "@uniswap/v3-sdk";
 import { useWallet } from "../../contexts/WalletContext";
 
-const POSITION_MANAGER_ADDRESS = "0xe4ae6F10ee1C8e2465D9975cb3325267A2025549";
-const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
+const POSITION_MANAGER_ADDRESS = "0xc2A219227E7927529D62d9922a5Ff80627dD754F";
+const FACTORY_ADDRESS = "0x339A0Da8ffC7a6fc98Bf2FC53a17dEEf36F0D9c3";
 
 const POSITION_MANAGER_ABI = [
     "function balanceOf(address owner) view returns (uint256)",
@@ -250,7 +250,7 @@ const Pool = () => {
                             </Link>
                             <Link
                                 to="/pool"
-                                className="px-6 py-2.5 rounded-lg bg-white text-blue-600 font-bold text-sm shadow-sm ring-1 ring-black/5"
+                                className="px-6 py-2.5 rounded-lg bg-white text-red-600 font-bold text-sm shadow-sm ring-1 ring-black/5"
                             >
                                 Pool
                             </Link>
@@ -261,10 +261,10 @@ const Pool = () => {
                     <div className="grid grid-cols-2 gap-4">
                         <Link
                             to="/addlp"
-                            className="flex flex-col items-center justify-center p-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl border border-blue-200 transition-all duration-200 group"
+                            className="flex flex-col items-center justify-center p-4 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl border border-red-200 transition-all duration-200 group"
                         >
                             <div className="bg-white p-2.5 rounded-full mb-2 shadow-sm group-hover:scale-110 transition-transform">
-                                <Plus size={20} className="text-blue-600" />
+                                <Plus size={20} className="text-red-600" />
                             </div>
                             <span className="font-bold text-sm">New Position</span>
                         </Link>
@@ -285,11 +285,11 @@ const Pool = () => {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/30 flex justify-between items-center">
                         <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                            <Layers size={18} className="text-blue-500" />
+                            <Layers size={18} className="text-red-500" />
                             Your Positions
                         </h3>
                         {positions.length > 0 && !loading && (
-                            <span className="bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
+                            <span className="bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full text-xs font-bold">
                                 {positions.length}
                             </span>
                         )}
@@ -315,7 +315,7 @@ const Pool = () => {
                                 <p className="text-gray-500 text-sm mb-6">You don't have any liquidity positions yet.</p>
                                 <Link
                                     to="/addlp"
-                                    className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition"
+                                    className="inline-flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-red-700 transition"
                                 >
                                     <Plus size={16} />
                                     Create Your First Position
@@ -327,7 +327,7 @@ const Pool = () => {
                                 {positions.map((p) => (
                                     <div
                                         key={p.tokenId}
-                                        className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+                                        className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:border-red-300 hover:shadow-md transition-all duration-200"
                                     >
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="flex items-center gap-3">

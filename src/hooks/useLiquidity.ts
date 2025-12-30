@@ -2,8 +2,8 @@ import { useState, useCallback } from "react";
 import { ethers, MaxUint256 } from "ethers";
 import { Token } from "@uniswap/sdk-core";
 import { Pool, Position, nearestUsableTick } from "@uniswap/v3-sdk";
-import { useWallet } from "../contexts/WalletContext"; // Adjust path
-import { ERC20_ABI, POSITION_MANAGER_MINIMAL_ABI, UNISWAP_V3_POOL_ABI } from "../contexts/ABI"; // Adjust path
+import { useWallet } from "../contexts/WalletContext"; 
+import { ERC20_ABI, POSITION_MANAGER_MINIMAL_ABI, UNISWAP_V3_POOL_ABI } from "../contexts/ABI"; 
 
 interface AddLiquidityOpts {
     tokenA: string;
@@ -17,8 +17,8 @@ export const useLiquidity = () => {
     const [loading, setLoading] = useState(false);
     const { account, provider, signer } = useWallet();
 
-    const POSITION_MANAGER_ADDRESS = "0xe4ae6F10ee1C8e2465D9975cb3325267A2025549";
-    const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
+    const POSITION_MANAGER_ADDRESS = "0xc2A219227E7927529D62d9922a5Ff80627dD754F";
+    const FACTORY_ADDRESS = "0x339A0Da8ffC7a6fc98Bf2FC53a17dEEf36F0D9c3";
     const FACTORY_ABI = [
         "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
     ];
@@ -36,11 +36,20 @@ export const useLiquidity = () => {
                     throw new Error("Wallet not connected");
                 }
 
+                // ✅ FIX: Sanitize Inputs immediately
+                // This converts "0xabc..." -> "0xAbC..."
+                // Prevents "network does not support ENS" error on custom chains
+                const cleanTokenA = ethers.getAddress(tokenA);
+                const cleanTokenB = ethers.getAddress(tokenB);
+                const cleanAccount = ethers.getAddress(account);
+
                 // --- 1. Get pool from factory ---
                 const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
-                const [t0, t1] = tokenA.toLowerCase() < tokenB.toLowerCase()
-                    ? [tokenA, tokenB]
-                    : [tokenB, tokenA];
+                
+                // Use CLEAN addresses for sorting
+                const [t0, t1] = cleanTokenA.toLowerCase() < cleanTokenB.toLowerCase()
+                    ? [cleanTokenA, cleanTokenB]
+                    : [cleanTokenB, cleanTokenA];
 
                 let poolAddress = await factory.getPool(t0, t1, fee);
 
@@ -67,23 +76,26 @@ export const useLiquidity = () => {
                     tick: Number(slot0[1]),
                 };
 
-                // --- 3. Fetch decimals ---
+                // --- 3. Fetch decimals (Use CLEAN tokens) ---
                 const [decA, decB, symA, symB] = await Promise.all([
-                    new ethers.Contract(tokenA, ERC20_ABI, provider).decimals(),
-                    new ethers.Contract(tokenB, ERC20_ABI, provider).decimals(),
-                    new ethers.Contract(tokenA, ERC20_ABI, provider).symbol(),
-                    new ethers.Contract(tokenB, ERC20_ABI, provider).symbol(),
+                    new ethers.Contract(cleanTokenA, ERC20_ABI, provider).decimals(),
+                    new ethers.Contract(cleanTokenB, ERC20_ABI, provider).decimals(),
+                    new ethers.Contract(cleanTokenA, ERC20_ABI, provider).symbol(),
+                    new ethers.Contract(cleanTokenB, ERC20_ABI, provider).symbol(),
                 ]);
 
-                // Note: Hardcoded ChainID 1476 based on your context. Change if dynamic.
                 const chainId = 1476; 
-                const tokenObjA = new Token(Number(chainId), tokenA, Number(decA), symA, symA);
-                const tokenObjB = new Token(Number(chainId), tokenB, Number(decB), symB, symB);
+                // Use CLEAN tokens in SDK objects
+                const tokenObjA = new Token(Number(chainId), cleanTokenA, Number(decA), symA, symA);
+                const tokenObjB = new Token(Number(chainId), cleanTokenB, Number(decB), symB, symB);
 
                 // --- 4. Token ordering ---
                 const [addr0] = [token0Addr, token1Addr].sort((a, b) => (a.toLowerCase() < b.toLowerCase() ? -1 : 1));
-                const token0 = addr0.toLowerCase() === tokenA.toLowerCase() ? tokenObjA : tokenObjB;
-                const token1 = addr0.toLowerCase() === tokenA.toLowerCase() ? tokenObjB : tokenObjA;
+                
+                // Compare logic using CLEAN addresses
+                const isToken0A = addr0.toLowerCase() === cleanTokenA.toLowerCase();
+                const token0 = isToken0A ? tokenObjA : tokenObjB;
+                const token1 = isToken0A ? tokenObjB : tokenObjA;
 
                 // --- 5. Build Pool ---
                 const pool = new Pool(
@@ -99,7 +111,7 @@ export const useLiquidity = () => {
                 const amountARaw = ethers.parseUnits(amountA, decA);
                 const amountBRaw = ethers.parseUnits(amountB, decB);
 
-                const amounts = addr0.toLowerCase() === tokenA.toLowerCase()
+                const amounts = isToken0A
                     ? { amount0: amountARaw.toString(), amount1: amountBRaw.toString() }
                     : { amount0: amountBRaw.toString(), amount1: amountARaw.toString() };
 
@@ -123,13 +135,13 @@ export const useLiquidity = () => {
                 const amount0Desired = position.mintAmounts.amount0;
                 const amount1Desired = position.mintAmounts.amount1;
 
-                // --- 9. Approvals ---
-                const tokenAContract = new ethers.Contract(tokenA, ERC20_ABI, signer);
-                const tokenBContract = new ethers.Contract(tokenB, ERC20_ABI, signer);
+                // --- 9. Approvals (Use CLEAN tokens and CLEAN account) ---
+                const tokenAContract = new ethers.Contract(cleanTokenA, ERC20_ABI, signer);
+                const tokenBContract = new ethers.Contract(cleanTokenB, ERC20_ABI, signer);
 
                 const [allowanceA, allowanceB] = await Promise.all([
-                    tokenAContract.allowance(account, POSITION_MANAGER_ADDRESS),
-                    tokenBContract.allowance(account, POSITION_MANAGER_ADDRESS),
+                    tokenAContract.allowance(cleanAccount, POSITION_MANAGER_ADDRESS),
+                    tokenBContract.allowance(cleanAccount, POSITION_MANAGER_ADDRESS),
                 ]);
 
                 if (BigInt(allowanceA.toString()) < BigInt(amount0Desired.toString())) {
@@ -148,9 +160,9 @@ export const useLiquidity = () => {
                     tickUpper,
                     amount0Desired: amount0Desired.toString(),
                     amount1Desired: amount1Desired.toString(),
-                    amount0Min: "0", // In production, calculate slippage!
+                    amount0Min: "0", 
                     amount1Min: "0",
-                    recipient: account,
+                    recipient: cleanAccount, // Use CLEAN account
                     deadline: Math.floor(Date.now() / 1000) + 600,
                 };
 
@@ -187,6 +199,9 @@ export const useLiquidity = () => {
             setLoading(true);
 
             try {
+                // Ensure we use the clean account address for collection
+                const cleanAccount = ethers.getAddress(account);
+
                 const positionManager = new ethers.Contract(
                     POSITION_MANAGER_ADDRESS,
                     POSITION_MANAGER_MINIMAL_ABI,
@@ -209,7 +224,7 @@ export const useLiquidity = () => {
                 const MAX_UINT128 = (2n ** 128n - 1n).toString();
                 const tx2 = await positionManager.collect({
                     tokenId,
-                    recipient: account,
+                    recipient: cleanAccount, // Use Clean Account
                     amount0Max: MAX_UINT128,
                     amount1Max: MAX_UINT128,
                 });

@@ -23,7 +23,7 @@ const ConverterPool: React.FC = () => {
     const fromRef = useRef<HTMLDivElement>(null);
     const toRef = useRef<HTMLDivElement>(null);
 
-    const FACTORY_ADDRESS = "0x83DEFEcaF6079504E2DD1DE2c66DCf3046F7bDD7";
+    const FACTORY_ADDRESS = "0x339A0Da8ffC7a6fc98Bf2FC53a17dEEf36F0D9c3";
     const FACTORY_ABI = [
         "function getPool(address tokenA, address tokenB, uint24 fee) external view returns (address pool)"
     ];

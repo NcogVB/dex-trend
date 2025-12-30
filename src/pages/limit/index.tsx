@@ -340,6 +340,7 @@ const Limit = () => {
                 ordertype: 0,
             });
             setIsCreatingBuy(false)
+            showToast(`Buy ${fromToken.symbol} order created successfully!`, "success");
         } else {
             const amountInsellIN = priceNum * amountNum;
             setIsCreatingSell(true)
@@ -356,6 +357,7 @@ const Limit = () => {
                 ordertype: 1,
             });
             setIsCreatingSell(false)
+            showToast(`Sell ${fromToken.symbol} order created successfully!`, "success");
         }
         fetchRequestId.current += 1;
         await fetchOrdersStrict(fetchRequestId.current);
@@ -367,7 +369,6 @@ const Limit = () => {
             tokenOut: toToken.address,
         });
 
-        showToast(`${isBuy ? "Buy" : "Sell"} order created successfully!`, "success");
         setFromAmount(""); setToAmount(""); setTargetPrice("");
         if (isBuy) setIsCreatingBuy(false); else setIsCreatingSell(false);
     };
