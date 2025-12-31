@@ -22,7 +22,7 @@ type FetchLastOrderParams = {
     tokenOut: string;
 };
 
-const EXECUTOR_ADDRESS = "0x14e904F5FfA5748813859879f8cA20e487F407D8";
+const EXECUTOR_ADDRESS = "0x59AEeACD225bD2b2B178B2cDa53D6c6759bB2966";
 
 const ERC20_ABI = [
     "function approve(address spender, uint256 amount) external returns (bool)",
