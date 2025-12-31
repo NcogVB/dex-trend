@@ -2,8 +2,8 @@ import { useState, useCallback } from "react";
 import { ethers, MaxUint256 } from "ethers";
 import { Token } from "@uniswap/sdk-core";
 import { Pool, Position, nearestUsableTick } from "@uniswap/v3-sdk";
-import { useWallet } from "../contexts/WalletContext"; 
-import { ERC20_ABI, POSITION_MANAGER_MINIMAL_ABI, UNISWAP_V3_POOL_ABI } from "../contexts/ABI"; 
+import { useWallet } from "../contexts/WalletContext";
+import { ERC20_ABI, POSITION_MANAGER_MINIMAL_ABI, UNISWAP_V3_POOL_ABI } from "../contexts/ABI";
 
 interface AddLiquidityOpts {
     tokenA: string;
@@ -45,7 +45,7 @@ export const useLiquidity = () => {
 
                 // --- 1. Get pool from factory ---
                 const factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
-                
+
                 // Use CLEAN addresses for sorting
                 const [t0, t1] = cleanTokenA.toLowerCase() < cleanTokenB.toLowerCase()
                     ? [cleanTokenA, cleanTokenB]
@@ -84,14 +84,14 @@ export const useLiquidity = () => {
                     new ethers.Contract(cleanTokenB, ERC20_ABI, provider).symbol(),
                 ]);
 
-                const chainId = 1476; 
+                const chainId = 1476;
                 // Use CLEAN tokens in SDK objects
                 const tokenObjA = new Token(Number(chainId), cleanTokenA, Number(decA), symA, symA);
                 const tokenObjB = new Token(Number(chainId), cleanTokenB, Number(decB), symB, symB);
 
                 // --- 4. Token ordering ---
                 const [addr0] = [token0Addr, token1Addr].sort((a, b) => (a.toLowerCase() < b.toLowerCase() ? -1 : 1));
-                
+
                 // Compare logic using CLEAN addresses
                 const isToken0A = addr0.toLowerCase() === cleanTokenA.toLowerCase();
                 const token0 = isToken0A ? tokenObjA : tokenObjB;
@@ -160,7 +160,7 @@ export const useLiquidity = () => {
                     tickUpper,
                     amount0Desired: amount0Desired.toString(),
                     amount1Desired: amount1Desired.toString(),
-                    amount0Min: "0", 
+                    amount0Min: "0",
                     amount1Min: "0",
                     recipient: cleanAccount, // Use CLEAN account
                     deadline: Math.floor(Date.now() / 1000) + 600,
@@ -174,7 +174,7 @@ export const useLiquidity = () => {
 
                 const tx = await positionManager.mint(mintParams, { gasLimit: 1_200_000 });
                 const receipt = await tx.wait();
-                
+
                 if (receipt.status !== 1) {
                     throw new Error(`Mint failed: ${receipt.transactionHash}`);
                 }
@@ -241,9 +241,70 @@ export const useLiquidity = () => {
         [account, signer]
     );
 
+    const increaseLiquidity = useCallback(async (
+        tokenId: string,
+        token0: string, // Address of Token 0 (Sorted)
+        token1: string, // Address of Token 1 (Sorted)
+        amount0: string,
+        amount1: string
+    ) => {
+        if (!signer || !account) return;
+        setLoading(true);
+        try {
+            // 1. Safe Parse Amounts (Handle empty string or 0)
+            const contract0 = new ethers.Contract(token0, ERC20_ABI, signer);
+            const contract1 = new ethers.Contract(token1, ERC20_ABI, signer);
+
+            const dec0 = await contract0.decimals();
+            const dec1 = await contract1.decimals();
+
+            // Default to '0' if empty
+            const val0 = amount0 || "0";
+            const val1 = amount1 || "0";
+
+            const amt0Wei = ethers.parseUnits(val0, dec0);
+            const amt1Wei = ethers.parseUnits(val1, dec1);
+
+            // If In-Range, BOTH must be > 0. If Out-of-Range, only one is needed.
+            // We proceed regardless, letting the contract take what it needs.
+
+            // 2. Approvals (Only if amount > 0)
+            if (amt0Wei > 0n) {
+                const allow0 = await contract0.allowance(account, POSITION_MANAGER_ADDRESS);
+                if (allow0 < amt0Wei) await (await contract0.approve(POSITION_MANAGER_ADDRESS, MaxUint256)).wait();
+            }
+
+            if (amt1Wei > 0n) {
+                const allow1 = await contract1.allowance(account, POSITION_MANAGER_ADDRESS);
+                if (allow1 < amt1Wei) await (await contract1.approve(POSITION_MANAGER_ADDRESS, MaxUint256)).wait();
+            }
+
+            // 3. Execute
+            const posManager = new ethers.Contract(POSITION_MANAGER_ADDRESS, POSITION_MANAGER_MINIMAL_ABI, signer);
+
+            const tx = await posManager.increaseLiquidity({
+                tokenId,
+                amount0Desired: amt0Wei,
+                amount1Desired: amt1Wei,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: Math.floor(Date.now() / 1000) + 600,
+            });
+
+            await tx.wait();
+            return tx;
+        } catch (err) {
+            console.error(err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [account, signer]);
+
     return {
         loading,
         addLiquidity,
-        removeLiquidity
+        removeLiquidity,
+        increaseLiquidity
     };
 };

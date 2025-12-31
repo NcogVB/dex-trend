@@ -1,4 +1,4 @@
-import { ChevronDown,  Settings, Wallet, Loader2, CircleHelp, ArrowRightLeft, ArrowUpDown } from 'lucide-react'
+import { ChevronDown, Settings, Wallet, Loader2, CircleHelp, ArrowRightLeft, ArrowUpDown, X } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useWallet } from '../contexts/WalletContext'
@@ -21,8 +21,11 @@ const Converter = () => {
         TOKENS.map((t) => ({ ...t, balance: 0, realBalance: '0' }))
     )
 
-    const [fromToken, setFromToken] = useState<Token>(tokens[0])
-    const [toToken, setToToken] = useState<Token>(tokens[1])
+    const usdtToken = TOKENS.find(t => t.symbol.toUpperCase() === 'USDT') || tokens[1];
+    const usdtTokenFormatted: Token = usdtToken ? { ...usdtToken, balance: usdtToken.balance ?? 0, realBalance: '0' } : tokens[1];
+
+    const [fromToken, setFromToken] = useState<Token>(tokens[1])
+    const [toToken, setToToken] = useState<Token>(usdtTokenFormatted) // Fixed to USDT
     const [fromAmount, setFromAmount] = useState('')
     const [toAmount, setToAmount] = useState('')
     const [slippageTolerance, setSlippageTolerance] = useState(1)
@@ -32,11 +35,9 @@ const Converter = () => {
 
     // UI States
     const [isFromDropdownOpen, setIsFromDropdownOpen] = useState(false)
-    const [isToDropdownOpen, setIsToDropdownOpen] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
 
     const fromDropdownRef = useRef<HTMLDivElement>(null)
-    const toDropdownRef = useRef<HTMLDivElement>(null)
 
     // 1. Fetch Balances
     const updateBalances = useCallback(async () => {
@@ -120,7 +121,6 @@ const Converter = () => {
         const handleClickOutside = (e: MouseEvent) => {
             const target = e.target as Node
             if (fromDropdownRef.current && !fromDropdownRef.current.contains(target)) setIsFromDropdownOpen(false)
-            if (toDropdownRef.current && !toDropdownRef.current.contains(target)) setIsToDropdownOpen(false)
         }
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -144,37 +144,72 @@ const Converter = () => {
                     </button>
                 </div>
 
-                {/* Settings Panel (Collapsible) */}
+                {/* Settings Panel */}
                 {showSettings && (
-                    <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100 animate-in slide-in-from-top-2">
-                        <div className="flex items-center gap-2 mb-3 text-sm text-gray-600 font-medium">
-                            <span>Slippage Tolerance</span>
-                            <CircleHelp size={14} className="text-gray-400" />
-                        </div>
-                        <div className="flex gap-2">
-                            {[0.1, 0.5, 1.0, 2.0].map((val) => (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5 m-4 animate-in zoom-in-95 duration-200 relative">
+
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between mb-5">
+                                <h3 className="font-bold text-gray-900 text-lg">Transaction Settings</h3>
                                 <button
-                                    key={val}
-                                    onClick={() => setSlippageTolerance(val)}
-                                    className={`px-4 py-1.5 text-sm font-medium rounded-lg border transition-all ${slippageTolerance === val
-                                        ? 'bg-red-600 border-red-600 text-white'
-                                        : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
-                                        }`}
+                                    onClick={() => setShowSettings(false)}
+                                    className="p-1 rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
                                 >
-                                    {val}%
+                                    <X size={20} />
                                 </button>
-                            ))}
-                            <div className="relative flex-1">
-                                <input
-                                    type="number"
-                                    value={slippageTolerance}
-                                    onChange={(e) => setSlippageTolerance(parseFloat(e.target.value))}
-                                    className="w-full px-3 py-1.5 text-right rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-red-500"
-                                    placeholder="Custom"
-                                />
-                                <span className="absolute right-8 top-1.5 text-sm text-gray-400">%</span>
                             </div>
+
+                            {/* Setting: Slippage */}
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
+                                    <span>Slippage Tolerance</span>
+                                    <CircleHelp size={14} className="text-gray-400 cursor-help" xlinkTitle="Your transaction will revert if the price changes unfavorably by more than this percentage." />
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                    {[0.1, 0.5, 1.0, 2.0].map((val) => (
+                                        <button
+                                            key={val}
+                                            onClick={() => setSlippageTolerance(val)}
+                                            className={`flex-1 min-w-[60px] px-3 py-2.5 text-sm font-medium rounded-xl border transition-all ${slippageTolerance === val
+                                                ? 'bg-red-600 border-red-600 text-white shadow-md shadow-red-100'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-600'
+                                                }`}
+                                        >
+                                            {val}%
+                                        </button>
+                                    ))}
+
+                                    <div className="relative flex-[1.5] min-w-[80px]">
+                                        <input
+                                            type="number"
+                                            value={slippageTolerance}
+                                            onChange={(e) => setSlippageTolerance(parseFloat(e.target.value))}
+                                            className={`w-full pl-3 pr-8 py-2.5 text-right rounded-xl border text-sm font-medium focus:outline-none transition-all ${![0.1, 0.5, 1.0, 2.0].includes(slippageTolerance)
+                                                ? 'border-red-500 text-red-600 bg-red-50/50 ring-2 ring-red-100'
+                                                : 'border-gray-200 text-gray-900 focus:border-red-500 focus:ring-2 focus:ring-red-100'
+                                                }`}
+                                            placeholder="Custom"
+                                        />
+                                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium ${![0.1, 0.5, 1.0, 2.0].includes(slippageTolerance) ? 'text-red-600' : 'text-gray-400'
+                                            }`}>
+                                            %
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Save / Close Button (Optional, UX preference) */}
+                            <button
+                                onClick={() => setShowSettings(false)}
+                                className="w-full mt-6 py-3 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-black transition-colors shadow-lg shadow-gray-200"
+                            >
+                                Save Settings
+                            </button>
                         </div>
+                        {/* Backdrop Click to Close */}
+                        <div className="absolute inset-0 -z-10" onClick={() => setShowSettings(false)} />
                     </div>
                 )}
 
@@ -274,38 +309,9 @@ const Converter = () => {
 
                         <div className="relative bg-gray-50 rounded-xl border border-gray-200 transition-all">
                             <div className="flex items-center p-3 gap-3">
-                                <div className="relative" ref={toDropdownRef}>
-                                    <button
-                                        onClick={() => setIsToDropdownOpen(!isToDropdownOpen)}
-                                        className="flex items-center gap-2 bg-white pl-1 pr-3 py-1.5 rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-all shrink-0 min-w-[110px]"
-                                    >
-                                        <img src={toToken.img} alt={toToken.symbol} className="w-6 h-6 rounded-full" />
-                                        <span className="font-semibold text-gray-900">{toToken.symbol}</span>
-                                        <ChevronDown size={16} className="text-gray-400 ml-auto" />
-                                    </button>
-
-                                    {isToDropdownOpen && (
-                                        <div className="absolute left-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
-                                            <div className="max-h-64 overflow-y-auto p-1">
-                                                {tokens.filter(t => t.symbol !== fromToken.symbol).map((token) => (
-                                                    <button
-                                                        key={token.symbol}
-                                                        onClick={() => { setToToken(token); setIsToDropdownOpen(false); }}
-                                                        className="w-full flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg group"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <img src={token.img} alt={token.name} className="w-8 h-8 rounded-full border border-gray-100" />
-                                                            <div className="text-left">
-                                                                <div className="font-bold text-gray-900">{token.symbol}</div>
-                                                                <div className="text-xs text-gray-500">{token.name}</div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-sm font-medium text-gray-700">{token.balance > 0 ? token.balance.toFixed(2) : '0'}</div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                <div className="flex items-center gap-2 bg-gray-100 pl-1 pr-3 py-1.5 rounded-full shadow-inner border border-gray-200 shrink-0 min-w-[110px] cursor-not-allowed opacity-80">
+                                    <img src={toToken.img} alt={toToken.symbol} className="w-6 h-6 rounded-full grayscale-[0.2]" />
+                                    <span className="font-semibold text-gray-800">{toToken.symbol}</span>
                                 </div>
 
                                 {isLoadingQuote ? (

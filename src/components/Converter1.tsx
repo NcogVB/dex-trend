@@ -7,12 +7,11 @@ import {
     POSITION_MANAGER_MINIMAL_ABI,
     UNISWAP_V3_POOL_ABI,
 } from '../contexts/ABI'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom' // ✅ Added useParams
 import { ArrowLeft, Loader2, Search, Wallet, AlertCircle } from 'lucide-react'
 import { useWallet } from '../contexts/WalletContext'
 import { useLiquidity } from '../hooks/useLiquidity'
 
-// ✅ FIX 1: Corrected Factory Address (Removed extra 'A')
 const POSITION_MANAGER_ADDRESS = "0xc2A219227E7927529D62d9922a5Ff80627dD754F";
 const FACTORY_ADDRESS = "0x339A0Da8ffC7a6fc98Bf2FC53a17dEEf36F0D9c3";
 
@@ -38,8 +37,10 @@ const RemoveLiquidity: React.FC = () => {
     const { provider, account } = useWallet()
     const { removeLiquidity } = useLiquidity()
     const navigate = useNavigate()
+    const { tokenId: paramTokenId } = useParams() // ✅ Get ID from URL
 
-    const [tokenId, setTokenId] = useState<string>("")
+    // ✅ Initialize state with URL param if it exists
+    const [tokenId, setTokenId] = useState<string>(paramTokenId || "")
     const [percentage, setPercentage] = useState<number>(25)
     const [liquidityData, setLiquidityData] = useState<LiquidityData | null>(null)
     
@@ -74,7 +75,6 @@ const RemoveLiquidity: React.FC = () => {
                 throw new Error("Token ID not found or invalid.");
             }
 
-            // ✅ FIX 2: Sanitize addresses returned from contract to prevent ENS errors
             const token0Addr = ethers.getAddress(pos.token0 || pos[2]);
             const token1Addr = ethers.getAddress(pos.token1 || pos[3]);
             
@@ -83,7 +83,6 @@ const RemoveLiquidity: React.FC = () => {
             const tickUpper = Number(pos.tickUpper || pos[6]);
             const liquidityBI = pos.liquidity || pos[7];
 
-            // 3. Get Pool Address (Now safe because inputs are checksummed)
             const poolAddress = await factory.getPool(token0Addr, token1Addr, fee);
             
             if (!poolAddress || poolAddress === ethers.ZeroAddress) {
@@ -106,7 +105,6 @@ const RemoveLiquidity: React.FC = () => {
             const sqrtPriceX96 = slot0[0].toString();
             const tick = Number(slot0[1]);
 
-            // 5. Construct SDK Objects
             const chainId = 1476; 
             const token0 = new Token(chainId, token0Addr, Number(dec0), sym0, sym0);
             const token1 = new Token(chainId, token1Addr, Number(dec1), sym1, sym1);
@@ -119,7 +117,6 @@ const RemoveLiquidity: React.FC = () => {
                 tickUpper,
             });
 
-            // 6. Calculate Amounts
             const amount0 = Number(position.amount0.toSignificant(6));
             const amount1 = Number(position.amount1.toSignificant(6));
             const price0per1 = Number(pool.token0Price.toSignificant(6));
@@ -162,9 +159,10 @@ const RemoveLiquidity: React.FC = () => {
     }, [tokenId, provider]);
 
     useEffect(() => {
+        // Debounce to prevent rapid calls on typing, but allow immediate if param is present
         const timeout = setTimeout(() => {
             if (tokenId && tokenId.length > 0) fetchPositionData();
-        }, 800);
+        }, 500);
         return () => clearTimeout(timeout);
     }, [tokenId, fetchPositionData]);
 
@@ -185,6 +183,8 @@ const RemoveLiquidity: React.FC = () => {
             alert('✅ Liquidity removed successfully!');
             await fetchPositionData();
             setPercentage(0);
+            // Optional: Navigate back to pool after success
+            // navigate('/pool'); 
         } catch (error: any) {
             console.error('Error removing liquidity:', error);
             alert(`❌ Failed to remove liquidity: ${error.reason || error.message}`);
@@ -201,9 +201,9 @@ const RemoveLiquidity: React.FC = () => {
             <div className="w-full max-w-[600px]">
                 <div className="bg-white shadow-xl border border-gray-100 rounded-[32px] overflow-hidden">
                     <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between">
-                        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors">
+                        <button onClick={() => navigate('/pool')} className="flex items-center gap-2 text-gray-500 hover:text-gray-900 transition-colors">
                             <ArrowLeft className="w-5 h-5" />
-                            <span className="font-medium text-sm">Back</span>
+                            <span className="font-medium text-sm">Back to Pool</span>
                         </button>
                         <h2 className="text-xl font-bold text-gray-800">Remove Liquidity</h2>
                         <div className="w-8"></div>
@@ -218,6 +218,7 @@ const RemoveLiquidity: React.FC = () => {
                                     placeholder="e.g. 12345"
                                     value={tokenId}
                                     onChange={(e) => setTokenId(e.target.value)}
+                                    // If ID comes from URL, maybe you want to disable editing, or keep it editable
                                     className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-100 focus:border-red-500 outline-none transition-all font-mono text-lg"
                                 />
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />

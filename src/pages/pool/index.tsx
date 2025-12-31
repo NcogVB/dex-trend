@@ -162,20 +162,8 @@ const Pool = () => {
                     const dec1 = Number.isFinite(data1.decimals) ? data1.decimals : 18;
 
                     const chainId = 1476;
-                    const token0Obj = new Token(
-                        chainId,
-                        ethers.getAddress(token0),
-                        dec0,
-                        data0.symbol,
-                        data0.symbol
-                    );
-                    const token1Obj = new Token(
-                        chainId,
-                        ethers.getAddress(token1),
-                        dec1,
-                        data1.symbol,
-                        data1.symbol
-                    );
+                    const token0Obj = new Token(chainId, ethers.getAddress(token0), dec0, data0.symbol, data0.symbol);
+                    const token1Obj = new Token(chainId, ethers.getAddress(token1), dec1, data1.symbol, data1.symbol);
 
                     const pool = new UniPool(
                         token0Obj,
@@ -217,8 +205,12 @@ const Pool = () => {
                     };
                 })
             );
-
-            setPositions(enriched);
+            const validPositions = enriched.filter((p): p is PositionInfo => {
+                if (p === null) return false;
+                // Keep if at least one token amount is greater than 0
+                return p.amount0 > 0 || p.amount1 > 0;
+            });
+            setPositions(validPositions);
         } catch (err) {
             console.error("Error fetching positions:", err);
         } finally {
@@ -229,7 +221,7 @@ const Pool = () => {
     const SkeletonLoader = () => (
         <div className="space-y-4 animate-pulse">
             {[1, 2, 3].map((i) => (
-                <div key={i} className="h-24 bg-gray-100 rounded-xl w-full border border-gray-200" />
+                <div key={i} className="h-40 bg-gray-100 rounded-xl w-full border border-gray-200" />
             ))}
         </div>
     );
@@ -322,20 +314,21 @@ const Pool = () => {
                                 </Link>
                             </div>
                         ) : (
-                            /* SCROLLABLE CONTAINER */
-                            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                            /* POSITIONS LIST */
+                            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1 custom-scrollbar">
                                 {positions.map((p) => (
                                     <div
                                         key={p.tokenId}
-                                        className="group relative bg-white border border-gray-200 rounded-xl p-5 hover:border-red-300 hover:shadow-md transition-all duration-200"
+                                        className="relative bg-white border border-gray-200 rounded-xl p-5 hover:border-red-200 hover:shadow-md transition-all duration-200"
                                     >
+                                        {/* Position Header */}
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="flex -space-x-2">
-                                                    <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] font-bold">
+                                                    <div className="w-9 h-9 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] font-bold shadow-sm">
                                                         {p.symbol0[0]}
                                                     </div>
-                                                    <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] font-bold">
+                                                    <div className="w-9 h-9 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] font-bold shadow-sm">
                                                         {p.symbol1[0]}
                                                     </div>
                                                 </div>
@@ -346,37 +339,63 @@ const Pool = () => {
                                                             {(Number(p.fee) / 10000).toFixed(2)}%
                                                         </span>
                                                     </div>
-                                                    <div className="text-xs text-green-600 font-medium flex items-center gap-1">
+                                                    <div className="text-xs text-green-600 font-medium flex items-center gap-1 mt-0.5">
                                                         <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                                                         In Range
                                                     </div>
                                                 </div>
                                             </div>
-                                            <span className="text-xs font-mono text-gray-400">#{p.tokenId}</span>
+                                            <div className="text-right">
+                                                <span className="text-xs font-mono text-gray-400 block">ID: #{p.tokenId}</span>
+                                            </div>
                                         </div>
 
+                                        {/* Liquidity Info */}
                                         <div className="grid grid-cols-2 gap-4 bg-gray-50/50 rounded-lg p-3 border border-gray-100">
                                             <div>
-                                                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold mb-1">
-                                                    {p.symbol0} Amount
+                                                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold mb-1">
+                                                    {p.symbol0} Deposit
                                                 </p>
-                                                <p className="font-mono font-medium text-gray-700 text-sm">
+                                                <p className="font-mono font-medium text-gray-800 text-sm">
                                                     {p.amount0.toLocaleString(undefined, { maximumFractionDigits: 6 })}
                                                 </p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-semibold mb-1">
-                                                    {p.symbol1} Amount
+                                                <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold mb-1">
+                                                    {p.symbol1} Deposit
                                                 </p>
-                                                <p className="font-mono font-medium text-gray-700 text-sm">
+                                                <p className="font-mono font-medium text-gray-800 text-sm">
                                                     {p.amount1.toLocaleString(undefined, { maximumFractionDigits: 6 })}
                                                 </p>
                                             </div>
                                         </div>
 
-                                        <div className="mt-3 flex justify-between items-center text-xs text-gray-500 border-t border-gray-100 pt-3">
-                                            <span>Min: {p.tickLower}</span>
-                                            <span>Max: {p.tickUpper}</span>
+                                        {/* Tick Range Info */}
+                                        <div className="mt-3 flex justify-between items-center text-[11px] text-gray-400 font-medium px-1">
+                                            <span>Min Tick: {p.tickLower}</span>
+                                            <span className="text-gray-300">|</span>
+                                            <span>Max Tick: {p.tickUpper}</span>
+                                        </div>
+
+                                        {/* ACTIONS FOOTER */}
+                                        <div className="mt-5 pt-4 border-t border-gray-100 grid grid-cols-2 gap-3">
+                                            {/* Increase Liquidity Button */}
+                                            <Link
+                                                to={`/addlp/${p.tokenId}`}
+                                                className="flex items-center justify-center gap-2 bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 py-2.5 rounded-lg text-xs font-bold transition-all active:scale-[0.98]"
+                                            >
+                                                <Plus size={14} />
+                                                Increase Liquidity
+                                            </Link>
+
+                                            {/* Remove Liquidity Button */}
+                                            <Link
+                                                to={`/removelp/${p.tokenId}`}
+                                                className="flex items-center justify-center gap-2 bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 py-2.5 rounded-lg text-xs font-bold transition-all active:scale-[0.98]"
+                                            >
+                                                <Minus size={14} />
+                                                Remove Liquidity
+                                            </Link>
                                         </div>
                                     </div>
                                 ))}

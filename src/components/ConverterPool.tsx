@@ -92,7 +92,7 @@ const ConverterPool: React.FC = () => {
                             <ArrowLeft className="w-5 h-5" />
                         </button>
                         <h2 className="font-bold text-lg text-gray-800">Add Liquidity</h2>
-                        <div className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                        <div className="w-9 h-9 flex items-center justify-center rounded-full bg-red-50 text-red-600">
                             <Layers size={18} />
                         </div>
                     </div>
@@ -110,7 +110,7 @@ const ConverterPool: React.FC = () => {
                                 <div className="relative flex-1" ref={fromRef}>
                                     <button
                                         onClick={() => setShowFromDropdown(!showFromDropdown)}
-                                        className="w-full flex items-center justify-between bg-white border border-gray-200 px-3 py-2.5 rounded-xl shadow-sm hover:border-blue-400 transition-all"
+                                        className="w-full flex items-center justify-between bg-white border border-gray-200 px-3 py-2.5 rounded-xl shadow-sm hover:border-red-400 transition-all"
                                     >
                                         <div className="flex items-center gap-2">
                                             <img src={fromToken.img} alt="" className="w-6 h-6 rounded-full border border-gray-100" />
@@ -146,7 +146,7 @@ const ConverterPool: React.FC = () => {
                                 <div className="relative flex-1" ref={toRef}>
                                     <button
                                         onClick={() => setShowToDropdown(!showToDropdown)}
-                                        className="w-full flex items-center justify-between bg-white border border-gray-200 px-3 py-2.5 rounded-xl shadow-sm hover:border-blue-400 transition-all"
+                                        className="w-full flex items-center justify-between bg-white border border-gray-200 px-3 py-2.5 rounded-xl shadow-sm hover:border-red-400 transition-all"
                                     >
                                         <div className="flex items-center gap-2">
                                             <img src={toToken.img} alt="" className="w-6 h-6 rounded-full border border-gray-100" />
@@ -177,7 +177,7 @@ const ConverterPool: React.FC = () => {
 
                             {/* Fee Tier Badge */}
                             <div className="flex justify-end mt-2">
-                                <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
                                     0.05% Fee Tier
                                 </span>
                             </div>
@@ -197,7 +197,7 @@ const ConverterPool: React.FC = () => {
                                     placeholder="0.00"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
-                                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-4 text-2xl font-bold text-gray-900 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all placeholder-gray-300"
+                                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-4 text-2xl font-bold text-gray-900 outline-none focus:ring-2 focus:ring-red-100 focus:border-red-500 transition-all placeholder-gray-300"
                                 />
                                 <div className="absolute right-4 top-1/2 -translate-y-1/2">
                                     <span className="text-xs font-bold text-gray-400 uppercase">UNITS</span>

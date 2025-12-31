@@ -11,6 +11,8 @@ import PolicyDashboard from "./pages/policy/Policy";
 import LendingBorrowing from "./pages/LendingBorrowing/LB";
 import { ToastProvider } from "./components/Toast";
 import PreSell from "./components/PreSell";
+import AddLiquidity from "./components/AddLiquidity";
+import RemoveLiquidity from "./components/Converter1";
 
 function App() {
   return (
@@ -23,6 +25,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/swap" element={<Swap />} />
             <Route path="/presell" element={<PreSell />} />
+            <Route path="/addlp/:tokenId" element={<AddLiquidity />} />
+            <Route path="/removelp/:tokenId" element={<RemoveLiquidity />} />
             <Route path="/Policy" element={<PolicyDashboard />} />
             <Route path="/LendingBorrowing" element={<LendingBorrowing />} />
             <Route path="/Dashboard" element={<AmmDashboard />} />
