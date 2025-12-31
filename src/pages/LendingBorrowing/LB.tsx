@@ -4,22 +4,9 @@ import { useWallet } from "../../contexts/WalletContext";
 import { TOKENS } from "../../utils/SwapTokens";
 import { ethers, Contract } from "ethers";
 import { ERC20_ABI } from "../../contexts/ABI";
-
+import LENDING_ABI from "./ABI.json";
 // --- ABI & CONFIG ---
-const CONTRACT_ADDRESS = "0x09C1f217DAE1cD163d6ce0a234066EB5fB4d07f3";
-
-const LENDING_ABI = [
-    "function depositCollateral(address token, uint256 amount) external",
-    "function withdrawCollateral(address token, uint256 amount) external",
-    "function borrow(address borrowToken, uint256 amount) external",
-    "function repay(uint256 amount) external",
-    "function userCollateralAmount(address user, address token) view returns (uint256)",
-    "function debts(address) view returns (address token, uint256 principal, uint256 interestIndex, uint256 lastAccrued)",
-    "function getHealthFactor(address user) view returns (uint256)",
-    "function getBorrowAPRPercent() view returns (uint256)",
-    "function maxLTV() view returns (uint256)",
-    "function getUserCollateralValue(address user) view returns (uint256)"
-];
+const CONTRACT_ADDRESS = "0x74677b11301b9Ed0E615eCB711844559A3C97A8d"
 
 const LendingBorrowing = () => {
     const { account, provider, signer } = useWallet();
@@ -35,108 +22,75 @@ const LendingBorrowing = () => {
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const [userStats, setUserStats] = useState({
-        totalCollateralValue: "0.00",
+        health: "0.00",
+        apr: "0.00",
+        debtAmt: "0.00",
+        collateralVal: "0.00",
         debtToken: ethers.ZeroAddress,
-        debtAmount: "0.00",
-        healthFactor: "0.00",
-        borrowAPY: "0.00",
         maxLTV: "0"
     });
 
     const activeToken = tokens.find(t => t.address.toLowerCase() === selectedTokenAddr.toLowerCase()) || tokens[0];
 
-    const formatValue = (val: any) => {
-        try {
-            if (!val) return "0.00";
-
-            const bn = ethers.getBigInt(val);
-
-            if (bn === BigInt(0)) return "0.00";
-
-            const threshold = ethers.parseUnits("1000000000", 18);
-
-            if (bn > threshold) {
-
-                const raw = ethers.formatUnits(bn, 18);
-                return (parseFloat(raw) / 1e18).toFixed(2);
-            }
-
-            return parseFloat(ethers.formatUnits(bn, 18)).toFixed(2);
-        } catch (e) {
-            console.error("Format error", e);
-            return "0.00";
-        }
-    };
-
     const parseEth = (val: string) => ethers.parseUnits(val, 18);
+    const fmt = (val: any, dec = 18) => val ? parseFloat(ethers.formatUnits(val, dec)).toFixed(4) : "0";
 
     // --- FETCH DATA ---
     const fetchData = useCallback(async () => {
         if (!account || !provider) return;
-
         try {
-            const lendingContract = new Contract(CONTRACT_ADDRESS, LENDING_ABI, provider);
+            const lc = new Contract(CONTRACT_ADDRESS, LENDING_ABI, provider);
 
-            const results = await Promise.allSettled([
-                lendingContract.debts(account),
-                lendingContract.getHealthFactor(account),
-                lendingContract.getBorrowAPRPercent(),
-                lendingContract.maxLTV(),
-                lendingContract.getUserCollateralValue(account)
+            // Fetch Global Stats
+            const [hfRaw, aprRaw, debtRaw, colValRaw, debtStruct] = await Promise.all([
+                // Existing catch for health factor
+                lc.getHealthFactor(account).catch(() => ethers.MaxUint256),
+
+                // Add catch blocks for others to prevent UI crash
+                lc.getBorrowAPR().catch(() => 0n),
+                lc.getUserDebt(account).catch(() => 0n),
+
+                // ✅ FIX: Add catch here so if function is missing, it returns 0 instead of crashing
+                lc.getUserCollateralValue(account).catch((e) => {
+                    console.warn("CollatValue call failed (Contract outdated?)", e);
+                    return 0n;
+                }),
+
+                lc.debts(account).catch(() => ({ token: ethers.ZeroAddress, principal: 0n, lastAccrued: 0n }))
             ]);
-
-            const getRes = (index: number) => {
-                // @ts-ignore
-                return results[index].status === 'fulfilled' ? results[index].value : 0;
-            };
-
-            const debtData = getRes(0);
-
-            // Handle BigInt scaling correctly for APY
-            const rawAPY = getRes(2);
-            // APY from contract is scaled by 1e18 (e.g. 0.05 * 1e18). 
-            // So we formatUnits to get 0.05, then multiply by 100 to get 5.00%
-            const formattedAPY = (parseFloat(ethers.formatUnits(rawAPY || 0, 18)) * 100).toFixed(2);
-
-            const rawLTV = getRes(3);
-            const formattedLTV = (parseFloat(ethers.formatUnits(rawLTV || 0, 18)) * 100).toFixed(0);
-
-            // Handle Health Factor (Standard 1e18 scale)
-            const rawHF = getRes(1);
-            let formattedHF = "∞";
-            // If HF is massive (default for no debt), show Infinity
-            if (rawHF < ethers.parseUnits("1000", 18)) {
-                formattedHF = parseFloat(ethers.formatUnits(rawHF, 18)).toFixed(2);
+            // Determine Debt Decimals (Default 18)
+            let debtDec = 18;
+            if (debtStruct.token !== ethers.ZeroAddress) {
+                const dt = new Contract(debtStruct.token, ERC20_ABI, provider);
+                debtDec = Number(await dt.decimals());
             }
 
             setUserStats({
-                debtToken: debtData[0] || ethers.ZeroAddress,
-                debtAmount: formatValue(debtData[1]),
-                healthFactor: formattedHF,
-                borrowAPY: formattedAPY,
-                maxLTV: formattedLTV,
-                totalCollateralValue: formatValue(getRes(4))
+                health: hfRaw > ethers.parseUnits("100", 18) ? "∞" : parseFloat(ethers.formatUnits(hfRaw, 18)).toFixed(2),
+                apr: (parseFloat(ethers.formatUnits(aprRaw, 18)) * 100).toFixed(2),
+                debtAmt: fmt(debtRaw, debtDec),
+                collateralVal: fmt(colValRaw, debtDec), // Value is calculated in terms of Debt Token (or USDT)
+                debtToken: debtStruct.token,
+                maxLTV: "75"
             });
 
             // Fetch Token Balances
-            const updatedTokens = await Promise.all(tokens.map(async (t) => {
-                try {
-                    const tokenContract = new Contract(t.address, ERC20_ABI, provider);
-                    const [walletBal, depositedBal] = await Promise.all([
-                        tokenContract.balanceOf(account),
-                        lendingContract.userCollateralAmount(account, t.address)
-                    ]);
-                    return { ...t, balance: formatValue(walletBal), deposited: formatValue(depositedBal) };
-                } catch (e) {
-                    return t;
-                }
+            const _tokens = await Promise.all(tokens.map(async (t) => {
+                const tc = new Contract(t.address, ERC20_ABI, provider);
+                const [bal, dep, dec] = await Promise.all([
+                    tc.balanceOf(account),
+                    lc.userCollateralAmount(account, t.address),
+                    tc.decimals()
+                ]);
+                return { ...t, balance: fmt(bal, dec), deposited: fmt(dep, dec), decimals: Number(dec) };
             }));
-            setTokens(updatedTokens);
+            setTokens(_tokens);
 
-        } catch (err) {
-            console.error("Fetch Data Error:", err);
-        }
-    }, [account, provider]);
+            const curr = _tokens.find(t => t.address === selectedTokenAddr);
+            if (curr) setSelectedTokenAddr(curr.address);
+
+        } catch (e) { console.error(e); }
+    }, [account, provider, selectedTokenAddr]);
 
     useEffect(() => {
         fetchData();
@@ -184,7 +138,7 @@ const LendingBorrowing = () => {
             }
             else if (actionType === "repay") {
 
-                const debtWei = parseEth(userStats.debtAmount);
+                const debtWei = parseEth(userStats.debtAmt);
 
                 if (weiAmount >= (debtWei * 99n) / 100n) {
                     tx = await contract.repay(ethers.MaxUint256);
@@ -217,12 +171,12 @@ const LendingBorrowing = () => {
     const getMaxAmount = () => {
         if (actionType === "deposit") return activeToken.balance;
         if (actionType === "withdraw") return activeToken.deposited;
-        if (actionType === "repay") return userStats.debtAmount;
+        if (actionType === "repay") return userStats.debtAmt;
         return "0";
     };
 
     // Lock token selection logic
-    const isTokenLocked = (actionType === 'repay' && parseFloat(userStats.debtAmount) > 0);
+    const isTokenLocked = (actionType === 'repay' && parseFloat(userStats.debtAmt) > 0);
     useEffect(() => {
         if (actionType === 'repay' && userStats.debtToken !== ethers.ZeroAddress) {
             setSelectedTokenAddr(userStats.debtToken);
@@ -248,8 +202,8 @@ const LendingBorrowing = () => {
                         <span className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1 flex items-center gap-1">
                             <Activity size={10} /> Health
                         </span>
-                        <span className={`text-xl font-bold ${parseFloat(userStats.healthFactor) < 1.1 ? 'text-red-600' : 'text-green-600'}`}>
-                            {userStats.healthFactor}
+                        <span className={`text-xl font-bold ${parseFloat(userStats.health) < 1.1 ? 'text-red-600' : 'text-green-600'}`}>
+                            {userStats.health}
                         </span>
                     </div>
                     <div className="flex flex-col items-center">
@@ -260,7 +214,7 @@ const LendingBorrowing = () => {
                     </div>
                     <div className="flex flex-col items-end">
                         <span className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-1">APR</span>
-                        <span className="text-xl font-bold text-red-600">{userStats.borrowAPY}%</span>
+                        <span className="text-xl font-bold text-red-600">{userStats.apr}%</span>
                     </div>
                 </div>
 
@@ -370,12 +324,12 @@ const LendingBorrowing = () => {
                     <div className="mt-5 space-y-2 px-1">
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-400 font-medium">Total Collateral</span>
-                            <span className="font-bold text-gray-700">${userStats.totalCollateralValue}</span>
+                            <span className="font-bold text-gray-700">${userStats.collateralVal}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
                             <span className="text-gray-400 font-medium">Total Debt</span>
                             <span className="font-bold text-gray-700">
-                                {userStats.debtAmount}
+                                {userStats.debtAmt}
                                 <span className="text-xs text-gray-400 ml-1">
                                     {userStats.debtToken !== ethers.ZeroAddress ? TOKENS.find(t => t.address.toLowerCase() === userStats.debtToken.toLowerCase())?.symbol : ""}
                                 </span>

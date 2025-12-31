@@ -29,6 +29,11 @@
 		"type": "constructor"
 	},
 	{
+		"inputs": [],
+		"name": "ReentrancyGuardReentrantCall",
+		"type": "error"
+	},
+	{
 		"anonymous": false,
 		"inputs": [
 			{
@@ -139,13 +144,13 @@
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "repayAmount",
+				"name": "amount",
 				"type": "uint256"
 			},
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "seizedCollateral",
+				"name": "seized",
 				"type": "uint256"
 			}
 		],
@@ -243,12 +248,39 @@
 			},
 			{
 				"internalType": "uint256",
-				"name": "interestIndex",
+				"name": "lastAccrued",
 				"type": "uint256"
-			},
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getBorrowAPR",
+		"outputs": [
 			{
 				"internalType": "uint256",
-				"name": "lastAccrued",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			}
+		],
+		"name": "getHealthFactor",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
 				"type": "uint256"
 			}
 		],
@@ -264,6 +296,25 @@
 			}
 		],
 		"name": "getUserCollateralValue",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			}
+		],
+		"name": "getUserDebt",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -300,7 +351,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "liquidationThreshold",
+		"name": "LIQUIDATION_BONUS",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -313,7 +364,20 @@
 	},
 	{
 		"inputs": [],
-		"name": "maxLTV",
+		"name": "LIQUIDATION_THRESHOLD",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "MAX_LTV",
 		"outputs": [
 			{
 				"internalType": "uint256",

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { ethers } from "ethers";
+import { ethers, Contract } from "ethers";
 import {
     Shield,
     Activity,
@@ -11,13 +11,18 @@ import {
     AlertCircle,
     Clock,
     ArrowRight,
-    ChevronDown
+    ChevronDown,
+    Loader2
 } from "lucide-react";
+// Assuming you have this, otherwise use the inline ABI below
 import DeFiInsuranceABI from "./ABI.json";
 import { useWallet } from "../../contexts/WalletContext";
 import { TOKENS } from "../../utils/SwapTokens";
+import { ERC20_ABI } from "../../contexts/ABI";
 
-const CONTRACT_ADDRESS = "0xF1Cfa890bF34663F1F9138C3D8974D6711CB69b4";
+const CONTRACT_ADDRESS = "0xa8e91a487D6c46B6ea9B36a71bd4f241a3eFba04";
+const USDT_ADDRESS = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
+
 
 interface Policy {
     policyId: number;
@@ -32,7 +37,7 @@ interface Policy {
     expiryTime: string;
     claimed: boolean;
     active: boolean;
-    rawExpiry: number; // Added for sort/logic
+    rawExpiry: number;
 }
 
 const PolicyDashboard: React.FC = () => {
@@ -42,16 +47,14 @@ const PolicyDashboard: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [statusMsg, setStatusMsg] = useState(""); // Feedback for user
     const [isAssetOpen, setIsAssetOpen] = useState(false);
-    const [isQuoteOpen, setIsQuoteOpen] = useState(false);
 
     const assetRef = useRef<HTMLDivElement>(null);
-    const quoteRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         function handleClickOutside(event: any) {
             if (assetRef.current && !assetRef.current.contains(event.target)) setIsAssetOpen(false);
-            if (quoteRef.current && !quoteRef.current.contains(event.target)) setIsQuoteOpen(false);
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -61,11 +64,9 @@ const PolicyDashboard: React.FC = () => {
     const [premiumRate, setPremiumRate] = useState<string>("0%");
     const [underwriterShare, setUnderwriterShare] = useState<string>("0%");
 
-    // Form
+    // Form - Quote Token Removed (Fixed to USDT)
     const [form, setForm] = useState({
         assetToken: "",
-        quoteToken: "",
-        fee: 500,
         notional: "",
         duration: "",
         threshold: "",
@@ -73,6 +74,7 @@ const PolicyDashboard: React.FC = () => {
 
     useEffect(() => {
         if (!signer) return;
+        // Use CORE_ABI to ensure we have the updated function signatures
         const instance = new ethers.Contract(CONTRACT_ADDRESS, DeFiInsuranceABI, signer);
         setContract(instance);
     }, [signer]);
@@ -113,11 +115,11 @@ const PolicyDashboard: React.FC = () => {
                 const shareBps = await contract.underwriterShareBps();
                 setPremiumRate((Number(rateBps) / 100).toFixed(2) + "%");
                 setUnderwriterShare((Number(shareBps) / 100).toFixed(2) + "%");
-            } catch (e) { console.warn("Could not fetch stats", e); }
+            } catch (e) { }
 
-            setPolicies(allPolicies.reverse()); // Show newest first
+            setPolicies(allPolicies.reverse());
         } catch (err) {
-            console.error("❌ Failed to load policies:", err);
+            console.error("Failed to load policies:", err);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -126,55 +128,92 @@ const PolicyDashboard: React.FC = () => {
 
     useEffect(() => {
         fetchPolicies();
-        // Poll for updates
         const interval = setInterval(fetchPolicies, 20000);
         return () => clearInterval(interval);
     }, [fetchPolicies]);
 
     // 🔹 Actions
     const createPolicy = async () => {
-        if (!contract) return;
-        if (!form.assetToken || !form.quoteToken || !form.notional || !form.duration || !form.threshold) {
+        if (!contract || !signer || !account) return;
+        if (!form.assetToken || !form.notional || !form.duration || !form.threshold) {
             alert("Please fill in all fields");
             return;
         }
 
         setSubmitting(true);
+        setStatusMsg("Calculating Premium...");
+
         try {
+            const notionalWei = ethers.parseUnits(form.notional, 18);
+            const durationSec = Number(form.duration) * 86400;
+            const thresholdInt = Number(form.threshold); // e.g. 2000 for 20%
+
+            // 1. Calculate Premium to know how much to approve
+            const premiumWei = await contract.calculatePremium(
+                notionalWei,
+                durationSec,
+                thresholdInt
+            );
+
+            console.log("Required Premium:", ethers.formatUnits(premiumWei, 18), "USDT");
+
+            // 2. Check USDT Allowance
+            setStatusMsg("Checking USDT Allowance...");
+            const usdtContract = new Contract(USDT_ADDRESS, ERC20_ABI, signer);
+            const allowance = await usdtContract.allowance(account, CONTRACT_ADDRESS);
+
+            // 3. Approve if needed
+            if (allowance < premiumWei) {
+                setStatusMsg("Approving USDT...");
+                const approveTx = await usdtContract.approve(CONTRACT_ADDRESS, ethers.MaxUint256);
+                await approveTx.wait();
+                console.log("USDT Approved");
+            }
+
+            // 4. Purchase Policy
+            setStatusMsg("Purchasing Policy...");
+            // Note: Removed _quoteToken argument as per instruction
             const tx = await contract.purchasePolicy(
                 form.assetToken,
-                form.quoteToken,
-                form.fee,
-                ethers.parseUnits(form.notional, 18),
-                Number(form.duration) * 86400,
-                Number(form.threshold)
+                USDT_ADDRESS,
+                notionalWei,
+                durationSec,
+                thresholdInt
             );
+
             await tx.wait();
+
             alert("✅ Policy created successfully!");
-            setForm({ assetToken: "", quoteToken: "", fee: 500, notional: "", duration: "", threshold: "" });
+            setForm({ assetToken: "", notional: "", duration: "", threshold: "" });
             fetchPolicies();
+
         } catch (err: any) {
             console.error("Creation failed:", err);
-            alert("Failed: " + (err.reason || err.message));
+            // Decode typical revert reasons
+            const reason = err.reason || err.shortMessage || err.message || "Unknown Error";
+            alert("Transaction Failed: " + reason);
         } finally {
             setSubmitting(false);
+            setStatusMsg("");
         }
     };
 
     const handleClaim = async (policyId: number) => {
         if (!contract) return;
         setSubmitting(true);
+        setStatusMsg("Submitting claim...");
         try {
-            const fee = 500; // Uniswap Pool Fee Tier
-            const tx = await contract.submitClaim(policyId, fee);
+            const tx = await contract.submitClaim(policyId);
             await tx.wait();
-            alert(`✅ Claim submitted for Policy #${policyId}`);
+            alert(`✅ Claim approved! Payout sent to wallet.`);
             fetchPolicies();
         } catch (err: any) {
             console.error("Claim failed:", err);
-            alert("Failed: " + (err.reason || err.message));
+            const reason = err.reason || err.shortMessage || "Claim conditions not met";
+            alert("Claim Failed: " + reason);
         } finally {
             setSubmitting(false);
+            setStatusMsg("");
         }
     };
 
@@ -188,7 +227,7 @@ const PolicyDashboard: React.FC = () => {
                 <Shield className="w-16 h-16 text-red-500" />
             </div>
             <h2 className="text-2xl font-bold text-gray-800">DeFi Insurance Protocol</h2>
-            <p className="text-gray-500 mt-2 max-w-md">Connect your wallet to purchase coverage, view active policies, and manage claims.</p>
+            <p className="text-gray-500 mt-2 max-w-md">Connect your wallet to purchase coverage.</p>
         </div>
     );
 
@@ -282,7 +321,6 @@ const PolicyDashboard: React.FC = () => {
                                             <ChevronDown size={16} className="text-gray-400" />
                                         </button>
 
-                                        {/* Scrollable Dropdown List */}
                                         {isAssetOpen && (
                                             <div className="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
                                                 <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
@@ -295,7 +333,7 @@ const PolicyDashboard: React.FC = () => {
                                                             }}
                                                             className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 flex items-center gap-2 transition-colors border-b border-gray-50 last:border-0"
                                                         >
-                                                            {/* Optional: Add Token Image here if available in t.img */}
+                                                            <img src={t.img} className="w-5 h-5 rounded-full" alt="" />
                                                             {t.symbol}
                                                         </div>
                                                     ))}
@@ -304,38 +342,14 @@ const PolicyDashboard: React.FC = () => {
                                         )}
                                     </div>
 
-                                    {/* QUOTE TOKEN DROPDOWN */}
-                                    <div className="space-y-1.5 relative" ref={quoteRef}>
+                                    {/* FIXED QUOTE TOKEN DISPLAY */}
+                                    <div className="space-y-1.5">
                                         <label className="text-xs font-semibold text-gray-500 ml-1">Quote Token</label>
-                                        <button
-                                            onClick={() => setIsQuoteOpen(!isQuoteOpen)}
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm flex justify-between items-center outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
-                                        >
-                                            <span className={!form.quoteToken ? "text-gray-400" : "text-gray-700 font-medium"}>
-                                                {form.quoteToken ? getTokenSymbol(form.quoteToken) : "Select Quote"}
-                                            </span>
-                                            <ChevronDown size={16} className="text-gray-400" />
-                                        </button>
-
-                                        {/* Scrollable Dropdown List */}
-                                        {isQuoteOpen && (
-                                            <div className="absolute top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg z-20 overflow-hidden">
-                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                                    {TOKENS.map((t) => (
-                                                        <div
-                                                            key={t.address}
-                                                            onClick={() => {
-                                                                setForm({ ...form, quoteToken: t.address });
-                                                                setIsQuoteOpen(false);
-                                                            }}
-                                                            className="px-4 py-2.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 flex items-center gap-2 transition-colors border-b border-gray-50 last:border-0"
-                                                        >
-                                                            {t.symbol}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
+                                        <div className="w-full bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5 text-sm flex items-center gap-2 text-gray-500 cursor-not-allowed">
+                                            {/* Assuming you have a USDT image in TOKENS, otherwise generic icon */}
+                                            {/* <img src={getTokenImg(USDT_ADDRESS)} className="w-5 h-5 rounded-full" alt="USDT" /> */}
+                                            <span className="font-bold">USDT</span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -366,12 +380,12 @@ const PolicyDashboard: React.FC = () => {
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-xs font-semibold text-gray-500 ml-1">Trigger Drop %</label>
+                                        <label className="text-xs font-semibold text-gray-500 ml-1">Trigger Drop (bps)</label>
                                         <input
                                             type="number"
                                             value={form.threshold}
                                             onChange={(e) => setForm({ ...form, threshold: e.target.value })}
-                                            placeholder="20"
+                                            placeholder="2000 = 20%"
                                             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all"
                                         />
                                     </div>
@@ -383,7 +397,10 @@ const PolicyDashboard: React.FC = () => {
                                     className="w-full mt-4 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3.5 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                                 >
                                     {submitting ? (
-                                        <>Processing...</>
+                                        <span className="flex items-center gap-2">
+                                            <Loader2 size={16} className="animate-spin" />
+                                            {statusMsg || "Processing..."}
+                                        </span>
                                     ) : (
                                         <>Calculate & Purchase <ArrowRight size={16} /></>
                                     )}
@@ -449,8 +466,8 @@ const PolicyDashboard: React.FC = () => {
                                                         <td className="px-5 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 <div className="flex -space-x-2">
-                                                                    {AssetImg ? <img src={AssetImg} className="w-6 h-6 rounded-full border border-white" /> : <div className="w-6 h-6 rounded-full bg-gray-200 border border-white" />}
-                                                                    {QuoteImg ? <img src={QuoteImg} className="w-6 h-6 rounded-full border border-white" /> : <div className="w-6 h-6 rounded-full bg-gray-200 border border-white" />}
+                                                                    {AssetImg ? <img src={AssetImg} className="w-6 h-6 rounded-full border border-white" alt="asset" /> : <div className="w-6 h-6 rounded-full bg-gray-200 border border-white" />}
+                                                                    {QuoteImg ? <img src={QuoteImg} className="w-6 h-6 rounded-full border border-white" alt="quote" /> : <div className="w-6 h-6 rounded-full bg-gray-200 border border-white" />}
                                                                 </div>
                                                                 <div>
                                                                     <div className="font-semibold text-gray-800">

@@ -21,6 +21,78 @@
 		"type": "constructor"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "target",
+				"type": "address"
+			}
+		],
+		"name": "AddressEmptyCode",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_amount",
+				"type": "uint256"
+			}
+		],
+		"name": "depositLiquidity",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "FailedCall",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "balance",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "needed",
+				"type": "uint256"
+			}
+		],
+		"name": "InsufficientBalance",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			}
+		],
+		"name": "OwnableInvalidOwner",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "account",
+				"type": "address"
+			}
+		],
+		"name": "OwnableUnauthorizedAccount",
+		"type": "error"
+	},
+	{
+		"inputs": [],
+		"name": "ReentrancyGuardReentrantCall",
+		"type": "error"
+	},
+	{
 		"anonymous": false,
 		"inputs": [
 			{
@@ -208,80 +280,142 @@
 		"type": "event"
 	},
 	{
-		"anonymous": false,
 		"inputs": [
 			{
-				"indexed": true,
 				"internalType": "address",
-				"name": "tokenA",
+				"name": "_assetToken",
 				"type": "address"
 			},
 			{
-				"indexed": true,
 				"internalType": "address",
-				"name": "tokenB",
+				"name": "_quoteToken",
 				"type": "address"
 			},
 			{
-				"indexed": false,
-				"internalType": "uint24",
-				"name": "fee",
-				"type": "uint24"
+				"internalType": "uint256",
+				"name": "_notional",
+				"type": "uint256"
 			},
 			{
-				"indexed": false,
-				"internalType": "address",
-				"name": "poolAddress",
-				"type": "address"
+				"internalType": "uint256",
+				"name": "_coverageDuration",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_thresholdPercentage",
+				"type": "uint256"
 			}
 		],
-		"name": "PoolAdded",
-		"type": "event"
+		"name": "purchasePolicy",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "tokenA",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "tokenB",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint24",
-				"name": "fee",
-				"type": "uint24"
-			}
-		],
-		"name": "PoolRemoved",
-		"type": "event"
+		"inputs": [],
+		"name": "renounceOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
 		"inputs": [
 			{
-				"internalType": "address",
-				"name": "_tokenA",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenB",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
+				"internalType": "bool",
+				"name": "_paused",
+				"type": "bool"
 			}
 		],
-		"name": "addPool",
+		"name": "setPaused",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_policyId",
+				"type": "uint256"
+			}
+		],
+		"name": "submitClaim",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_min",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_max",
+				"type": "uint256"
+			}
+		],
+		"name": "updateDurationLimits",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_premiumRateBps",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_underwriterShareBps",
+				"type": "uint256"
+			}
+		],
+		"name": "updateRates",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_amount",
+				"type": "uint256"
+			}
+		],
+		"name": "withdrawLiquidity",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "withdrawSurplus",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -390,19 +524,6 @@
 	{
 		"inputs": [
 			{
-				"internalType": "uint256",
-				"name": "_amount",
-				"type": "uint256"
-			}
-		],
-		"name": "depositLiquidity",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
 				"internalType": "address",
 				"name": "_assetToken",
 				"type": "address"
@@ -411,11 +532,6 @@
 				"internalType": "address",
 				"name": "_quoteToken",
 				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
 			}
 		],
 		"name": "fetchPriceFromPool",
@@ -427,94 +543,6 @@
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_tokenA",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenB",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
-			}
-		],
-		"name": "getCompletePoolInfo",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "poolAddress",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "token0",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "token1",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "fee",
-				"type": "uint24"
-			},
-			{
-				"internalType": "uint128",
-				"name": "liquidity",
-				"type": "uint128"
-			},
-			{
-				"internalType": "uint256",
-				"name": "currentRatio",
-				"type": "uint256"
-			},
-			{
-				"internalType": "bool",
-				"name": "isActive",
-				"type": "bool"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_tokenA",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenB",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
-			}
-		],
-		"name": "getPairKey",
-		"outputs": [
-			{
-				"internalType": "bytes32",
-				"name": "",
-				"type": "bytes32"
-			}
-		],
-		"stateMutability": "pure",
 		"type": "function"
 	},
 	{
@@ -601,140 +629,9 @@
 	{
 		"inputs": [
 			{
-				"internalType": "address",
-				"name": "_tokenA",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenB",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
-			}
-		],
-		"name": "getPoolInfo",
-		"outputs": [
-			{
-				"components": [
-					{
-						"internalType": "address",
-						"name": "poolAddress",
-						"type": "address"
-					},
-					{
-						"internalType": "address",
-						"name": "token0",
-						"type": "address"
-					},
-					{
-						"internalType": "address",
-						"name": "token1",
-						"type": "address"
-					},
-					{
-						"internalType": "uint24",
-						"name": "fee",
-						"type": "uint24"
-					},
-					{
-						"internalType": "uint128",
-						"name": "liquidity",
-						"type": "uint128"
-					},
-					{
-						"internalType": "bool",
-						"name": "isActive",
-						"type": "bool"
-					}
-				],
-				"internalType": "struct DeFiInsurance.PoolInfo",
-				"name": "",
-				"type": "tuple"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_tokenA",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenB",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
-			}
-		],
-		"name": "getTokenRatio",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_underwriter",
-				"type": "address"
-			}
-		],
-		"name": "getUnderwriterInfo",
-		"outputs": [
-			{
-				"components": [
-					{
-						"internalType": "uint256",
-						"name": "depositedAmount",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "premiumEarned",
-						"type": "uint256"
-					},
-					{
-						"internalType": "uint256",
-						"name": "lastDepositTime",
-						"type": "uint256"
-					}
-				],
-				"internalType": "struct DeFiInsurance.UnderwriterInfo",
-				"name": "",
-				"type": "tuple"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
 				"internalType": "uint256",
 				"name": "_policyId",
 				"type": "uint256"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
 			}
 		],
 		"name": "isClaimEligible",
@@ -907,6 +804,19 @@
 	},
 	{
 		"inputs": [],
+		"name": "POOL_FEE",
+		"outputs": [
+			{
+				"internalType": "uint24",
+				"name": "",
+				"type": "uint24"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "premiumRateBps",
 		"outputs": [
 			{
@@ -932,155 +842,6 @@
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_assetToken",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_quoteToken",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_notional",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_coverageDuration",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_thresholdPercentage",
-				"type": "uint256"
-			}
-		],
-		"name": "purchasePolicy",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_tokenA",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenB",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
-			}
-		],
-		"name": "removePool",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "renounceOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "bool",
-				"name": "_paused",
-				"type": "bool"
-			}
-		],
-		"name": "setPaused",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "_policyId",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
-			}
-		],
-		"name": "submitClaim",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "bytes32",
-				"name": "",
-				"type": "bytes32"
-			}
-		],
-		"name": "tokenPools",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "poolAddress",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "token0",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "token1",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "fee",
-				"type": "uint24"
-			},
-			{
-				"internalType": "uint128",
-				"name": "liquidity",
-				"type": "uint128"
-			},
-			{
-				"internalType": "bool",
-				"name": "isActive",
-				"type": "bool"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
 		"inputs": [],
 		"name": "totalPremiumsCollected",
 		"outputs": [
@@ -1096,32 +857,6 @@
 	{
 		"inputs": [],
 		"name": "totalUnderwritingPool",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "transferOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "underwriterShareBps",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -1163,6 +898,19 @@
 	},
 	{
 		"inputs": [],
+		"name": "underwriterShareBps",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "uniswapFactory",
 		"outputs": [
 			{
@@ -1172,85 +920,6 @@
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "_min",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_max",
-				"type": "uint256"
-			}
-		],
-		"name": "updateDurationLimits",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_tokenA",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_tokenB",
-				"type": "address"
-			},
-			{
-				"internalType": "uint24",
-				"name": "_fee",
-				"type": "uint24"
-			}
-		],
-		"name": "updatePoolLiquidity",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "_premiumRateBps",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_underwriterShareBps",
-				"type": "uint256"
-			}
-		],
-		"name": "updateRates",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "_amount",
-				"type": "uint256"
-			}
-		],
-		"name": "withdrawLiquidity",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "withdrawSurplus",
-		"outputs": [],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	}
 ]
