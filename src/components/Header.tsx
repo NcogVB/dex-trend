@@ -28,8 +28,6 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-    { name: 'Swap', href: 'swap', path: '/swap', icon: <ArrowRightLeft className="w-4 h-4" /> },
-    { name: 'Pool', href: 'pool', path: '/pool', icon: <Layers className="w-4 h-4" /> },
     { name: 'Bridge', href: 'https://bridge.skyhighblockchain.com/', path: '', external: true, icon: <Globe className="w-4 h-4" /> },
     { name: 'Exchange', href: 'exchange', path: '/exchange', icon: <BarChart3 className="w-4 h-4" /> },
     { name: 'Lending', href: 'LendingBorrowing', path: '/LendingBorrowing', icon: <BookOpen className="w-4 h-4" /> },
