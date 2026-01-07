@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import TradingDashboard from '../../components/TradingDashboard'
 import { ChevronDown, Loader2 } from 'lucide-react'
-import ExecutorABI from "../../ABI/LimitOrder.json";
+import ExecutorABI from "../../ABI/ABI.json";
 import { ethers } from 'ethers'
 import { useWallet } from '../../contexts/WalletContext'
 import { TOKENS } from '../../utils/SwapTokens'
@@ -32,10 +32,15 @@ const Limit = () => {
     const [userOpenOrders, setUserOpenOrders] = useState<any[]>([]);
     const [generalOpenOrders, setGeneralOpenOrders] = useState<any[]>([]);
 
+    const [insuranceType, setInsuranceType] = useState<number>(0); // 0=None, 1=Principal, 2=StopLoss
+    const [coveragePct, setCoveragePct] = useState<number>(100);   // 0-100%
+
     const [isOrdersLoading, setIsOrdersLoading] = useState(false);
     const [isLoadingRate, setIsLoadingRate] = useState(false);
-
-    const [isCreatingBuy, setIsCreatingBuy] = useState(false)
+    const [protocolBalances, setProtocolBalances] = useState({
+        from: "0.0000",
+        to: "0.0000"
+    }); const [isCreatingBuy, setIsCreatingBuy] = useState(false)
     const [isCreatingSell, setIsCreatingSell] = useState(false)
     const [fromToken, setFromToken] = useState<Token>(TOKENS[1])
     const [expiryDays, setExpiryDays] = useState<number>(1);
@@ -133,8 +138,56 @@ const Limit = () => {
         };
     }, [fromToken.address, toToken.address, provider]);
 
-    const EXECUTOR_ADDRESS = "0x59AEeACD225bD2b2B178B2cDa53D6c6759bB2966";
+    const EXECUTOR_ADDRESS = "0x6Cc3baF9320934d4DEcAB8fdAc92F00102A58994";
     const MIN_ERC20_ABI = ["function decimals() view returns (uint8)"];
+
+    useEffect(() => {
+        const fetchBalances = async () => {
+            if (!account || !provider) return;
+
+            try {
+                const contract = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, provider);
+
+                // Prepare promises for both tokens if they exist
+                const promises = [];
+
+                // 1. Fetch From Token Internal
+                if (fromToken) {
+                    promises.push(
+                        contract.getUserAccountData(account, fromToken.address)
+                            .then((d: any) => ethers.formatUnits(d.tokenCollateralBalance, 18))
+                            .catch(() => "0")
+                    );
+                } else {
+                    promises.push(Promise.resolve("0"));
+                }
+
+                // 2. Fetch To Token Internal
+                if (toToken) {
+                    promises.push(
+                        contract.getUserAccountData(account, toToken.address)
+                            .then((d: any) => ethers.formatUnits(d.tokenCollateralBalance, 18))
+                            .catch(() => "0")
+                    );
+                } else {
+                    promises.push(Promise.resolve("0"));
+                }
+
+                // Execute concurrently
+                const [fromBal, toBal] = await Promise.all(promises);
+
+                setProtocolBalances({
+                    from: parseFloat(fromBal).toFixed(4),
+                    to: parseFloat(toBal).toFixed(4)
+                });
+
+            } catch (e) {
+                console.error("Balance fetch error:", e);
+            }
+        };
+
+        fetchBalances();
+    }, [account, fromToken, toToken, provider]);
 
     const fetchOrdersStrict = async (requestId: number) => {
         if (!provider) return;
@@ -142,7 +195,7 @@ const Limit = () => {
         try {
             if (fetchRequestId.current !== requestId) return;
 
-            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
+            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, provider);
             const nextIdBig = await executor.nextOrderId();
             const nextId = Number(nextIdBig);
 
@@ -178,7 +231,7 @@ const Limit = () => {
 
                     const batchIds = allIds.slice(i, i + chunkSize);
                     const batchResults = await Promise.all(batchIds.map(id =>
-                        executor.getOrder(id)
+                        executor.orders(id)
                             .then((ord: any) => ({ id, ord }))
                             .catch(() => null)
                     ));
@@ -323,54 +376,82 @@ const Limit = () => {
 
         const clean = (v: number, decimals: number = 18) => Number(v.toFixed(decimals)).toString();
         const ttlSeconds = expiryDays * 24 * 3600;
+        const coverageBasisPoints = Math.floor(coveragePct * 100);
 
-        if (isBuy) {
-            setIsCreatingBuy(true)
-            const amountInBuyIN = priceNum * amountNum;
-            const safeAmountIn = clean(amountInBuyIN, 8);
-            const safeAmountOutMin = clean(amountNum, 8);
+        // 1. Set Loading State
+        if (isBuy) setIsCreatingBuy(true);
+        else setIsCreatingSell(true);
 
-            await createOrder({
-                tokenIn: toToken.address,
-                tokenOut: fromToken.address,
-                amountIn: safeAmountIn,
-                amountOutMin: safeAmountOutMin,
-                targetPrice,
-                ttlSeconds,
-                ordertype: 0,
-            });
-            setIsCreatingBuy(false)
-            showToast(`Buy ${fromToken.symbol} order created successfully!`, "success");
-        } else {
-            const amountInsellIN = priceNum * amountNum;
-            setIsCreatingSell(true)
-            const safeAmountIn = clean(amountNum, 8);
-            const safeAmountOutMin = clean(amountInsellIN, 8);
+        try {
+            if (isBuy) {
+                const amountInBuyIN = priceNum * amountNum;
 
-            await createOrder({
+
+                const safeAmountIn = clean(amountInBuyIN, 18);
+                const safeAmountOutMin = clean(amountNum, 18);
+
+                await createOrder({
+                    tokenIn: toToken.address,
+                    tokenOut: fromToken.address,
+                    amountIn: safeAmountIn,
+                    amountOutMin: safeAmountOutMin,
+                    targetPrice,
+                    ttlSeconds,
+                    ordertype: 0,
+                    insuranceType,
+                    coveragePct: coverageBasisPoints
+                });
+                showToast(`Buy ${fromToken.symbol} order created successfully!`, "success");
+            } else {
+                const amountInsellIN = priceNum * amountNum;
+                // FIX: Use actual decimals from token objects
+                const decimalsIn = 18;
+                const decimalsOut = 18;
+
+                const safeAmountIn = clean(amountNum, decimalsIn);
+                const safeAmountOutMin = clean(amountInsellIN, decimalsOut);
+
+                await createOrder({
+                    tokenIn: fromToken.address,
+                    tokenOut: toToken.address,
+                    amountIn: safeAmountIn,
+                    amountOutMin: safeAmountOutMin,
+                    targetPrice,
+                    ttlSeconds,
+                    ordertype: 1,
+                    insuranceType,
+                    coveragePct: coverageBasisPoints
+                });
+                showToast(`Sell ${fromToken.symbol} order created successfully!`, "success");
+            }
+
+            // Refresh Data only on success
+            fetchRequestId.current += 1;
+            await fetchOrdersStrict(fetchRequestId.current);
+            await updateBalances();
+            await fetchLastOrderPriceForPair({
                 tokenIn: fromToken.address,
                 tokenOut: toToken.address,
-                amountIn: safeAmountIn,
-                amountOutMin: safeAmountOutMin,
-                targetPrice,
-                ttlSeconds,
-                ordertype: 1,
             });
-            setIsCreatingSell(false)
-            showToast(`Sell ${fromToken.symbol} order created successfully!`, "success");
+
+            // Reset Inputs on success
+            setFromAmount("");
+            setToAmount("");
+            setTargetPrice("");
+
+        } catch (error: any) {
+            console.error("Order creation failed:", error);
+            // Optional: Show specific error message
+            if (error?.code === 4001 || error?.message?.includes("user rejected")) {
+                showToast("Transaction rejected by user", "error");
+            } else {
+                showToast("Failed to create order. See console.", "error");
+            }
+        } finally {
+            // 2. Reset Loading State (Runs whether success or failure)
+            if (isBuy) setIsCreatingBuy(false);
+            else setIsCreatingSell(false);
         }
-        fetchRequestId.current += 1;
-        await fetchOrdersStrict(fetchRequestId.current);
-
-        fetchOrdersStrict(fetchRequestId.current);
-        await updateBalances();
-        await fetchLastOrderPriceForPair({
-            tokenIn: fromToken.address,
-            tokenOut: toToken.address,
-        });
-
-        setFromAmount(""); setToAmount(""); setTargetPrice("");
-        if (isBuy) setIsCreatingBuy(false); else setIsCreatingSell(false);
     };
 
     const handleCancel = async (orderId: number) => {
@@ -576,14 +657,14 @@ const Limit = () => {
                                         </div>
                                     </div>
                                     {(currentRate || isLoadingRate) && (
-                                        <div className="text-[11px] text-gray-500 px-1 flex justify-between items-center pt-1">
+                                        <div className="text-[11px] text-gray-500 px-1 flex justify-between items-start pt-2">
                                             <div
                                                 onClick={() => {
                                                     if (currentRate && !isLoadingRate) {
                                                         setTargetPrice(parseFloat(currentRate).toFixed(6));
                                                     }
                                                 }}
-                                                className="cursor-pointer hover:text-blue-600"
+                                                className="cursor-pointer hover:text-blue-600 mt-1"
                                             >
                                                 {isLoadingRate ? (
                                                     <span className="flex items-center gap-1">
@@ -591,13 +672,33 @@ const Limit = () => {
                                                         <span>Loading rate...</span>
                                                     </span>
                                                 ) : currentRate ? (
-                                                    <span>1 {fromToken.symbol} = {parseFloat(currentRate).toFixed(6)} {toToken.symbol}</span>
+                                                    <span>1 {fromToken.symbol} ≈ {parseFloat(currentRate).toFixed(6)} {toToken.symbol}</span>
                                                 ) : (
                                                     <span className="text-gray-400">Rate unavailable</span>
                                                 )}
                                             </div>
-                                            <div>
-                                                Available: {fromToken.balance ? fromToken.balance.toFixed(3) : "0.000"}
+
+                                            {/* RIGHT SIDE: Balances Display */}
+                                            <div className="flex flex-col items-end text-[10px]">
+                                                {/* 1. Wallet Balance */}
+                                                <div className="flex gap-1">
+                                                    <span className="text-gray-400">Wallet:</span>
+                                                    <span className="font-medium text-gray-700">
+                                                        {fromToken.balance ? fromToken.balance.toFixed(3) : "0.000"}
+                                                    </span>
+                                                </div>
+
+                                                {/* 2. Contract/Internal Balance */}
+                                                <div className="flex gap-1 mt-0.5">
+                                                    <span className="text-gray-400">Protocol:</span>
+                                                    <span
+                                                        className="font-bold text-blue-600 cursor-pointer hover:underline"
+                                                        onClick={() => setFromAmount(protocolBalances.from)}
+                                                        title="Click to use max internal balance"
+                                                    >
+                                                        {protocolBalances.from}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -620,13 +721,22 @@ const Limit = () => {
                                 </div>
 
                                 <div>
-
                                     {currentRate && (
-                                        <div className="text-[11px] text-gray-500 px-1 flex justify-end items-center pt-0.5">
+                                        <div className="text-[11px] text-gray-500 px-1 flex flex-col items-end pt-0.5">
+                                            {/* Wallet Balance */}
                                             <div>
                                                 Available: {toToken.balance ? toToken.balance.toFixed(3) : "0.000"} {toToken.symbol}
                                             </div>
 
+                                            <div className="flex gap-1 mt-0.5">
+                                                <span className="text-gray-400">Protocol:</span>
+                                                <span
+                                                    className="font-bold text-blue-600"
+                                                    title="Balance inside contract"
+                                                >
+                                                    {protocolBalances.to} {toToken?.symbol}
+                                                </span>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -659,7 +769,45 @@ const Limit = () => {
                                     </div>
 
                                 </div>
+                                <div className="mt-3 p-2 bg-gray-50 rounded border border-gray-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-xs font-semibold text-gray-700">🛡️ Insurance</span>
+                                        {parseFloat(fromAmount || "0") > (fromToken.balance || 0) && (
+                                            <span className="text-[10px] text-blue-600 font-bold bg-blue-100 px-1 rounded">
+                                                Leverage Active
+                                            </span>
+                                        )}
+                                    </div>
 
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="flex flex-col">
+                                            <label className="text-[10px] text-gray-500 mb-1">Policy Type</label>
+                                            <select
+                                                value={insuranceType}
+                                                onChange={(e) => setInsuranceType(Number(e.target.value))}
+                                                className="text-[11px] border border-gray-200 rounded px-1 py-1 bg-white focus:outline-none"
+                                            >
+                                                <option value={0}>None</option>
+                                                <option value={1}>Principal Protection</option>
+                                                <option value={2}>Stop Loss</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="flex flex-col">
+                                            <label className="text-[10px] text-gray-500 mb-1">Coverage: {coveragePct}%</label>
+                                            <input
+                                                type="range"
+                                                min="10"
+                                                max="100"
+                                                step="10"
+                                                value={coveragePct}
+                                                disabled={insuranceType === 0}
+                                                onChange={(e) => setCoveragePct(Number(e.target.value))}
+                                                className="h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-2"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                                 <div className="flex gap-2 mt-1">
                                     <button
                                         onClick={() => handleCreateOrder(true)}

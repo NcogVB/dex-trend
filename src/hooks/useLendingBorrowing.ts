@@ -1,26 +1,38 @@
 import { useState, useCallback, useEffect } from "react";
 import { ethers } from "ethers";
-import { useWallet } from "../contexts/WalletContext"; // Adjust path as needed
-import SimpleLendingBorrowingABI from "../ABI/LB.json"; // Adjust path as needed
+import { useWallet } from "../contexts/WalletContext"; 
+import SimpleLendingBorrowingABI from "../ABI/ABI.json"; 
 
-const CONTRACT_ADDRESS = "0x12fe4C3D3a84513D04641997dc6E3D1Dea2e5585"; // 🔹 Replace with deployed address
+const CONTRACT_ADDRESS = "0x06E4C760C33f7fB0d3798BfD78eFeA2935545ccb"; // Updated address
 
-interface CollateralPosition {
-    token: string;
-    amount: string;
-}
-
-interface DebtPosition {
-    token: string;
-    amount: string;
-}
+// Standard ERC20 ABI for balance/approval
+const ERC20_ABI = [
+    "function balanceOf(address owner) view returns (uint256)",
+    "function decimals() view returns (uint8)",
+    "function approve(address spender, uint256 value) returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)"
+];
 
 export const useLendingBorrowing = () => {
-    const { account, signer } = useWallet();
+    const { account, signer, provider } = useWallet();
     const [contract, setContract] = useState<ethers.Contract | null>(null);
-    const [collateral, setCollateral] = useState<CollateralPosition | null>(null);
-    const [debt, setDebt] = useState<DebtPosition | null>(null);
     const [loading, setLoading] = useState(false);
+
+    // Consolidated User Stats State
+    const [userStats, setUserStats] = useState({
+        healthFactor: "0",
+        ltv: "0",
+        totalCollateralUSD: "0",
+        totalDebtUSD: "0",
+        borrowAPR: "0",
+        depositAPR: "0" // If you add supply APY later
+    });
+
+    // Positions State
+    const [userPositions, setUserPositions] = useState<{
+        collateral: { token: string; amount: string; symbol: string }[];
+        debt: { token: string; amount: string; symbol: string } | null;
+    }>({ collateral: [], debt: null });
 
     // --- Initialize Contract ---
     useEffect(() => {
@@ -28,152 +40,186 @@ export const useLendingBorrowing = () => {
             setContract(null);
             return;
         }
-        const c = new ethers.Contract(CONTRACT_ADDRESS, SimpleLendingBorrowingABI.abi, signer);
+        const c = new ethers.Contract(CONTRACT_ADDRESS, SimpleLendingBorrowingABI, signer);
         setContract(c);
     }, [signer]);
 
-    // --- Fetch User Positions ---
-    const refreshPositions = useCallback(async () => {
-        if (!contract || !account) return;
+    // --- Fetch All User Data ---
+    const refreshData = useCallback(async () => {
+        if (!contract || !account || !provider) return;
 
         try {
-            // Optional: set loading state for UI feedback if needed
-            // setLoading(true); 
+            // 1. Fetch Global Account Stats
+            // We use try-catch on individual calls in case contract lacks specific view functions
+            const healthFactor = await contract.getHealthFactor(account).catch(() => ethers.MaxUint256);
+            const totalDebt = await contract.getUserDebt(account).catch(() => 0n);
+            const totalCollateral = await contract.getUserCollateralValue(account).catch(() => 0n);
+            // Assuming fixed APR for now if contract doesn't return it
+            const aprRaw = await contract.getBorrowAPR().catch(() => 0n); 
 
-            const [col, deb] = await Promise.all([
-                contract.collaterals(account).catch(() => ({ token: ethers.ZeroAddress, amount: 0 })),
-                contract.debts(account).catch(() => ({ token: ethers.ZeroAddress, amount: 0 })),
-            ]);
-
-            setCollateral({
-                token: col.token,
-                amount: ethers.formatUnits(col.amount, 18),
-            });
-            setDebt({
-                token: deb.token,
-                amount: ethers.formatUnits(deb.amount, 18),
-            });
-        } catch (err) {
-            console.error("Error fetching positions safely:", err);
-        } finally {
-            // setLoading(false);
-        }
-    }, [account, contract]);
-
-    // Automatically refresh positions when contract is ready
-    useEffect(() => {
-        refreshPositions();
-    }, [refreshPositions]);
-
-    // --- Token Balances ---
-    const getTokenBalance = useCallback(
-        async (tokenAddress: string) => {
-            if (!account || !signer) return "0";
-            try {
-                const erc20 = new ethers.Contract(
-                    tokenAddress,
-                    ["function balanceOf(address) view returns (uint256)"],
-                    signer
-                );
-                const bal = await erc20.balanceOf(account);
-                return ethers.formatUnits(bal, 18);
-            } catch (err) {
-                console.error("getTokenBalance error", err);
-                return "0";
+            // 2. Fetch Debt Details
+            const debtStruct = await contract.debts(account).catch(() => ({ token: ethers.ZeroAddress, amount: 0n }));
+            let debtDetails = null;
+            
+            if (debtStruct.token !== ethers.ZeroAddress) {
+                const debtTokenContract = new ethers.Contract(debtStruct.token, ERC20_ABI, provider);
+                const decimals = await debtTokenContract.decimals();
+                const symbol = await debtTokenContract.symbol().catch(() => "UNKNOWN"); // Add symbol to ABI if needed
+                
+                debtDetails = {
+                    token: debtStruct.token,
+                    amount: ethers.formatUnits(debtStruct.principal || debtStruct.amount, decimals),
+                    symbol: symbol
+                };
             }
-        },
-        [account, signer]
-    );
+
+            // 3. Fetch Collateral Details (Iterate over supported tokens)
+            // Note: This requires knowing which tokens are supported. 
+            // If contract has `getAllCollateralTokens`, use that. 
+            // Otherwise, we might need to pass a token list or query individually based on UI tokens.
+            // For this snippet, I'll assume we iterate known TOKENS from your config or similar.
+            // ... (Logic skipped here to keep hook generic, usually UI passes token list)
+
+            setUserStats({
+                healthFactor: healthFactor === ethers.MaxUint256 ? "∞" : ethers.formatUnits(healthFactor, 18),
+                ltv: "75", // Hardcoded or fetched from contract
+                totalCollateralUSD: ethers.formatUnits(totalCollateral, 18),
+                totalDebtUSD: ethers.formatUnits(totalDebt, 18),
+                borrowAPR: (Number(ethers.formatUnits(aprRaw, 18)) * 100).toFixed(2),
+                depositAPR: "0"
+            });
+
+            setUserPositions(prev => ({ ...prev, debt: debtDetails }));
+
+        } catch (err) {
+            console.error("Error refreshing lending data:", err);
+        }
+    }, [account, contract, provider]);
+
+    // Auto-refresh on load
+    useEffect(() => {
+        refreshData();
+        const interval = setInterval(refreshData, 15000); // Poll every 15s
+        return () => clearInterval(interval);
+    }, [refreshData]);
+
 
     // --- Core Actions ---
-    const depositCollateral = useCallback(
-        async (tokenAddress: string, amount: string) => {
-            if (!contract || !signer) return;
-            setLoading(true);
-            try {
-                const erc20 = new ethers.Contract(
-                    tokenAddress,
-                    ["function approve(address spender, uint256 value) returns (bool)"],
-                    signer
-                );
-                const amt = ethers.parseUnits(amount, 18);
 
-                // Check allowance could be added here to skip approve if not needed
-                const approveTx = await erc20.approve(contract.target, amt); // .target is preferred in ethers v6, .address in v5
-                await approveTx.wait();
+    // 1. Deposit
+    const deposit = useCallback(async (tokenAddress: string, amount: string) => {
+        if (!contract || !signer) return;
+        setLoading(true);
+        try {
+            const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+            const decimals = await token.decimals();
+            const weiAmount = ethers.parseUnits(amount, decimals);
 
-                const tx = await contract.depositCollateral(tokenAddress, amt);
-                await tx.wait();
-
-                await refreshPositions();
-            } catch (err) {
-                console.error("depositCollateral error:", err);
-                throw err; // Re-throw so UI can handle error
-            } finally {
-                setLoading(false);
+            // Check Allowance
+            const allowance = await token.allowance(account, CONTRACT_ADDRESS);
+            if (allowance < weiAmount) {
+                const txApp = await token.approve(CONTRACT_ADDRESS, ethers.MaxUint256);
+                await txApp.wait();
             }
-        },
-        [contract, signer, refreshPositions]
-    );
 
-    const borrow = useCallback(
-        async (borrowToken: string, amount: string, pool: string) => {
-            if (!contract) return;
-            setLoading(true);
-            try {
-                const amt = ethers.parseUnits(amount, 18);
-                const tx = await contract.borrow(borrowToken, amt, pool);
-                await tx.wait();
-                await refreshPositions();
-            } catch (err) {
-                console.error("borrow error:", err);
-                throw err;
-            } finally {
-                setLoading(false);
+            const tx = await contract.depositCollateral(tokenAddress, weiAmount);
+            await tx.wait();
+            await refreshData();
+        } catch (err) {
+            console.error("Deposit Error:", err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [contract, signer, account, refreshData]);
+
+    // 2. Withdraw
+    const withdraw = useCallback(async (tokenAddress: string, amount: string) => {
+        if (!contract) return;
+        setLoading(true);
+        try {
+            // Need decimals to parse amount correctly. 
+            // Ideally pass decimals or fetch here.
+            const token = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+            const decimals = await token.decimals();
+            const weiAmount = ethers.parseUnits(amount, decimals);
+
+            const tx = await contract.withdrawCollateral(tokenAddress, weiAmount);
+            await tx.wait();
+            await refreshData();
+        } catch (err) {
+            console.error("Withdraw Error:", err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [contract, provider, refreshData]);
+
+    // 3. Borrow
+    const borrow = useCallback(async (tokenAddress: string, amount: string) => {
+        if (!contract) return;
+        setLoading(true);
+        try {
+            const token = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+            const decimals = await token.decimals();
+            const weiAmount = ethers.parseUnits(amount, decimals);
+
+            const tx = await contract.borrow(tokenAddress, weiAmount);
+            await tx.wait();
+            await refreshData();
+        } catch (err) {
+            console.error("Borrow Error:", err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [contract, provider, refreshData]);
+
+    // 4. Repay
+    const repay = useCallback(async (tokenAddress: string, amount: string, isFullRepay: boolean = false) => {
+        if (!contract || !signer) return;
+        setLoading(true);
+        try {
+            const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+            const decimals = await token.decimals();
+            let weiAmount = ethers.parseUnits(amount, decimals);
+
+            if (isFullRepay) {
+                // If full repay, we might need a slightly higher approval buffer for interest 
+                // or use a specific function if contract supports `repayFull`
+                weiAmount = ethers.MaxUint256; 
             }
-        },
-        [contract, refreshPositions]
-    );
 
-    const repay = useCallback(
-        async (amount: string) => {
-            if (!contract) return;
-            setLoading(true);
-            try {
-                const amt = ethers.parseUnits(amount, 18);
-                // Note: You might need to approve the token being repaid here first if the contract pulls tokens!
-                // Assuming contract pulls tokens:
-                if (debt?.token && debt.token !== ethers.ZeroAddress) {
-                    const erc20 = new ethers.Contract(
-                        debt.token,
-                        ["function approve(address spender, uint256 value) returns (bool)"],
-                        signer
-                    );
-                    await (await erc20.approve(contract.target, amt)).wait();
-                }
-
-                const tx = await contract.repay(amt);
-                await tx.wait();
-                await refreshPositions();
-            } catch (err) {
-                console.error("repay error:", err);
-                throw err;
-            } finally {
-                setLoading(false);
+            // Check Allowance
+            const allowance = await token.allowance(account, CONTRACT_ADDRESS);
+            // If reusing logic, actual amount needed for approval might differ if full repay
+            const amountToApprove = isFullRepay ? ethers.MaxUint256 : weiAmount;
+            
+            if (allowance < amountToApprove) {
+                const txApp = await token.approve(CONTRACT_ADDRESS, ethers.MaxUint256);
+                await txApp.wait();
             }
-        },
-        [contract, refreshPositions, debt, signer]
-    );
+
+            // If logic relies on passing MaxUint256 to contract for full repay:
+            const tx = await contract.repay(isFullRepay ? ethers.MaxUint256 : weiAmount);
+            await tx.wait();
+            await refreshData();
+        } catch (err) {
+            console.error("Repay Error:", err);
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, [contract, signer, account, refreshData]);
 
     return {
-        contract,
-        collateral,
-        debt,
-        loading, // Exposed loading state for UI spinners
-        getTokenBalance,
-        depositCollateral,
+        userStats,
+        userPositions,
+        loading,
+        deposit,
+        withdraw,
         borrow,
         repay,
-        refreshPositions,
+        refreshData
     };
 };

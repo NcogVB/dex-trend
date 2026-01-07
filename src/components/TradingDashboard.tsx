@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { widget, type IChartingLibraryWidget } from "../charting_library";
 import BinanceDatafeed from "../utils/CryptoDatafeed";
 import { ethers } from "ethers";
-import ExecutorABI from "../ABI/LimitOrder.json";
+import ExecutorABI from "../ABI/ABI.json";
 
 interface TradingDashboardProps {
     className?: string;
@@ -17,7 +17,7 @@ function getLanguageFromURL(): string | null {
     return results === null ? null : decodeURIComponent(results[1].replace(/\+/g, " "));
 }
 
-const EXECUTOR_ADDRESS = "0x59AEeACD225bD2b2B178B2cDa53D6c6759bB2966";
+const EXECUTOR_ADDRESS = "0x6Cc3baF9320934d4DEcAB8fdAc92F00102A58994";
 
 const TradingDashboard: React.FC<TradingDashboardProps> = ({
     className = "",
@@ -177,11 +177,11 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
     const fetchOrders = async () => {
         try {
             const provider = getReadProvider();
-            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI.abi, provider);
+            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, provider);
 
             // Ensure ABI has nextOrderId/getOrder
-            if (!executor.nextOrderId || !executor.getOrder) {
-                console.error("ABI mismatch: executor.nextOrderId or executor.getOrder is missing in ABI");
+            if (!executor.nextOrderId() || !executor.orders()) {
+                console.error("ABI mismatch: executor.nextOrderId or executor.getOrders is missing in ABI");
                 return;
             }
 
