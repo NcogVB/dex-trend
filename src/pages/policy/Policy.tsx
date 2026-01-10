@@ -21,7 +21,6 @@ const CONTRACT_ADDRESS = "0x761e49A8f7e4e5E59a66F8fc7A89D05592B9adf0";
 const INSURANCE_ABI = [
     "function policyCounter() view returns (uint256)",
     "function policies(uint256) view returns (uint256 id, address holder, address assetToken, address quoteToken, uint256 notional, uint256 coverageDuration, uint256 thresholdPercentage, uint256 premium, uint256 purchaseTime, uint256 expiryTime, uint256 strikePrice, bool claimed, bool active)",
-    // 🟢 FIXED: Updated to match 5 arguments in contract
     "function calculatePremium(address token, uint256 collateral, uint256 borrowed, uint256 duration, uint256 coveragePct) view returns (uint256)",
     "function submitClaim(uint256 _policyId) external",
     "function getPrice(address token) view returns (uint256)"
