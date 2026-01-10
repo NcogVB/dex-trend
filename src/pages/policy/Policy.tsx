@@ -12,9 +12,11 @@ import {
     Coins,
     Calendar,
     Clock,
+    Lock
 } from "lucide-react";
 import { useWallet } from "../../contexts/WalletContext";
 import { TOKENS } from "../../utils/SwapTokens";
+import { ERC20_ABI } from "../../contexts/ABI";
 
 const CONTRACT_ADDRESS = "0x761e49A8f7e4e5E59a66F8fc7A89D05592B9adf0";
 
@@ -23,7 +25,13 @@ const INSURANCE_ABI = [
     "function policies(uint256) view returns (uint256 id, address holder, address assetToken, address quoteToken, uint256 notional, uint256 coverageDuration, uint256 thresholdPercentage, uint256 premium, uint256 purchaseTime, uint256 expiryTime, uint256 strikePrice, bool claimed, bool active)",
     "function calculatePremium(address token, uint256 collateral, uint256 borrowed, uint256 duration, uint256 coveragePct) view returns (uint256)",
     "function submitClaim(uint256 _policyId) external",
-    "function getPrice(address token) view returns (uint256)"
+    "function getPrice(address token) view returns (uint256)",
+    "function owner() view returns (address)",
+    "function insuranceVault() view returns (address)"
+];
+
+const VAULT_ABI = [
+    "function withdraw(address token, uint256 amount) external"
 ];
 
 interface Policy {
@@ -37,6 +45,14 @@ interface Policy {
     expiry: number;
     status: "Active" | "Claimed" | "Expired" | "Inactive";
     currentPrice: string;
+}
+
+interface VaultAsset {
+    address: string;
+    symbol: string;
+    decimals: number;
+    img: string;
+    balance: bigint;
 }
 
 const PolicyDashboard: React.FC = () => {
@@ -60,6 +76,10 @@ const PolicyDashboard: React.FC = () => {
     const [isAssetOpen, setIsAssetOpen] = useState(false);
     const assetRef = useRef<HTMLDivElement>(null);
 
+    const [protocolOwner, setProtocolOwner] = useState<string>("");
+    const [vaultAddress, setVaultAddress] = useState<string>("");
+    const [vaultAssets, setVaultAssets] = useState<VaultAsset[]>([]);
+
     useEffect(() => {
         function handleClickOutside(event: any) {
             if (assetRef.current && !assetRef.current.contains(event.target)) setIsAssetOpen(false);
@@ -74,6 +94,27 @@ const PolicyDashboard: React.FC = () => {
 
         try {
             const contract = new Contract(CONTRACT_ADDRESS, INSURANCE_ABI, provider);
+
+            const ownerAddr = await contract.owner().catch(() => "");
+            const vaultAddr = await contract.insuranceVault().catch(() => "");
+            setProtocolOwner(ownerAddr);
+            setVaultAddress(vaultAddr);
+
+            if (vaultAddr && account.toLowerCase() === ownerAddr.toLowerCase()) {
+                const assets = await Promise.all(TOKENS.map(async (t) => {
+                    const tokenContract = new Contract(t.address, ERC20_ABI, provider);
+                    const bal = await tokenContract.balanceOf(vaultAddr).catch(() => 0n);
+                    return {
+                        address: t.address,
+                        symbol: t.symbol,
+                        decimals: 18,
+                        img: t.img,
+                        balance: bal
+                    };
+                }));
+                setVaultAssets(assets);
+            }
+
             const counter = await contract.policyCounter().catch(() => 0n);
             const count = Number(counter);
             const foundPolicies: Policy[] = [];
@@ -141,6 +182,19 @@ const PolicyDashboard: React.FC = () => {
         }
     };
 
+    const handleVaultWithdraw = async (tokenAddr: string, amount: bigint) => {
+        if (!signer || !vaultAddress) return;
+        try {
+            const vaultContract = new Contract(vaultAddress, VAULT_ABI, signer);
+            const tx = await vaultContract.withdraw(tokenAddr, amount);
+            await tx.wait();
+            alert("Withdraw Successful");
+            fetchPolicies();
+        } catch (e: any) {
+            alert("Withdraw Failed: " + (e.reason || e.message));
+        }
+    }
+
     const handleCalculate = async () => {
         if (!provider || !calcForm.assetToken || !calcForm.amount) return;
         setIsCalculating(true);
@@ -155,8 +209,8 @@ const PolicyDashboard: React.FC = () => {
 
             const prem = await contract.calculatePremium(
                 calcForm.assetToken,
-                amountWei,      // Collateral
-                leverageWei,    // Borrowed
+                amountWei,
+                leverageWei,
                 durationSeconds,
                 coverageBps
             );
@@ -164,7 +218,7 @@ const PolicyDashboard: React.FC = () => {
         } catch (e) {
             console.error("Calculation Error:", e);
             setCalculatedPremium(null);
-            alert("Calculation failed. Check token address or network.");
+            alert("Calculation failed.");
         } finally {
             setIsCalculating(false);
         }
@@ -186,8 +240,10 @@ const PolicyDashboard: React.FC = () => {
         });
     };
 
+    const isOwner = account && protocolOwner && account.toLowerCase() === protocolOwner.toLowerCase();
+
     return (
-        <div className="flex justify-center w-full px-4 py-6 md:py-8 font-sans text-gray-700">
+        <div className="flex justify-center w-full px-4 py-6 md:py-8 font-sans text-gray-700 pb-20">
             <div className="w-full max-w-6xl space-y-6 md:space-y-8">
 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -208,12 +264,9 @@ const PolicyDashboard: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Stacks vertically on mobile (flex-col-reverse ensures Calculator is below policies if desired, or keep as grid) */}
                 <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6 md:gap-8">
 
-                    {/* CALCULATOR COLUMN */}
                     <div className="order-2 lg:order-1 lg:col-span-1">
-                        {/* Removed 'sticky' on mobile to save screen space, only sticky on lg screens */}
                         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 md:p-6 lg:sticky lg:top-24">
                             <div className="mb-5 md:mb-6 pb-4 border-b border-gray-100">
                                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -282,7 +335,6 @@ const PolicyDashboard: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* POLICY LIST COLUMN */}
                     <div className="order-1 lg:order-2 lg:col-span-2">
                         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden min-h-[300px] md:min-h-[400px]">
                             <div className="px-5 py-4 md:px-6 md:py-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
@@ -408,8 +460,45 @@ const PolicyDashboard: React.FC = () => {
                             </div>
                         </div>
                     </div>
-
                 </div>
+
+                {isOwner && (
+                    <div className="w-full bg-slate-900 text-white p-6 rounded-3xl shadow-2xl border border-slate-700">
+                        <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-4">
+                            <Lock size={20} className="text-yellow-400" />
+                            <h2 className="text-lg font-bold">Insurance Vault Admin</h2>
+                            <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300 ml-auto font-mono">{vaultAddress}</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {vaultAssets.map(t => {
+                                const bal = parseFloat(ethers.formatUnits(t.balance, t.decimals));
+                                if (bal <= 0) return null;
+                                return (
+                                    <div key={t.address} className="bg-slate-800 p-4 rounded-xl flex items-center justify-between border border-slate-600">
+                                        <div className="flex items-center gap-3">
+                                            <img src={t.img} className="w-8 h-8 rounded-full bg-white" alt="" />
+                                            <div>
+                                                <p className="font-bold text-sm">{t.symbol} Reserve</p>
+                                                <p className="text-yellow-300 text-sm font-mono">{bal.toFixed(4)}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleVaultWithdraw(t.address, t.balance)}
+                                            className="bg-yellow-500 hover:bg-yellow-400 text-slate-900 text-xs px-3 py-2 rounded-lg font-bold transition shadow-md"
+                                        >
+                                            Withdraw All
+                                        </button>
+                                    </div>
+                                )
+                            })}
+                            {vaultAssets.every(t => t.balance <= 0n) && (
+                                <p className="text-slate-300 text-sm italic col-span-full text-center py-4">Vault is empty.</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
             </div>
         </div>
     );
