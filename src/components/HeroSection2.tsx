@@ -40,7 +40,7 @@ export default function HeroSection2() {
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                            <Link to="/swap">
+                            <Link to="/exchange">
                                 <button className="bg-red-600 text-white hover:bg-red-700 px-8 py-3 text-base font-medium rounded-md transition-colors">
                                     Start Now
                                 </button>

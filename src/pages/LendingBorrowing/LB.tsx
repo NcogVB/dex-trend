@@ -5,7 +5,7 @@ import { TOKENS } from "../../utils/SwapTokens";
 import { ethers, Contract } from "ethers";
 import { ERC20_ABI } from "../../contexts/ABI";
 
-const CONTRACT_ADDRESS = "0x6Cc3baF9320934d4DEcAB8fdAc92F00102A58994";
+const CONTRACT_ADDRESS = "0x761e49A8f7e4e5E59a66F8fc7A89D05592B9adf0";
 
 const LENDING_ABI = [
     "function deposit(address asset, uint256 amount) external",
@@ -14,7 +14,8 @@ const LENDING_ABI = [
     "function repay(address asset, uint256 amount) external",
     "function repayWithCollateral(address asset, uint256 amount) external",
     "function getUserAccountData(address user, address token) external view returns (uint256 totalCollateralUSD, uint256 totalDebtUSD, uint256 healthFactor, uint256 availableToBorrowUSD, uint256 tokenCollateralBalance, uint256 tokenDebtBalance)",
-    "function getReserveData(address token) external view returns (uint256 totalLiquidity, uint256 totalBorrows, uint256 borrowAPR, uint256 depositAPR)"
+    "function userReserves(address user, address token) external view returns (uint256 collateral, uint256 debt, uint256 lockedCollateral)",
+    "function reserves(address token) external view returns (uint256 totalLiquidity, uint256 totalBorrows)"
 ];
 
 const LendingBorrowing = () => {
@@ -24,10 +25,7 @@ const LendingBorrowing = () => {
     const [actionType, setActionType] = useState<"deposit" | "withdraw" | "borrow" | "repay">("deposit");
     const [selectedTokenAddr, setSelectedTokenAddr] = useState(TOKENS[0].address);
     const [amount, setAmount] = useState("");
-
-    // Toggle for Hybrid Repayment
     const [useInternalRepay, setUseInternalRepay] = useState(true);
-
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -49,9 +47,12 @@ const LendingBorrowing = () => {
         return parseFloat(ethers.formatUnits(val, dec)).toFixed(fixed);
     };
 
-    const parseVal = (val: string, dec = 18) => {
-        if (!val) return 0n;
-        return ethers.parseUnits(val, dec);
+    const cleanInputString = (val: string) => {
+        if (!val) return "";
+        if (val.indexOf('.') === -1) return val;
+        const arr = val.split('.');
+        if (arr[1].length > 5) return `${arr[0]}.${arr[1].substring(0, 5)}`;
+        return val;
     };
 
     const fetchData = useCallback(async () => {
@@ -59,17 +60,19 @@ const LendingBorrowing = () => {
         try {
             const lendingContract = new Contract(CONTRACT_ADDRESS, LENDING_ABI, provider);
 
-            // Fetch data for ALL tokens in the list
             const updatedTokens = await Promise.all(TOKENS.map(async (t) => {
                 const tokenContract = new Contract(t.address, ERC20_ABI, provider);
                 const balance = await tokenContract.balanceOf(account).catch(() => 0n);
 
-                // Fetch Contract Data
-                const reserveData = await lendingContract.getReserveData(t.address).catch(() => ({ borrowAPR: 0n, depositAPR: 0n }));
+                const reserveState = await lendingContract.reserves(t.address).catch(() => ({ totalLiquidity: 0n, totalBorrows: 0n }));
+
+                const userReserve = await lendingContract.userReserves(account, t.address).catch(() => ({
+                    collateral: 0n,
+                    debt: 0n,
+                    lockedCollateral: 0n
+                }));
 
                 const userData = await lendingContract.getUserAccountData(account, t.address).catch(() => ({
-                    tokenCollateralBalance: 0n,
-                    tokenDebtBalance: 0n,
                     totalCollateralUSD: 0n,
                     totalDebtUSD: 0n,
                     healthFactor: ethers.MaxUint256,
@@ -78,12 +81,14 @@ const LendingBorrowing = () => {
 
                 return {
                     ...t,
-                    decimals: 18, // Fallback if decimals missing in config
+                    decimals: 18,
                     walletBalance: balance,
-                    deposited: userData.tokenCollateralBalance,
-                    borrowed: userData.tokenDebtBalance,
-                    depositAPR: Number(reserveData.depositAPR) / 100,
-                    borrowAPR: Number(reserveData.borrowAPR) / 100,
+                    deposited: userReserve.collateral,
+                    locked: userReserve.lockedCollateral,
+                    borrowed: userReserve.debt,
+                    depositAPR: 0,
+                    borrowAPR: 0,
+                    liquidity: reserveState.totalLiquidity,
                     global: {
                         col: userData.totalCollateralUSD,
                         debt: userData.totalDebtUSD,
@@ -96,7 +101,7 @@ const LendingBorrowing = () => {
             setTokenData(updatedTokens);
 
             if (updatedTokens.length > 0) {
-                const g = updatedTokens[0].global; // Global stats are same for all tokens
+                const g = updatedTokens[0].global;
                 const net = Number(ethers.formatUnits(g.col, 18)) - Number(ethers.formatUnits(g.debt, 18));
 
                 setGlobalStats({
@@ -127,7 +132,10 @@ const LendingBorrowing = () => {
         try {
             const contract = new Contract(CONTRACT_ADDRESS, LENDING_ABI, signer);
             const tokenContract = new Contract(activeToken.address, ERC20_ABI, signer);
-            const weiAmount = parseVal(amount, activeToken.decimals);
+
+            const cleanAmountStr = cleanInputString(amount);
+            const weiAmount = ethers.parseUnits(cleanAmountStr, activeToken.decimals);
+
             if (actionType === "deposit" || actionType === "repay") {
                 const allowance = await tokenContract.allowance(account, CONTRACT_ADDRESS);
                 if (allowance < weiAmount) {
@@ -138,14 +146,15 @@ const LendingBorrowing = () => {
 
             let tx;
             if (actionType === "deposit") tx = await contract.deposit(activeToken.address, weiAmount);
-            if (actionType === "withdraw") tx = await contract.withdraw(activeToken.address, weiAmount);
+            if (actionType === "withdraw") {
+                if (activeToken.borrowed > 0n) throw new Error("Repay debt before withdrawing");
+                tx = await contract.withdraw(activeToken.address, weiAmount);
+            }
             if (actionType === "borrow") tx = await contract.borrow(activeToken.address, weiAmount);
             if (actionType === "repay") {
                 if (useInternalRepay) {
-                    // Call the Hybrid function
                     tx = await contract.repayWithCollateral(activeToken.address, weiAmount);
                 } else {
-                    // Call standard function (Wallet only)
                     tx = await contract.repay(activeToken.address, weiAmount);
                 }
             }
@@ -156,7 +165,8 @@ const LendingBorrowing = () => {
             fetchData();
         } catch (err: any) {
             console.error(err);
-            alert("Error: " + (err.reason || err.message || "Transaction Failed"));
+            const msg = err.reason || err.shortMessage || err.message || "Transaction Failed";
+            alert("Error: " + msg);
         } finally {
             setIsLoading(false);
         }
@@ -166,14 +176,10 @@ const LendingBorrowing = () => {
         if (!activeToken) return "0";
         if (actionType === "deposit") return fmt(activeToken.walletBalance, activeToken.decimals);
         if (actionType === "withdraw") return fmt(activeToken.deposited, activeToken.decimals);
-        if (actionType === "repay") {
-            // If internal repay, we can technically repay up to debt amount (hybrid will handle source)
-            return fmt(activeToken.borrowed, activeToken.decimals);
-        }
+        if (actionType === "repay") return fmt(activeToken.borrowed, activeToken.decimals);
         return "0";
     };
 
-    // Close dropdown on outside click
     useEffect(() => {
         function handleClickOutside(event: any) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -185,41 +191,39 @@ const LendingBorrowing = () => {
     }, [dropdownRef]);
 
     return (
-        <div className="flex flex-col items-center justify-start min-h-screen w-full px-4 pt-8 gap-6 max-w-6xl mx-auto font-sans">
+        <div className="flex flex-col items-center justify-start min-h-screen w-full px-4 pt-8 gap-6 max-w-6xl mx-auto font-sans text-gray-700">
 
-            {/* GLOBAL DASHBOARD */}
             <div className="w-full grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 transition hover:shadow-md">
-                    <p className="text-xs text-gray-500 font-bold uppercase flex items-center gap-1"><Wallet size={12} /> Net Worth</p>
-                    <p className="text-2xl font-black text-gray-800 mt-1">${globalStats.netWorth}</p>
+                    <p className="text-xs text-gray-500 font-medium uppercase flex items-center gap-1"><Wallet size={12} /> Net Worth</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">${globalStats.netWorth}</p>
                 </div>
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 transition hover:shadow-md">
-                    <p className="text-xs text-gray-500 font-bold uppercase flex items-center gap-1"><TrendingUp size={12} /> Borrow Power</p>
-                    <p className="text-2xl font-black text-green-600 mt-1">${globalStats.availableBorrowUSD}</p>
+                    <p className="text-xs text-gray-500 font-medium uppercase flex items-center gap-1"><TrendingUp size={12} /> Borrow Power</p>
+                    <p className="text-2xl font-bold text-green-600 mt-1">${globalStats.availableBorrowUSD}</p>
                 </div>
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 transition hover:shadow-md">
-                    <p className="text-xs text-gray-500 font-bold uppercase flex items-center gap-1"><Activity size={12} /> Health Factor</p>
-                    <p className={`text-2xl font-black mt-1 ${globalStats.healthFactor === "∞" || Number(globalStats.healthFactor) > 2 ? "text-green-500" : "text-red-500"}`}>
+                    <p className="text-xs text-gray-500 font-medium uppercase flex items-center gap-1"><Activity size={12} /> Health Factor</p>
+                    <p className={`text-2xl font-bold mt-1 ${globalStats.healthFactor === "∞" || Number(globalStats.healthFactor) > 2 ? "text-green-500" : "text-red-500"}`}>
                         {globalStats.healthFactor}
                     </p>
                 </div>
                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 transition hover:shadow-md">
-                    <p className="text-xs text-gray-500 font-bold uppercase flex items-center gap-1"><AlertCircle size={12} /> Total Debt</p>
-                    <p className="text-2xl font-black text-red-600 mt-1">${globalStats.totalDebtUSD}</p>
+                    <p className="text-xs text-gray-500 font-medium uppercase flex items-center gap-1"><AlertCircle size={12} /> Total Debt</p>
+                    <p className="text-2xl font-bold text-red-600 mt-1">${globalStats.totalDebtUSD}</p>
                 </div>
             </div>
 
             <div className="flex flex-col lg:flex-row gap-6 w-full">
 
-                {/* INTERACTION CARD */}
                 <div className="w-full lg:w-1/3 bg-white border border-gray-200 shadow-xl rounded-3xl overflow-hidden h-fit">
                     <div className="flex border-b border-gray-100">
                         <button onClick={() => { setActiveTab("supply"); setActionType("deposit"); setAmount(""); }}
-                            className={`flex-1 py-4 font-bold text-sm transition-colors ${activeTab === "supply" ? "text-red-600 bg-red-50 border-b-2 border-red-600" : "text-gray-400 hover:text-gray-600"}`}>
+                            className={`flex-1 py-4 font-medium text-sm transition-colors ${activeTab === "supply" ? "text-red-600 bg-red-50 border-b-2 border-red-600" : "text-gray-400 hover:text-gray-600"}`}>
                             Supply
                         </button>
                         <button onClick={() => { setActiveTab("borrow"); setActionType("borrow"); setAmount(""); }}
-                            className={`flex-1 py-4 font-bold text-sm transition-colors ${activeTab === "borrow" ? "text-red-600 bg-red-50 border-b-2 border-red-600" : "text-gray-400 hover:text-gray-600"}`}>
+                            className={`flex-1 py-4 font-medium text-sm transition-colors ${activeTab === "borrow" ? "text-red-600 bg-red-50 border-b-2 border-red-600" : "text-gray-400 hover:text-gray-600"}`}>
                             Borrow
                         </button>
                     </div>
@@ -227,13 +231,13 @@ const LendingBorrowing = () => {
                     <div className="flex gap-3 px-6 pt-6">
                         {activeTab === "supply" ? (
                             <>
-                                <button onClick={() => setActionType("deposit")} className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${actionType === "deposit" ? "bg-black text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>Deposit</button>
-                                <button onClick={() => setActionType("withdraw")} className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${actionType === "withdraw" ? "bg-black text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>Withdraw</button>
+                                <button onClick={() => setActionType("deposit")} className={`flex-1 py-2 rounded-xl text-xs font-medium transition ${actionType === "deposit" ? "bg-black text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>Deposit</button>
+                                <button onClick={() => setActionType("withdraw")} className={`flex-1 py-2 rounded-xl text-xs font-medium transition ${actionType === "withdraw" ? "bg-black text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>Withdraw</button>
                             </>
                         ) : (
                             <>
-                                <button onClick={() => setActionType("borrow")} className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${actionType === "borrow" ? "bg-black text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>Borrow</button>
-                                <button onClick={() => setActionType("repay")} className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${actionType === "repay" ? "bg-black text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>Repay</button>
+                                <button onClick={() => setActionType("borrow")} className={`flex-1 py-2 rounded-xl text-xs font-medium transition ${actionType === "borrow" ? "bg-black text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>Borrow</button>
+                                <button onClick={() => setActionType("repay")} className={`flex-1 py-2 rounded-xl text-xs font-medium transition ${actionType === "repay" ? "bg-black text-white shadow-md" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>Repay</button>
                             </>
                         )}
                     </div>
@@ -241,8 +245,8 @@ const LendingBorrowing = () => {
                     <div className="p-6">
                         <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 transition-all focus-within:ring-2 focus-within:ring-red-100 focus-within:border-red-300">
                             <div className="flex justify-between mb-2">
-                                <span className="text-xs font-bold text-gray-400">{actionType.toUpperCase()} Amount</span>
-                                <span onClick={() => setAmount(getMax())} className="text-xs font-bold text-red-600 cursor-pointer hover:underline">Max: {getMax()}</span>
+                                <span className="text-xs font-medium text-gray-400">{actionType.toUpperCase()} Amount</span>
+                                <span onClick={() => setAmount(getMax())} className="text-xs font-medium text-red-600 cursor-pointer hover:underline">Max: {getMax()}</span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <input
@@ -250,12 +254,12 @@ const LendingBorrowing = () => {
                                     value={amount}
                                     onChange={e => setAmount(e.target.value)}
                                     placeholder="0.00"
-                                    className="w-full bg-transparent text-2xl font-bold outline-none text-gray-800 placeholder-gray-300"
+                                    className="w-full bg-transparent text-2xl font-semibold outline-none text-gray-800 placeholder-gray-300"
                                 />
                                 <div className="relative" ref={dropdownRef}>
                                     <button onClick={() => setIsDropdownOpen(!isDropdownOpen)} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition">
                                         <img src={activeToken?.img} className="w-5 h-5 rounded-full object-cover" alt="" />
-                                        <span className="font-bold text-sm">{activeToken?.symbol}</span>
+                                        <span className="font-medium text-sm">{activeToken?.symbol}</span>
                                         <ChevronDown size={14} className="text-gray-400" />
                                     </button>
 
@@ -266,12 +270,12 @@ const LendingBorrowing = () => {
                                                     <div className="flex items-center gap-3">
                                                         <img src={t.img} className="w-7 h-7 rounded-full shadow-sm object-cover" alt="" />
                                                         <div>
-                                                            <p className="font-bold text-sm text-gray-800">{t.symbol}</p>
+                                                            <p className="font-medium text-sm text-gray-800">{t.symbol}</p>
                                                             <p className="text-[10px] text-gray-400">{t.name}</p>
                                                         </div>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="text-xs font-bold text-gray-700">{fmt(t.walletBalance, t.decimals, 2)}</p>
+                                                        <p className="text-xs font-medium text-gray-700">{fmt(t.walletBalance, t.decimals, 2)}</p>
                                                     </div>
                                                 </button>
                                             ))}
@@ -281,11 +285,10 @@ const LendingBorrowing = () => {
                             </div>
                         </div>
 
-                        {/* Hybrid Repayment Toggle */}
                         {actionType === "repay" && (
                             <div className="mt-4 flex items-center justify-between bg-yellow-50 p-3 rounded-xl border border-yellow-100 cursor-pointer" onClick={() => setUseInternalRepay(!useInternalRepay)}>
                                 <div className="flex flex-col">
-                                    <span className="text-sm font-bold text-gray-800 flex items-center gap-1"><Coins size={14} className="text-yellow-600" /> Pay with Collateral</span>
+                                    <span className="text-sm font-medium text-gray-800 flex items-center gap-1"><Coins size={14} className="text-yellow-600" /> Pay with Collateral</span>
                                     <span className="text-[10px] text-gray-500">Use contract balance + wallet</span>
                                 </div>
                                 <div className={`w-10 h-5 rounded-full relative transition-colors ${useInternalRepay ? 'bg-yellow-500' : 'bg-gray-300'}`}>
@@ -296,21 +299,17 @@ const LendingBorrowing = () => {
 
                         <div className="mt-6 space-y-3">
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Asset APY</span>
-                                <span className="font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-lg">
-                                    {activeTab === "supply" ? `${activeToken?.depositAPR?.toFixed(2)}%` : `${activeToken?.borrowAPR?.toFixed(2)}%`}
+                                <span className="text-gray-500">Pool Liquidity</span>
+                                <span className="font-medium text-gray-800">
+                                    {fmt(activeToken?.liquidity, activeToken?.decimals, 2)}
                                 </span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Collateral Factor</span>
-                                <span className="font-bold text-gray-800">80%</span>
                             </div>
                         </div>
 
                         <button
                             onClick={handleTransaction}
                             disabled={isLoading || !account}
-                            className={`w-full mt-6 py-4 rounded-xl font-bold text-white shadow-lg transition active:scale-[0.98] flex justify-center items-center gap-2
+                            className={`w-full mt-6 py-4 rounded-xl font-medium text-white shadow-lg transition active:scale-[0.98] flex justify-center items-center gap-2
                                 ${!account ? "bg-gray-400 cursor-not-allowed" : "bg-red-600 hover:bg-red-700 shadow-red-200"}
                             `}
                         >
@@ -319,7 +318,6 @@ const LendingBorrowing = () => {
                     </div>
                 </div>
 
-                {/* USER POSITIONS TABLE */}
                 <div className="w-full lg:w-2/3 bg-white border border-gray-200 shadow-sm rounded-3xl p-6 h-fit min-h-[400px]">
                     <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
                         <ArrowDownUp size={18} className="text-gray-400" /> Your Positions
@@ -328,39 +326,36 @@ const LendingBorrowing = () => {
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="text-gray-400 text-xs uppercase border-b border-gray-100">
-                                    <th className="pb-4 font-semibold pl-2">Asset</th>
-                                    <th className="pb-4 font-semibold">Net APY</th>
-                                    <th className="pb-4 font-semibold">Deposited</th>
-                                    <th className="pb-4 font-semibold">Borrowed</th>
-                                    <th className="pb-4 font-semibold">Wallet</th>
+                                <tr className="text-gray-400 text-xs font-medium uppercase border-b border-gray-100">
+                                    <th className="pb-4 pl-2">Asset</th>
+                                    <th className="pb-4">Deposited</th>
+                                    <th className="pb-4">Borrowed</th>
+                                    <th className="pb-4">Locked in Orders</th>
+                                    <th className="pb-4">Wallet</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y divide-gray-50 text-sm">
                                 {tokenData.map((token) => (
                                     <tr key={token.address} className="group hover:bg-gray-50 transition-colors">
                                         <td className="py-4 pl-2">
                                             <div className="flex items-center gap-3">
                                                 <img src={token.img} className="w-9 h-9 rounded-full shadow-sm object-cover group-hover:scale-110 transition-transform" alt="" />
                                                 <div>
-                                                    <p className="font-bold text-sm text-gray-800">{token.symbol}</p>
+                                                    <p className="font-medium text-gray-800">{token.symbol}</p>
                                                     <p className="text-[10px] text-gray-400">{token.name}</p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="py-4">
-                                            <div className="flex flex-col">
-                                                <span className="text-xs font-bold text-green-600 bg-green-50 w-fit px-1.5 rounded-md">+{token.depositAPR.toFixed(2)}%</span>
-                                                <span className="text-[10px] text-red-400">-{token.borrowAPR.toFixed(2)}%</span>
-                                            </div>
-                                        </td>
-                                        <td className="py-4 font-medium text-gray-700">
+                                        <td className="py-4 font-normal text-gray-700">
                                             {fmt(token.deposited, token.decimals)}
                                         </td>
-                                        <td className="py-4 font-medium text-red-600">
+                                        <td className="py-4 font-normal text-red-600">
                                             {fmt(token.borrowed, token.decimals)}
                                         </td>
-                                        <td className="py-4 font-medium text-gray-400">
+                                        <td className="py-4 font-normal text-orange-500">
+                                            {fmt(token.locked, token.decimals)}
+                                        </td>
+                                        <td className="py-4 font-normal text-gray-400">
                                             {fmt(token.walletBalance, token.decimals)}
                                         </td>
                                     </tr>

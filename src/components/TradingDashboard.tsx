@@ -17,7 +17,7 @@ function getLanguageFromURL(): string | null {
     return results === null ? null : decodeURIComponent(results[1].replace(/\+/g, " "));
 }
 
-const EXECUTOR_ADDRESS = "0x6Cc3baF9320934d4DEcAB8fdAc92F00102A58994";
+const EXECUTOR_ADDRESS = "0x761e49A8f7e4e5E59a66F8fc7A89D05592B9adf0";
 
 const TradingDashboard: React.FC<TradingDashboardProps> = ({
     className = "",
@@ -206,7 +206,7 @@ const TradingDashboard: React.FC<TradingDashboardProps> = ({
                 for (let id = start; id < end; id++) {
                     batchPromises.push(
                         // getOrder typically returns tuple: (maker, tokenIn, tokenOut, poolFee, pool, amountIn, amountOutMin, targetSqrtPriceX96, triggerAbove, expiry, filled, cancelled)
-                        executor.getOrder(id).then((ord: any) => ({ id, ord }))
+                        executor.orders(id).then((ord: any) => ({ id, ord }))
                     );
                 }
                 const batchResults = await Promise.allSettled(batchPromises);

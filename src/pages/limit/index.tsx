@@ -138,7 +138,7 @@ const Limit = () => {
         };
     }, [fromToken.address, toToken.address, provider]);
 
-    const EXECUTOR_ADDRESS = "0x6Cc3baF9320934d4DEcAB8fdAc92F00102A58994";
+    const EXECUTOR_ADDRESS = "0x761e49A8f7e4e5E59a66F8fc7A89D05592B9adf0";
     const MIN_ERC20_ABI = ["function decimals() view returns (uint8)"];
 
     useEffect(() => {
@@ -789,7 +789,7 @@ const Limit = () => {
                                             >
                                                 <option value={0}>None</option>
                                                 <option value={1}>Principal Protection</option>
-                                                <option value={2}>Stop Loss</option>
+                                                {/* <option value={2}>Stop Loss</option> */}
                                             </select>
                                         </div>
 

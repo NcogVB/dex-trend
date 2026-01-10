@@ -1,23 +1,5 @@
 [
 	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "asset",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "borrow",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
 		"inputs": [],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
@@ -84,6 +66,19 @@
 		],
 		"name": "ClaimPaid",
 		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "asset",
+				"type": "address"
+			}
+		],
+		"name": "claimProtocolFees",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
 		"inputs": [
@@ -205,7 +200,7 @@
 				"type": "uint256"
 			},
 			{
-				"internalType": "enum MainExchange.InsuranceType",
+				"internalType": "uint8",
 				"name": "insType",
 				"type": "uint8"
 			},
@@ -227,68 +222,22 @@
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "collateralAsset",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "debtAsset",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "debtToCover",
-				"type": "uint256"
-			}
-		],
-		"name": "liquidate",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
 		"anonymous": false,
 		"inputs": [
 			{
 				"indexed": true,
 				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "debtAsset",
+				"name": "asset",
 				"type": "address"
 			},
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "debtCovered",
-				"type": "uint256"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "collateralAsset",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "collateralSeized",
+				"name": "amount",
 				"type": "uint256"
 			}
 		],
-		"name": "Liquidated",
+		"name": "FeesClaimed",
 		"type": "event"
 	},
 	{
@@ -449,39 +398,6 @@
 		"inputs": [
 			{
 				"internalType": "address",
-				"name": "_assetToken",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_quoteToken",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_notional",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_duration",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_threshold",
-				"type": "uint256"
-			}
-		],
-		"name": "purchasePolicy",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
 				"name": "asset",
 				"type": "address"
 			},
@@ -535,6 +451,19 @@
 			}
 		],
 		"name": "repayWithCollateral",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_vault",
+				"type": "address"
+			}
+		],
+		"name": "setInsuranceVault",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -598,24 +527,6 @@
 	{
 		"inputs": [
 			{
-				"internalType": "address",
-				"name": "token",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "withdrawInsuranceSurplus",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
@@ -633,53 +544,8 @@
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "totalLiquidity",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "totalBorrows",
-				"type": "uint256"
-			}
-		],
-		"name": "calculateInterestRates",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "liquidityRate",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "borrowRate",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "pure",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "_notional",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_duration",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_threshold",
-				"type": "uint256"
-			}
-		],
-		"name": "calculatePremium",
+		"inputs": [],
+		"name": "borrowRateBps",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -691,13 +557,39 @@
 		"type": "function"
 	},
 	{
-		"inputs": [],
-		"name": "FACTORY",
-		"outputs": [
+		"inputs": [
 			{
 				"internalType": "address",
-				"name": "",
+				"name": "token",
 				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "collateral",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "borrowed",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "duration",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "coveragePct",
+				"type": "uint256"
+			}
+		],
+		"name": "calculatePremium",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -759,6 +651,11 @@
 				"type": "uint256"
 			},
 			{
+				"internalType": "uint256",
+				"name": "strikePrice",
+				"type": "uint256"
+			},
+			{
 				"internalType": "bool",
 				"name": "claimed",
 				"type": "bool"
@@ -767,6 +664,40 @@
 				"internalType": "bool",
 				"name": "active",
 				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_policyId",
+				"type": "uint256"
+			}
+		],
+		"name": "getPolicyStatus",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "isClaimable",
+				"type": "bool"
+			},
+			{
+				"internalType": "uint256",
+				"name": "payoutAmount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "currentPrice",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "timeRemaining",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -785,40 +716,6 @@
 			{
 				"internalType": "uint256",
 				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "token",
-				"type": "address"
-			}
-		],
-		"name": "getReserveData",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "totalLiquidity",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "totalBorrows",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "borrowAPR",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "depositAPR",
 				"type": "uint256"
 			}
 		],
@@ -875,19 +772,13 @@
 		"type": "function"
 	},
 	{
-		"inputs": [
+		"inputs": [],
+		"name": "insuranceVault",
+		"outputs": [
 			{
 				"internalType": "address",
 				"name": "",
 				"type": "address"
-			}
-		],
-		"name": "insuranceReserves",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -945,19 +836,6 @@
 			{
 				"internalType": "uint256",
 				"name": "sellOrderId",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "LIQUIDATION_THRESHOLD",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
 				"type": "uint256"
 			}
 		],
@@ -1158,12 +1036,12 @@
 	},
 	{
 		"inputs": [],
-		"name": "POOL_FEE",
+		"name": "premiumRateBps",
 		"outputs": [
 			{
-				"internalType": "uint24",
+				"internalType": "uint256",
 				"name": "",
-				"type": "uint24"
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -1171,7 +1049,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "premiumRateBps",
+		"name": "reserveFactorBps",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -1194,21 +1072,6 @@
 		"outputs": [
 			{
 				"internalType": "uint256",
-				"name": "liquidityIndex",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "variableBorrowIndex",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint40",
-				"name": "lastUpdateTimestamp",
-				"type": "uint40"
-			},
-			{
-				"internalType": "uint256",
 				"name": "totalLiquidity",
 				"type": "uint256"
 			},
@@ -1221,18 +1084,10 @@
 				"internalType": "uint256",
 				"name": "accruedProtocolFees",
 				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "underwriterShareBps",
-		"outputs": [
+			},
 			{
 				"internalType": "uint256",
-				"name": "",
+				"name": "lastUpdateTimestamp",
 				"type": "uint256"
 			}
 		],
@@ -1269,12 +1124,12 @@
 		"outputs": [
 			{
 				"internalType": "uint256",
-				"name": "scaledCollateral",
+				"name": "collateral",
 				"type": "uint256"
 			},
 			{
 				"internalType": "uint256",
-				"name": "scaledDebt",
+				"name": "debt",
 				"type": "uint256"
 			},
 			{
