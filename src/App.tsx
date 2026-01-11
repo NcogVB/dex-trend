@@ -1,39 +1,27 @@
 import { Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import Limit from "./pages/limit";
-import Pool from "./pages/pool";
-import Swap from "./pages/swap";
-import ConverterPool from "./components/ConverterPool";
-import Converter1 from "./components/Converter1";
 import Home from "./pages/Home";
 import AmmDashboard from "./components/BotDashboard";
 import PolicyDashboard from "./pages/policy/Policy";
 import LendingBorrowing from "./pages/LendingBorrowing/LB";
 import { ToastProvider } from "./components/Toast";
 import PreSell from "./components/PreSell";
-import AddLiquidity from "./components/AddLiquidity";
-import RemoveLiquidity from "./components/Converter1";
+
 
 function App() {
   return (
     <>
-      {/* ✅ ToastContainer must be outside Routes */}
       <ToastProvider>
 
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<Home />} />
-            <Route path="/swap" element={<Swap />} />
             <Route path="/presell" element={<PreSell />} />
-            <Route path="/addlp/:tokenId" element={<AddLiquidity />} />
-            <Route path="/removelp/:tokenId" element={<RemoveLiquidity />} />
             <Route path="/Policy" element={<PolicyDashboard />} />
             <Route path="/LendingBorrowing" element={<LendingBorrowing />} />
             <Route path="/Dashboard" element={<AmmDashboard />} />
             <Route path="/exchange" element={<Limit />} />
-            <Route path="/pool" element={<Pool />} />
-            <Route path="/addlp" element={<ConverterPool />} />
-            <Route path="/removelp" element={<Converter1 />} />
           </Route>
         </Routes>
       </ToastProvider>

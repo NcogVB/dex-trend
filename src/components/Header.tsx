@@ -91,7 +91,7 @@ const Header: React.FC = () => {
         if (!isConnected) return;
 
         const pathsRequiringSkyHigh = new Set([
-            "/swap", "/pool", "/bridge", "/exchange",
+            "/bridge", "/exchange",
             "/policy", "/LendingBorrowing", "/PoolData"
         ]);
 

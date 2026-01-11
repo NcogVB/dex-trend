@@ -12,7 +12,6 @@ import BuySellGifSection from '../../components/BuySellGif'
 function Home() {
     return (
         <>
-            {/* <HeroSection /> */}
             <HeroSection2 />
             <BuySellGifSection/>
             <FeatureCards />
