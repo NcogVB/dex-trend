@@ -18,7 +18,7 @@ import { useWallet } from "../../contexts/WalletContext";
 import { TOKENS } from "../../utils/SwapTokens";
 import { ERC20_ABI } from "../../contexts/ABI";
 
-const CONTRACT_ADDRESS = "0x761e49A8f7e4e5E59a66F8fc7A89D05592B9adf0";
+const CONTRACT_ADDRESS = "0xCcEfbE2B520068Ab9bFcD3AF8E47E710eF579f86";
 
 const INSURANCE_ABI = [
     "function policyCounter() view returns (uint256)",
@@ -194,7 +194,6 @@ const PolicyDashboard: React.FC = () => {
             alert("Withdraw Failed: " + (e.reason || e.message));
         }
     }
-
     const handleCalculate = async () => {
         if (!provider || !calcForm.assetToken || !calcForm.amount) return;
         setIsCalculating(true);

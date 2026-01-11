@@ -5,7 +5,7 @@ import { TOKENS } from "../../utils/SwapTokens";
 import { ethers, Contract } from "ethers";
 import { ERC20_ABI } from "../../contexts/ABI";
 
-const CONTRACT_ADDRESS = "0x761e49A8f7e4e5E59a66F8fc7A89D05592B9adf0";
+const CONTRACT_ADDRESS = "0xCcEfbE2B520068Ab9bFcD3AF8E47E710eF579f86";
 
 const LENDING_ABI = [
     "function deposit(address asset, uint256 amount) external",
