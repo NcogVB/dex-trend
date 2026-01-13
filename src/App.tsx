@@ -7,6 +7,7 @@ import PolicyDashboard from "./pages/policy/Policy";
 import LendingBorrowing from "./pages/LendingBorrowing/LB";
 import { ToastProvider } from "./components/Toast";
 import PreSell from "./components/PreSell";
+import Futures from "./pages/Futures";
 
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
             <Route path="/LendingBorrowing" element={<LendingBorrowing />} />
             <Route path="/Dashboard" element={<AmmDashboard />} />
             <Route path="/exchange" element={<Limit />} />
+            <Route path="/Futures" element={<Futures />} />
           </Route>
         </Routes>
       </ToastProvider>
