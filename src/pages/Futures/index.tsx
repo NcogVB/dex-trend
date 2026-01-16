@@ -6,18 +6,18 @@ import { useWallet } from '../../contexts/WalletContext';
 import { TOKENS } from '../../utils/SwapTokens';
 import { useToast } from '../../components/Toast';
 
-// Import ABIs
 import CoreABI from '../../ABI/ExchangeCoreABI.json';
 import FuturesABI from '../../ABI/FuturesABI.json';
+
 const ERC20ABI = [
     "function balanceOf(address owner) view returns (uint256)",
     "function decimals() view returns (uint8)",
     "function approve(address spender, uint256 value) returns (bool)",
     "function allowance(address owner, address spender) view returns (uint256)"
 ];
-// Config
-const CORE_ADDR = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-const FUTURES_ADDR = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+
+const CORE_ADDR = "0x2D2d50590B7900F1023B7A745EBc368c9C3D97A0";
+const FUTURES_ADDR = "0xF22eB9e193e8c681fE2D600C63e5F580b5f10399";
 const USDT_ADDR = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
 
 const Futures = () => {
@@ -44,11 +44,11 @@ const Futures = () => {
             const futures = new ethers.Contract(FUTURES_ADDR, FuturesABI, provider);
             const usdt = new ethers.Contract(USDT_ADDR, ERC20ABI, provider);
 
-            // 1. Asset Price
-            const priceRaw = await core.getPrice(state.asset.address);
+            // Fetch Price
+            // Note: Ensure getPrice handles the specific pair correctly
+            const priceRaw = await core.getPrice(state.asset.address, TOKENS.find(t => t.symbol === "USDT")!.address);
 
-            // 2. Market Positions (Public Order Book)
-            // Fetch first 20 global positions
+            // Fetch Public Trades
             const globalPosRaw = await futures.getGlobalPositions(0, 20);
             const publicTrades = globalPosRaw.map((p: any) => ({
                 user: p.user,
@@ -58,37 +58,62 @@ const Futures = () => {
                 asset: p.asset
             }));
 
-            let wallBal = "0", protBal = "0", myPos: ({ symbol: string; addr: string; size: string; entry: string; mark: string; pnl: string; isLong: any; leverage: string; } | null)[] = [];
+            let wallBal = "0";
+            let protBal = "0";
+            let myPos: any[] = [];
 
-            // 3. User Data
             if (account) {
-                // Fetch Wallet Balance
                 const wallBalRaw = await usdt.balanceOf(account);
-
-                // Fetch Protocol Balance using new getUserBalance function
                 const userRes = await core.getUserBalance(account, USDT_ADDR);
 
                 wallBal = ethers.formatUnits(wallBalRaw, 18);
-                protBal = ethers.formatUnits(userRes[0], 18); // collateral index
+                protBal = ethers.formatUnits(userRes[0], 18);
 
-                // Fetch User's Open Positions
-                myPos = (await Promise.all(TOKENS.map(async (t) => {
+                // --- FIX: Robust Position Fetching ---
+                const posPromises = TOKENS.map(async (t) => {
                     if (t.symbol === "USDT") return null;
-                    const p = await futures.positions(account, t.address);
-                    if (!p.active) return null;
+                    try {
+                        const p = await futures.positions(account, t.address);
+                        
+                        // Debugging: See what raw data looks like
+                        // console.log(`Raw Position ${t.symbol}:`, p);
 
-                    const curr = parseFloat(ethers.formatUnits(await core.getPrice(t.address), 18));
-                    const entry = parseFloat(ethers.formatUnits(p.entryPrice, 18));
-                    const size = parseFloat(ethers.formatUnits(p.sizeUSD, 18));
-                    const diff = p.isLong ? (curr - entry) : (entry - curr);
+                        // Check if active (ethers v6 returns Result object, access by name or index)
+                        const isActive = p.active || p[5]; // Fallback to index if struct changes
+                        if (!isActive) return null;
 
-                    return {
-                        symbol: t.symbol, addr: t.address, size: size.toFixed(2),
-                        entry: entry.toFixed(2), mark: curr.toFixed(2),
-                        pnl: ((diff * size) / entry).toFixed(2),
-                        isLong: p.isLong, leverage: (size / parseFloat(ethers.formatUnits(p.margin, 18))).toFixed(1)
-                    };
-                }))).filter(Boolean);
+                        const curr = parseFloat(ethers.formatUnits(await core.getPrice(t.address, USDT_ADDR), 18));
+                        const entry = parseFloat(ethers.formatUnits(p.entryPrice, 18));
+                        const size = parseFloat(ethers.formatUnits(p.sizeUSD, 18));
+                        
+                        // Avoid division by zero
+                        if(entry === 0) return null;
+
+                        const diff = p.isLong ? (curr - entry) : (entry - curr);
+                        const pnl = ((diff * size) / entry).toFixed(2);
+                        
+                        // Margin might be 0 if fully leveraged or cross margin logic, handle safely
+                        const marginVal = parseFloat(ethers.formatUnits(p.margin, 18));
+                        const leverage = marginVal > 0 ? (size / marginVal).toFixed(1) : "MAX";
+
+                        return {
+                            symbol: t.symbol,
+                            addr: t.address,
+                            size: size.toFixed(2),
+                            entry: entry.toFixed(2),
+                            mark: curr.toFixed(2),
+                            pnl: pnl,
+                            isLong: p.isLong,
+                            leverage: leverage
+                        };
+                    } catch (err) { 
+                        console.warn(`Failed to fetch pos for ${t.symbol}`, err);
+                        return null; 
+                    }
+                });
+
+                const results = await Promise.all(posPromises);
+                myPos = results.filter(Boolean);
             }
 
             setState(prev => ({
@@ -110,27 +135,28 @@ const Futures = () => {
 
     const execute = async (isLong: boolean) => {
         if (!form.margin || parseFloat(form.margin) <= 0) return;
+        if (!signer || !account) return alert("Connect Wallet");
+
         setUi({ loading: true, action: isLong ? 'long' : 'short' });
         try {
-            const core = new ethers.Contract(CORE_ADDR, CoreABI, signer);
             const futures = new ethers.Contract(FUTURES_ADDR, FuturesABI, signer);
             const usdt = new ethers.Contract(USDT_ADDR, ERC20ABI, signer);
 
-            const margin = ethers.parseUnits(form.margin, 18);
-            const protBal = ethers.parseUnits(state.protocolUsdt, 18);
+            const marginWei = ethers.parseUnits(form.margin, 18);
 
-            if (protBal < margin) {
-                const needed = margin - protBal;
-                const allowance = await usdt.allowance(account, CORE_ADDR);
-                if (allowance < needed) {
-                    const txApp = await usdt.approve(CORE_ADDR, ethers.MaxUint256);
-                    await txApp.wait();
-                }
-                const txDep = await core.deposit(USDT_ADDR, needed);
-                await txDep.wait();
+            const allowance = await usdt.allowance(account, CORE_ADDR);
+            if (allowance < marginWei) {
+                const txApp = await usdt.approve(CORE_ADDR, ethers.MaxUint256);
+                await txApp.wait();
             }
 
-            const txOpen = await futures.openPosition(state.asset.address, margin, form.leverage, isLong);
+            const txOpen = await futures.openPosition(
+                state.asset.address,
+                marginWei,
+                form.leverage,
+                isLong,
+                { gasLimit: 500000 }
+            );
             await txOpen.wait();
 
             showToast("Position Opened", "success");
@@ -138,17 +164,21 @@ const Futures = () => {
             fetchAll();
         } catch (e: any) {
             console.error(e);
-            showToast(e.reason || "Transaction Failed", "error");
+            let msg = "Transaction Failed";
+            if (e.reason) msg = e.reason;
+            if (e.message && e.message.includes("user rejected")) msg = "User rejected transaction";
+            showToast(msg, "error");
         } finally {
             setUi({ loading: false, action: null });
         }
     };
 
     const close = async (addr: string) => {
+        if (!signer) return;
         setUi({ loading: true, action: `close-${addr}` });
         try {
             const futures = new ethers.Contract(FUTURES_ADDR, FuturesABI, signer);
-            const tx = await futures.closePosition(addr);
+            const tx = await futures.closePosition(addr, { gasLimit: 500000 });
             await tx.wait();
             showToast("Closed Successfully", "success");
             fetchAll();
@@ -161,9 +191,7 @@ const Futures = () => {
     };
 
     const TradeRow = ({ t }: { t: any }) => {
-        // Resolve symbol from address if possible
         const symbol = TOKENS.find(tk => tk.address.toLowerCase() === t.asset.toLowerCase())?.symbol || "UNK";
-
         return (
             <div className="grid grid-cols-4 text-[10px] py-1 px-2 hover:bg-gray-50 border-b border-gray-50 cursor-default items-center">
                 <span className="text-gray-500 font-bold">{symbol}</span>
@@ -180,7 +208,6 @@ const Futures = () => {
         <div className="hero-section flex flex-col items-center w-full p-3">
             <div className="w-full flex flex-col lg:flex-row gap-3">
 
-                {/* LEFT COLUMN */}
                 <div className="w-full lg:w-[70%] flex flex-col gap-3">
                     <div className="w-full"><TradingDashboard fullScreen showOrders={false} pair={`${state.asset.symbol}USDT`} /></div>
 
@@ -209,10 +236,8 @@ const Futures = () => {
                     </div>
                 </div>
 
-                {/* RIGHT COLUMN */}
                 <div className="w-full lg:w-[30%] flex flex-col gap-3">
 
-                    {/* MARKET POSITIONS PANEL */}
                     <div className="modern-card flex flex-col h-[300px]">
                         <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-2">
                             <Globe className="w-4 h-4 text-blue-500" />
@@ -234,7 +259,6 @@ const Futures = () => {
                         </div>
                     </div>
 
-                    {/* TRADING FORM */}
                     <div className="modern-card p-4 flex flex-col gap-4 rounded-xl border border-gray-200 bg-white">
                         <div className="flex justify-between items-center">
                             <h2 className="text-lg font-bold text-gray-800">Trade Futures</h2>
@@ -259,13 +283,13 @@ const Futures = () => {
 
                         <div className="flex flex-col gap-1">
                             <div className="flex justify-between text-[10px] text-gray-500">
-                                <span>Margin</span> <span className="cursor-pointer text-blue-600" onClick={() => setForm(p => ({ ...p, margin: state.protocolUsdt }))}>Avail: {parseFloat(state.protocolUsdt).toFixed(2)}</span>
+                                <span>Margin</span> <span className="cursor-pointer text-blue-600" onClick={() => setForm(p => ({ ...p, margin: state.walletUsdt }))}>Wallet: {parseFloat(state.walletUsdt).toFixed(2)}</span>
                             </div>
                             <div className="modern-input px-3 py-2 w-full flex items-center border border-gray-200 rounded-lg">
                                 <input type="number" value={form.margin} onChange={(e) => setForm(p => ({ ...p, margin: e.target.value }))} placeholder="0.00" className="flex-1 bg-transparent text-sm outline-none" />
                                 <span className="text-xs font-bold text-gray-400">USDT</span>
                             </div>
-                            <div className="flex gap-1 mt-1">{[25, 50, 75, 100].map(pct => (<button key={pct} onClick={() => setForm(p => ({ ...p, margin: ((parseFloat(state.protocolUsdt) * pct) / 100).toFixed(2) }))} className="flex-1 py-1 rounded bg-gray-50 hover:bg-gray-100 text-[10px] transition">{pct}%</button>))}</div>
+                            <div className="flex gap-1 mt-1">{[25, 50, 75, 100].map(pct => (<button key={pct} onClick={() => setForm(p => ({ ...p, margin: ((parseFloat(state.walletUsdt) * pct) / 100).toFixed(2) }))} className="flex-1 py-1 rounded bg-gray-50 hover:bg-gray-100 text-[10px] transition">{pct}%</button>))}</div>
                         </div>
 
                         <div className="flex flex-col gap-2">
@@ -276,7 +300,6 @@ const Futures = () => {
 
                         <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 flex flex-col gap-1">
                             <div className="flex justify-between text-[10px] text-gray-500"><span>Size</span> <span className="font-semibold text-gray-800">${(parseFloat(form.margin || "0") * form.leverage).toFixed(2)}</span></div>
-                            <div className="flex justify-between text-[10px] text-gray-500"><span>Fee</span> <span className="font-semibold text-gray-800">~${(parseFloat(form.margin || "0") * form.leverage * 0.001).toFixed(2)}</span></div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 mt-1">
@@ -287,7 +310,6 @@ const Futures = () => {
                                 {ui.loading && ui.action === 'short' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowDownRight className="w-4 h-4" />} Short
                             </button>
                         </div>
-                        {parseFloat(form.margin || "0") > parseFloat(state.protocolUsdt) && <div className="text-[10px] text-orange-600 bg-orange-50 p-2 rounded text-center">Auto-deposit from wallet ({parseFloat(state.walletUsdt).toFixed(2)} Avail)</div>}
                     </div>
                 </div>
             </div>

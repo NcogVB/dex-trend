@@ -7,13 +7,14 @@ import { TOKENS } from '../../utils/SwapTokens';
 import { useToast } from '../../components/Toast';
 import { useOrder } from '../../hooks/useOrder';
 
-const CORE_ADDR = "0xfad47c95A4Fa7f923Cb9d295f5a35F17A1927A86";
+const CORE_ADDR = "0x2D2d50590B7900F1023B7A745EBc368c9C3D97A0";
 
-// Updated ABI with 'expiry'
+// Updated ABI: Added SpotTrade event for real-time updates
 const CORE_ABI = [
     "function orders(uint256) view returns (uint256 id, address maker, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, uint256 targetPrice, uint256 expiry, bool filled, bool cancelled, bool isBuy)",
     "function nextOrderId() view returns (uint256)",
-    "function getUserBalance(address user, address token) view returns (uint256 collateral, uint256 locked)"
+    "function getUserBalance(address user, address token) view returns (uint256 collateral, uint256 locked)",
+    "event SpotTrade(address indexed tokenIn, address indexed tokenOut, uint256 price, uint256 amount)"
 ];
 
 const ERC20_ABI = [
@@ -92,7 +93,6 @@ const Limit = () => {
                 return;
             }
 
-            // Fetch last 50 orders (Active + History)
             const idsToFetch = [];
             const startId = Math.max(1, nextId - 50);
             for (let i = nextId - 1; i >= startId; i--) {
@@ -101,7 +101,6 @@ const Limit = () => {
 
             await Promise.all(idsToFetch.map(async (id) => {
                 try {
-                    // Only fetch if not cached or if cached as active (state might change)
                     if (!GLOBAL_ORDERS_CACHE.has(id) || !GLOBAL_ORDERS_CACHE.get(id).isFinal) {
                         const o = await core.orders(id);
                         if (o.maker === ethers.ZeroAddress) return;
@@ -109,61 +108,58 @@ const Limit = () => {
                         const tIn = o.tokenIn.toLowerCase();
                         if (!GLOBAL_DECIMALS_CACHE[tIn]) GLOBAL_DECIMALS_CACHE[tIn] = 18;
 
-                        // Parse State
                         const isFilled = o.filled;
                         const isCancelled = o.cancelled;
                         const isBuy = o.isBuy;
-                        const priceVal = parseFloat(ethers.formatUnits(o.targetPrice || 0, 18));
-
-                        // --- AMOUNT LOGIC ---
                         const rawAmountIn = parseFloat(ethers.formatUnits(o.amountIn, 18));
                         const rawAmountOutMin = parseFloat(ethers.formatUnits(o.amountOutMin, 18));
-
-                        // Active Display Amount (Remaining)
-                        let displayAmount = 0;
-                        if (!isFilled && !isCancelled) {
-                            if (isBuy) displayAmount = rawAmountIn / priceVal; // Buy: USDT / Price = Asset
-                            else displayAmount = rawAmountIn; // Sell: Asset = Asset
+                        
+                        let priceVal = parseFloat(ethers.formatUnits(o.targetPrice || 0, 18));
+                        if (priceVal <= 0 && rawAmountIn > 0 && rawAmountOutMin > 0) {
+                            if (isBuy) priceVal = rawAmountIn / rawAmountOutMin;
+                            else priceVal = rawAmountOutMin / rawAmountIn;
                         }
 
-                        // History Display Amount (Original Size)
+                        let displayAmount = 0;
+                        if (!isFilled && !isCancelled) {
+                            if (isBuy) displayAmount = rawAmountIn / priceVal;
+                            else displayAmount = rawAmountIn;
+                        }
+
                         let originalSize = 0;
-                        if (isBuy) originalSize = rawAmountOutMin; // Buy: amountOutMin is original Asset requested
-                        else originalSize = rawAmountOutMin / priceVal; // Sell: amountOutMin is USDT requested / price = Asset
+                        if (isBuy) originalSize = rawAmountOutMin; 
+                        else originalSize = rawAmountOutMin / priceVal;
 
                         GLOBAL_ORDERS_CACHE.set(id, {
                             id: Number(o.id),
                             maker: o.maker,
                             tokenIn: tIn,
                             tokenOut: o.tokenOut.toLowerCase(),
-                            amountDisplay: displayAmount, // Dynamic Remaining
-                            originalSize: originalSize,   // Static Original
+                            amountDisplay: displayAmount, 
+                            originalSize: originalSize, 
                             targetPrice: priceVal,
                             expiry: Number(o.expiry),
                             filled: isFilled,
                             cancelled: isCancelled,
                             isBuy: isBuy,
                             orderType: isBuy ? 0 : 1,
-                            isFinal: isFilled || isCancelled // Mark final so we don't re-fetch history
+                            isFinal: isFilled || isCancelled 
                         });
                     }
                 } catch { }
             }));
 
-            // Filter for UI
             const fAddr = market.from.address.toLowerCase();
             const tAddr = market.to.address.toLowerCase();
             const userOrders: any[] = [], generalOrders: any[] = [], historyOrders: any[] = [];
 
             GLOBAL_ORDERS_CACHE.forEach(o => {
-                // Pair Check
                 const isPair = (o.tokenIn === fAddr && o.tokenOut === tAddr) || (o.tokenIn === tAddr && o.tokenOut === fAddr);
                 if (!isPair) return;
 
                 const isActive = !o.filled && !o.cancelled;
 
                 if (isActive) {
-                    // Only show if dust > 0.0001
                     if (o.amountDisplay > 0.0001) {
                         generalOrders.push(o);
                         if (account && o.maker.toLowerCase() === account.toLowerCase()) userOrders.push(o);
@@ -184,6 +180,7 @@ const Limit = () => {
         } catch (e) { setUi(p => ({ ...p, loadingOrders: false })); }
     }, [provider, account, market.from.address, market.to.address]);
 
+    // MAIN EFFECT: Fetch Data & Listen for Trades
     useEffect(() => {
         fetchReq.current += 1;
         const reqId = fetchReq.current;
@@ -195,7 +192,24 @@ const Limit = () => {
         fetchBalances();
 
         const interval = setInterval(() => { refreshOrders(reqId); fetchBalances(); }, 5000);
-        return () => clearInterval(interval);
+
+        // EVENT LISTENER: Auto-update when ANY trade happens
+        let contractRef: ethers.Contract | null = null;
+        if(provider) {
+            try {
+                contractRef = new ethers.Contract(CORE_ADDR, CORE_ABI, provider);
+                contractRef.on("SpotTrade", () => {
+                    refreshOrders(reqId);
+                    fetchBalances();
+                    fetchLastOrderPriceForPair({ tokenIn: market.from.address, tokenOut: market.to.address });
+                });
+            } catch(e) { console.error("Event error", e); }
+        }
+
+        return () => {
+            clearInterval(interval);
+            if(contractRef) contractRef.removeAllListeners("SpotTrade");
+        };
     }, [market.from.address, market.to.address, account, provider]);
 
     useEffect(() => {
@@ -225,9 +239,6 @@ const Limit = () => {
         setUi(p => ({ ...p, creating: isBuy ? 'buy' : 'sell' }));
         try {
             const clean = (v: number) => Number(v.toFixed(18)).toString();
-            // Contract expects: AmountIn, AmountOutMin
-            // Buy: Input USDT (Price * Amt). Output Asset (Amt).
-            // Sell: Input Asset (Amt). Output USDT (Price * Amt).
             const amtIn = isBuy ? (price * amt) : amt;
             const amtOutMin = isBuy ? amt : (price * amt);
 
@@ -243,6 +254,12 @@ const Limit = () => {
 
             showToast(`${isBuy ? 'Buy' : 'Sell'} order created!`, "success");
             setForm(p => ({ ...p, amount: '', total: '' }));
+            
+            await fetchLastOrderPriceForPair({ 
+                tokenIn: market.from.address, 
+                tokenOut: market.to.address 
+            });
+
             refreshOrders(fetchReq.current);
             fetchBalances();
         } catch (e: any) {
@@ -269,19 +286,19 @@ const Limit = () => {
         }
     };
 
+    // UPDATED: Shows Total instead of Status
     const OrderRowHistory = ({ o }: { o: any }) => {
         const isSell = o.orderType === 1;
         const p = o.targetPrice;
-        // For history, show original requested size
         const a = o.originalSize;
-        const status = o.cancelled ? "Cancelled" : "Filled";
+        const total = p * a;
 
         return (
             <div className={`flex items-center text-xs py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition ${isSell ? 'text-red-600' : 'text-green-600'}`}>
                 <span className="w-12 text-left font-medium">#{o.id}</span>
                 <span className="flex-1 text-center">{p.toFixed(5)}</span>
                 <span className="flex-1 text-center">{a.toFixed(4)}</span>
-                <span className="flex-1 text-right">{status}</span>
+                <span className="flex-1 text-right font-medium">{total.toFixed(2)}</span>
             </div>
         );
     };
@@ -305,7 +322,7 @@ const Limit = () => {
                                     {orderList.user.length === 0 ? <div className="flex justify-center items-center h-full text-sm text-gray-500">No Open Orders</div> : orderList.user.map(o => {
                                         const isSell = o.orderType === 1;
                                         const p = o.targetPrice;
-                                        const a = o.amountDisplay; // Remaining Amount
+                                        const a = o.amountDisplay; 
                                         return (
                                             <div key={o.id} className="grid grid-cols-7 text-xs py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition">
                                                 <span className="text-left font-medium">#{o.id}</span>
@@ -347,7 +364,7 @@ const Limit = () => {
                                                 <span className="w-12 text-left">ID</span>
                                                 <span className="flex-1 text-center">Price</span>
                                                 <span className="flex-1 text-center">Size</span>
-                                                <span className="flex-1 text-right">Status</span>
+                                                <span className="flex-1 text-right">Total</span>
                                             </>
                                         )}
                                     </div>
@@ -391,6 +408,7 @@ const Limit = () => {
                             </div>
                         </div>
 
+                        {/* Order Input Box ... (Same as before) */}
                         <div className="modern-card p-3 flex flex-col gap-3 text-xs rounded-xl border border-gray-200 bg-white">
                             <h2 className="text-sm font-semibold text-gray-800">Create Order</h2>
                             <div className="relative group">
@@ -411,28 +429,23 @@ const Limit = () => {
                                         )}
                                     </div>
                                 </div>
-
                                 <div className="flex justify-between mt-1 text-[10px] text-gray-500">
-                                    <span title="In your wallet">Wallet: <span className="font-medium text-gray-700">{parseFloat(market.from.wallet).toFixed(3)}</span></span>
                                     <span className="cursor-pointer hover:text-blue-600" title="Deposited in Exchange Core" onClick={() => updateInput('amount', market.from.protocol)}>
-                                        Protocol: <span className="font-bold text-blue-600">{parseFloat(market.from.protocol).toFixed(3)}</span>
+                                        Wallet: <span className="font-bold text-blue-600">{parseFloat(market.from.wallet).toFixed(3)}</span>
                                     </span>
                                 </div>
-
                                 <div className="flex justify-between mt-2 gap-1">
                                     {[25, 50, 75, 100].map(pct => (
                                         <button key={pct} onClick={() => {
-                                            const bal = parseFloat(market.from.protocol) > 0 ? parseFloat(market.from.protocol) : parseFloat(market.from.wallet);
+                                            const bal = parseFloat(market.from.wallet) > 0 ? parseFloat(market.from.wallet) : parseFloat(market.from.wallet);
                                             updateInput('amount', ((bal * pct) / 100).toFixed(6));
                                         }} className="flex-1 py-1 rounded-md bg-gray-100 hover:bg-blue-600 hover:text-white transition">{pct}%</button>
                                     ))}
                                 </div>
                             </div>
-
                             <div className="text-[10px] text-gray-500 text-right">
-                                {market.to.symbol} Protocol Bal: <span className="font-bold text-blue-600">{parseFloat(market.to.protocol).toFixed(3)}</span>
+                                {market.to.symbol} wallet: <span className="font-bold text-blue-600">{parseFloat(market.to.wallet).toFixed(3)}</span>
                             </div>
-
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="flex flex-col">
                                     <span className="text-gray-500">Target Price</span>
@@ -443,7 +456,6 @@ const Limit = () => {
                                     <input type="number" max="30" value={form.expiry} onChange={(e) => setForm(p => ({ ...p, expiry: Number(e.target.value) }))} className="border rounded px-2 py-1 text-center bg-gray-50" />
                                 </div>
                             </div>
-
                             <div className="flex gap-2 mt-1">
                                 <button onClick={() => handleCreate(true)} disabled={ui.creating === 'buy' || !form.total} className={`flex-1 py-1.5 rounded text-white transition ${ui.creating === 'buy' ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'}`}>{ui.creating === 'buy' ? 'Processing' : `Buy ${market.from.symbol}`}</button>
                                 <button onClick={() => handleCreate(false)} disabled={ui.creating === 'sell' || !form.total} className={`flex-1 py-1.5 rounded text-white transition ${ui.creating === 'sell' ? 'bg-red-400' : 'bg-red-600 hover:bg-red-700'}`}>{ui.creating === 'sell' ? 'Processing' : `Sell ${market.from.symbol}`}</button>

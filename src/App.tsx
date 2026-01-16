@@ -8,6 +8,8 @@ import LendingBorrowing from "./pages/LendingBorrowing/LB";
 import { ToastProvider } from "./components/Toast";
 import PreSell from "./components/PreSell";
 import Futures from "./pages/Futures";
+import Options from "./pages/Options";
+import AdminDashboard from "./components/BotDashboard";
 
 
 function App() {
@@ -24,6 +26,8 @@ function App() {
             <Route path="/Dashboard" element={<AmmDashboard />} />
             <Route path="/exchange" element={<Limit />} />
             <Route path="/Futures" element={<Futures />} />
+            <Route path="/Options" element={<Options />} />
+            <Route path="/AdminDashboard" element={<AdminDashboard />} />
           </Route>
         </Routes>
       </ToastProvider>
