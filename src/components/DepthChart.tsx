@@ -5,7 +5,7 @@ import { Loader2, RefreshCw, AlertCircle, Plus, Minus, ChevronDown, ChevronUp } 
 import { useWallet } from '../contexts/WalletContext';
 import { TOKENS } from '../utils/SwapTokens';
 
-const CORE_ADDR = "0x2D2d50590B7900F1023B7A745EBc368c9C3D97A0";
+const CORE_ADDR = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
 const USDT_ADDR = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
 
 const CORE_ABI = [

@@ -11,7 +11,9 @@ import {
     Globe,
     BarChart3,
     BookOpen,
-    Rocket
+    Rocket,
+    TrendingUp,
+    Clock
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -30,10 +32,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
     { name: 'Bridge', href: 'https://bridge.skyhighblockchain.com/', path: '', external: true, icon: <Globe className="w-4 h-4" /> },
     { name: 'Exchange', href: 'exchange', path: '/exchange', icon: <BarChart3 className="w-4 h-4" /> },
-    { name: 'Futures', href: 'Futures', path: '/Futures', icon: <BarChart3 className="w-4 h-4" /> },
-    { name: 'Options', href: 'Options', path: '/Options', icon: <BarChart3 className="w-4 h-4" /> },
-    // { name: 'Lending', href: 'LendingBorrowing', path: '/LendingBorrowing', icon: <BookOpen className="w-4 h-4" /> },
-    // { name: 'Policy', href: 'policy', path: '/policy', icon: <Layers className="w-4 h-4" /> },
+    { name: 'Futures', href: 'Futures', path: '/Futures', icon: <TrendingUp className="w-4 h-4" /> },
+    { name: 'Options', href: 'Options', path: '/Options', icon: <Clock className="w-4 h-4" /> },
     { name: 'Presell', href: 'Presell', path: '/Presell', icon: <Rocket className="w-4 h-4" /> },
 ];
 

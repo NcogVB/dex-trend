@@ -1,22 +1,29 @@
 import { useEffect, useState, useCallback } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../contexts/WalletContext";
-import { Activity, BarChart3, TrendingUp, Zap, Settings, PlusCircle, DollarSign } from "lucide-react";
+import {
+  Activity, BarChart3, TrendingUp, Zap, Settings, PlusCircle,
+  Users, Wallet, Lock, ArrowUpRight, CheckCircle2, AlertCircle,
+  Hash, Download
+} from "lucide-react";
 import DepthChart from "./DepthChart";
-import { TOKENS } from "../utils/SwapTokens"; // Ensure this path is correct
+import { TOKENS } from "../utils/SwapTokens";
 import TokenSelector from "./TokenSelector";
 
-const CORE_ADDR = "0x2D2d50590B7900F1023B7A745EBc368c9C3D97A0";
-const FUTURES_ADDR = "0xD58e863bf16F6EbAeb322B5E53BDa749f4e4dF96";
-const OPTIONS_ADDR = "0xA83b24B82AC1241d5ae5ed7a32E90f3FaA3728B4";
+const CORE_ADDR = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
+const FUTURES_ADDR = "0xF24b95Dd4e26Ad20af3E978DDA9FfcA674f72542";
+const OPTIONS_ADDR = "0x88c5d9700df1ed86923c4b9241aB668F763b80B4";
 const USDT_ADDR = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
 
 const CORE_ABI = [
   "function owner() view returns (address)",
   "function isController(address) view returns (bool)",
-  "function getPrice(address) view returns (uint256)",
   "function setAssetPrice(address token, uint256 price) external",
   "function addLiquidity(address token, uint256 amount) external",
+  "function removeLiquidity(address token, uint256 amount) external",
+  "function withdrawEarnings(address token) external",
+  "function liquidityPool(address) view returns (uint256)",
+  "function protocolPrincipal(address) view returns (uint256)", // New mapping
   "event SpotTrade(address indexed tokenIn, address indexed tokenOut, uint256 price, uint256 amount)"
 ];
 
@@ -42,15 +49,25 @@ const AdminDashboard = () => {
 
   // Admin Action States
   const [priceParams, setPriceParams] = useState({ token: TOKENS[1], price: "" });
-  const [lpParams, setLpParams] = useState({ token: TOKENS[0], amount: "" });
+
+  // Liquidity State
+  const [lpParams, setLpParams] = useState({
+    token: TOKENS[0],
+    amount: "",
+    principal: 0,
+    poolBalance: 0,
+    earnings: 0
+  });
+
   const [loadingAction, setLoadingAction] = useState(false);
 
   const [stats, setStats] = useState({
     tvl: "0",
-    spotVolume: "0",
-    futuresVolume: "0",
-    optionsVolume: "0",
-    totalVolume: "0",
+    spotVolume: 0,
+    futuresVolume: 0,
+    optionsVolume: 0,
+    totalVolume: 0,
+    totalTx: 0,
     activeTraders: 0,
     controllers: { futures: false, options: false }
   });
@@ -74,14 +91,12 @@ const AdminDashboard = () => {
       const isOpt = await core.isController(OPTIONS_ADDR);
 
       const currentBlock = await provider.getBlockNumber();
-      const fromBlock = currentBlock - 2000;
+      const fromBlock = currentBlock - 5000;
 
       const spotFilter = core.filters.SpotTrade();
       const spotLogs = await core.queryFilter(spotFilter, fromBlock, currentBlock);
       let spotVol = 0;
-      spotLogs.forEach((log: any) => {
-        spotVol += parseFloat(ethers.formatUnits(log.args[3], 18));
-      });
+      spotLogs.forEach((log: any) => { spotVol += parseFloat(ethers.formatUnits(log.args[3], 18)); });
 
       const openFilter = futures.filters.PositionOpened();
       const openLogs = await futures.queryFilter(openFilter, fromBlock, currentBlock);
@@ -91,9 +106,9 @@ const AdminDashboard = () => {
       const optFilter = options.filters.OptionBought();
       const optLogs = await options.queryFilter(optFilter, fromBlock, currentBlock);
       let optVol = 0;
-      optLogs.forEach((log: any) => {
-        optVol += parseFloat(ethers.formatUnits(log.args[5], 18));
-      });
+      optLogs.forEach((log: any) => { optVol += parseFloat(ethers.formatUnits(log.args[5], 18)); });
+
+      const totalTxCount = spotLogs.length + openLogs.length + optLogs.length;
 
       const traders = new Set();
       [...spotLogs, ...openLogs, ...optLogs].forEach((log: any) => {
@@ -102,16 +117,48 @@ const AdminDashboard = () => {
 
       setStats({
         tvl,
-        spotVolume: spotVol.toFixed(2),
-        futuresVolume: futuresVol.toFixed(2),
-        optionsVolume: optVol.toFixed(2),
-        totalVolume: (spotVol + futuresVol + optVol).toFixed(2),
+        spotVolume: spotVol,
+        futuresVolume: futuresVol,
+        optionsVolume: optVol,
+        totalVolume: (spotVol + futuresVol + optVol),
+        totalTx: totalTxCount,
         activeTraders: traders.size,
         controllers: { futures: isFut, options: isOpt }
       });
 
     } catch (e) { console.error(e); }
   }, [provider, account]);
+
+  // Fetch Liquidity Specific Data when token changes
+  useEffect(() => {
+    if (!provider || !lpParams.token) return;
+    const fetchLpData = async () => {
+      try {
+        const core = new ethers.Contract(CORE_ADDR, CORE_ABI, provider);
+        // Assuming tokens are 18 decimals, or fetch dynamically
+        const decimals = 18;
+
+        const poolWei = await core.liquidityPool(lpParams.token.address);
+        const principalWei = await core.protocolPrincipal(lpParams.token.address);
+
+        const pool = parseFloat(ethers.formatUnits(poolWei, decimals));
+        const principal = parseFloat(ethers.formatUnits(principalWei, decimals));
+
+        // Earnings = Pool - Principal (if Pool > Principal)
+        const earnings = Math.max(0, pool - principal);
+
+        setLpParams(p => ({
+          ...p,
+          poolBalance: pool,
+          principal: principal,
+          earnings: earnings
+        }));
+      } catch (e) { console.error("LP Fetch Error", e); }
+    };
+    fetchLpData();
+    const i = setInterval(fetchLpData, 10000); // Refresh specifically for LP
+    return () => clearInterval(i);
+  }, [provider, lpParams.token]);
 
   useEffect(() => {
     fetchData();
@@ -120,25 +167,17 @@ const AdminDashboard = () => {
   }, [fetchData]);
 
   // --- ACTIONS ---
-
   const handleSetPrice = async () => {
     if (!signer || !priceParams.price) return;
     setLoadingAction(true);
     try {
       const core = new ethers.Contract(CORE_ADDR, CORE_ABI, signer);
-      // FIXED: using setAssetPrice instead of setLivePrice
       const priceWei = ethers.parseUnits(priceParams.price, 18);
-
-      console.log(`Setting price for ${priceParams.token.address} to ${priceWei}`);
-
       const tx = await core.setAssetPrice(priceParams.token.address, priceWei);
       await tx.wait();
-
-      alert(`Price for ${priceParams.token.symbol} updated to $${priceParams.price}`);
-    } catch (e: any) {
-      console.error(e);
-      alert("Error setting price: " + (e.reason || e.message));
-    } finally { setLoadingAction(false); }
+      alert(`Price updated!`);
+    } catch (e: any) { alert("Error: " + (e.reason || e.message)); }
+    finally { setLoadingAction(false); }
   };
 
   const handleAddLiquidity = async () => {
@@ -147,190 +186,279 @@ const AdminDashboard = () => {
     try {
       const core = new ethers.Contract(CORE_ADDR, CORE_ABI, signer);
       const token = new ethers.Contract(lpParams.token.address, ERC20_ABI, signer);
-
       const decimals = await token.decimals();
       const amountWei = ethers.parseUnits(lpParams.amount, decimals);
 
-      // 1. Approve
       const txApprove = await token.approve(CORE_ADDR, amountWei);
       await txApprove.wait();
-
-      // 2. Deposit
       const txDeposit = await core.addLiquidity(lpParams.token.address, amountWei);
       await txDeposit.wait();
 
-      alert(`Successfully added ${lpParams.amount} ${lpParams.token.symbol} to Liquidity Pool`);
-      fetchData(); // Refresh TVL
-    } catch (e: any) {
-      alert("Error adding liquidity: " + e.message);
-    } finally { setLoadingAction(false); }
+      alert(`Liquidity Added!`);
+      // Update local state immediately for UX
+      setLpParams(p => ({ ...p, amount: '' }));
+    } catch (e: any) { alert("Error: " + e.message); }
+    finally { setLoadingAction(false); }
   };
 
-  if (!provider) return <div className="p-10 text-center animate-pulse">Connecting to Blockchain...</div>;
+  const handleWithdrawEarnings = async () => {
+    if (!signer) return;
+    setLoadingAction(true);
+    try {
+      const core = new ethers.Contract(CORE_ADDR, CORE_ABI, signer);
+      const tx = await core.withdrawEarnings(lpParams.token.address);
+      await tx.wait();
+      alert("Earnings Withdrawn Successfully!");
+    } catch (e: any) { alert("Error: " + (e.reason || e.message)); }
+    finally { setLoadingAction(false); }
+  };
+
+  const handleRemovePrincipal = async () => {
+    if (!signer || !lpParams.amount) return;
+    setLoadingAction(true);
+    try {
+      const core = new ethers.Contract(CORE_ADDR, CORE_ABI, signer);
+      const token = new ethers.Contract(lpParams.token.address, ERC20_ABI, provider);
+      const decimals = await token.decimals();
+      const amountWei = ethers.parseUnits(lpParams.amount, decimals);
+
+      const tx = await core.removeLiquidity(lpParams.token.address, amountWei);
+      await tx.wait();
+      alert("Principal Removed Successfully!");
+      setLpParams(p => ({ ...p, amount: '' }));
+    } catch (e: any) { alert("Error: " + (e.reason || e.message)); }
+    finally { setLoadingAction(false); }
+  };
+
+  const formatCurrency = (val: number | string) => {
+    return parseFloat(val.toString()).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  };
+
+  if (!provider) return <div className="p-10 text-center animate-pulse text-gray-500">Connecting to Blockchain...</div>;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto bg-gray-50 min-h-screen font-sans">
+    <div className="p-6 max-w-7xl mx-auto bg-gray-50/50 min-h-screen font-sans text-slate-800">
 
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 flex items-center gap-2">
-            <BarChart3 className="text-indigo-600 w-8 h-8" /> EXCHANGE ANALYTICS
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <BarChart3 className="text-indigo-600 w-6 h-6" /> Executive Dashboard
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Real-time On-Chain Volume & Liquidity</p>
+          <p className="text-slate-500 text-xs font-medium mt-1 uppercase tracking-wider">Protocol Analytics & Administration</p>
         </div>
-        {isAdmin && (
-          <div className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-indigo-200">
-            ADMIN MODE ACTIVE
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold border border-green-200">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> System Online
           </div>
-        )}
+          {isAdmin && <span className="bg-indigo-600 text-white px-4 py-1 rounded-full text-xs font-bold shadow-sm">Admin Access</span>}
+        </div>
       </div>
 
+      {/* TOP METRICS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        {/* STAT CARDS */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Activity className="w-16 h-16 text-blue-600" />
-          </div>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Volume</p>
-          <h2 className="text-3xl font-black text-gray-800">${parseFloat(stats.totalVolume).toLocaleString()}</h2>
-          <div className="mt-2 text-xs text-green-600 font-bold flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" /> +{stats.activeTraders} Active Traders
-          </div>
-        </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Value Locked</p>
-          <h2 className="text-3xl font-black text-gray-800">${parseFloat(stats.tvl).toLocaleString()}</h2>
-          <div className="w-full bg-gray-100 h-1.5 mt-4 rounded-full overflow-hidden">
-            <div className="bg-blue-500 h-full w-[60%]"></div>
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Protocol Fees</p>
-          <h2 className="text-3xl font-black text-green-600">
-            ${(parseFloat(stats.totalVolume) * 0.001).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-          </h2>
-          <p className="text-xs text-gray-400 mt-1">Est. 0.1% Revenue</p>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Unique Users</p>
-          <h2 className="text-3xl font-black text-purple-600">{stats.activeTraders}</h2>
-          <p className="text-xs text-gray-400 mt-1">Recent Activity</p>
-        </div>
-      </div>
-
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <Activity className="w-5 h-5 text-blue-500" /> Live Market Depth
-          </h3>
-        </div>
-        <DepthChart />
-      </div>
-
-      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-orange-500" /> Volume Source Breakdown</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-5 rounded-xl border border-gray-200 flex items-center justify-between">
-          <div>
-            <span className="block text-xs font-bold text-gray-400 uppercase">Spot Market</span>
-            <span className="text-2xl font-bold text-gray-800">${parseFloat(stats.spotVolume).toLocaleString()}</span>
-          </div>
-          <div className="h-10 w-1 bg-blue-500 rounded-full"></div>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-gray-200 flex items-center justify-between">
-          <div>
-            <span className="block text-xs font-bold text-gray-400 uppercase">Futures Leverage</span>
-            <span className="text-2xl font-bold text-gray-800">${parseFloat(stats.futuresVolume).toLocaleString()}</span>
-          </div>
-          <div className="h-10 w-1 bg-purple-500 rounded-full"></div>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-gray-200 flex items-center justify-between">
-          <div>
-            <span className="block text-xs font-bold text-gray-400 uppercase">Options Premiums</span>
-            <span className="text-2xl font-bold text-gray-800">${parseFloat(stats.optionsVolume).toLocaleString()}</span>
-          </div>
-          <div className="h-10 w-1 bg-green-500 rounded-full"></div>
-        </div>
-      </div>
-
-      {/* NEW ADMIN CONTROLS SECTION */}
-      {isAdmin && (
-        <div className="bg-white rounded-xl shadow-sm border border-indigo-100 mb-8 z-10 relative">
-          <div className="p-4 bg-indigo-50 border-b border-indigo-100 font-bold text-indigo-800 flex items-center gap-2">
-            <Settings className="w-4 h-4" /> Admin Controls
-          </div>
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-
-            {/* 1. SET PRICE */}
+        {/* TVL CARD */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="flex justify-between items-start mb-4">
             <div>
-              <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><DollarSign className="w-4 h-4" /> Set Oracle Price</h4>
-              <p className="text-xs text-gray-500 mb-4">Manually update the price for Futures & Options calculations.</p>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Value Locked</p>
+              <h2 className="text-3xl font-black text-slate-800 mt-1">{formatCurrency(stats.tvl)}</h2>
+            </div>
+            <div className="p-2 bg-indigo-50 rounded-lg"><Lock className="w-5 h-5 text-indigo-600" /></div>
+          </div>
+          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+            <div className="bg-indigo-500 h-full w-[75%]"></div>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2">Protocol Solvency: High</p>
+        </div>
 
-              <div className="flex gap-2 mb-3 items-end">
-                <div className="w-2/3 relative z-50"> {/* Added z-50 for dropdown layering */}
-                  <TokenSelector
-                    tokens={TOKENS.filter(t => t.symbol !== "USDT")}
-                    selected={priceParams.token}
-                    onSelect={(t: any) => setPriceParams(p => ({ ...p, token: t }))}
-                    label="Select Asset"
-                  />
-                </div>
-                <div className="w-full">
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">New Price ($)</label>
-                  <input
-                    type="number"
-                    placeholder="3000.00"
-                    value={priceParams.price}
-                    onChange={(e) => setPriceParams(p => ({ ...p, price: e.target.value }))}
-                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-indigo-500 focus:border-indigo-500 shadow-sm"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleSetPrice}
-                disabled={loadingAction}
-                className="w-full mt-2 text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 font-bold rounded-xl text-sm px-5 py-3 shadow-lg shadow-indigo-200 transition-all disabled:opacity-50"
-              >
-                {loadingAction ? "Updating Network..." : "Update Live Price"}
-              </button>
+        {/* VOLUME CARD */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">24h Volume</p>
+              <h2 className="text-3xl font-black text-slate-800 mt-1">{formatCurrency(stats.totalVolume)}</h2>
+            </div>
+            <div className="p-2 bg-blue-50 rounded-lg"><Activity className="w-5 h-5 text-blue-600" /></div>
+          </div>
+          <div className="flex gap-1 mt-2">
+            <span className="text-xs font-bold text-green-600 flex items-center gap-1"><TrendingUp className="w-3 h-3" /> +12.5%</span>
+            <span className="text-xs text-slate-400">vs yesterday</span>
+          </div>
+        </div>
+
+        {/* TRANSACTIONS CARD */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Transactions</p>
+              <h2 className="text-3xl font-black text-slate-800 mt-1">{stats.totalTx}</h2>
+            </div>
+            <div className="p-2 bg-orange-50 rounded-lg"><Hash className="w-5 h-5 text-orange-600" /></div>
+          </div>
+          <div className="flex gap-1 mt-2">
+            <span className="text-xs text-slate-400">Executions across all markets</span>
+          </div>
+        </div>
+
+        {/* USERS CARD */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Active Traders</p>
+              <h2 className="text-3xl font-black text-purple-600 mt-1">{stats.activeTraders}</h2>
+            </div>
+            <div className="p-2 bg-purple-50 rounded-lg"><Users className="w-5 h-5 text-purple-600" /></div>
+          </div>
+          <div className="flex -space-x-2 overflow-hidden mt-1">
+            {[1, 2, 3, 4].map(i => <div key={i} className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-200"></div>)}
+            <div className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-500 border border-slate-200">+{stats.activeTraders}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* MIDDLE SECTION: BREAKDOWN & DEPTH */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+
+        {/* VOLUME COMPOSITION */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-6">
+              <Zap className="w-4 h-4 text-orange-500" /> Volume Composition
+            </h3>
+
+            {/* Progress Bar Visual */}
+            <div className="flex h-4 w-full rounded-full overflow-hidden mb-4 bg-slate-100">
+              <div style={{ width: `${(stats.spotVolume / stats.totalVolume * 100) || 0}%` }} className="bg-blue-500 h-full" title="Spot"></div>
+              <div style={{ width: `${(stats.futuresVolume / stats.totalVolume * 100) || 0}%` }} className="bg-purple-500 h-full" title="Futures"></div>
+              <div style={{ width: `${(stats.optionsVolume / stats.totalVolume * 100) || 0}%` }} className="bg-green-500 h-full" title="Options"></div>
             </div>
 
-            {/* 2. ADD LIQUIDITY */}
-            <div className="border-l border-gray-100 md:pl-8">
-              <h4 className="font-bold text-gray-700 mb-2 flex items-center gap-2"><PlusCircle className="w-4 h-4" /> Add Protocol Liquidity</h4>
-              <p className="text-xs text-gray-500 mb-4">Deposit tokens into the Core Pool to pay out trading profits.</p>
-
-              <div className="flex gap-2 mb-3 items-end">
-                <div className="w-2/3 relative z-40"> {/* z-40 so it doesn't overlap left dropdown if opened */}
-                  <TokenSelector
-                    tokens={TOKENS}
-                    selected={lpParams.token}
-                    onSelect={(t: any) => setLpParams(p => ({ ...p, token: t }))}
-                    label="Deposit Token"
-                  />
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span className="text-xs font-bold text-slate-600">Spot Market</span>
                 </div>
-                <div className="w-full">
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Amount</label>
-                  <input
-                    type="number"
-                    placeholder="1000.00"
-                    value={lpParams.amount}
-                    onChange={(e) => setLpParams(p => ({ ...p, amount: e.target.value }))}
-                    className="w-full p-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-green-500 focus:border-green-500 shadow-sm"
-                  />
+                <span className="text-sm font-mono font-bold text-slate-800">{formatCurrency(stats.spotVolume)}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                  <span className="text-xs font-bold text-slate-600">Futures Leverage</span>
+                </div>
+                <span className="text-sm font-mono font-bold text-slate-800">{formatCurrency(stats.futuresVolume)}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span className="text-xs font-bold text-slate-600">Options Prem.</span>
+                </div>
+                <span className="text-sm font-mono font-bold text-slate-800">{formatCurrency(stats.optionsVolume)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* System Health Check */}
+          <div className="mt-6 pt-6 border-t border-slate-100">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Network Status</h4>
+            <div className="flex gap-4">
+              <div className={`flex items-center gap-1.5 text-xs font-medium ${stats.controllers.futures ? 'text-green-600' : 'text-red-500'}`}>
+                {stats.controllers.futures ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />} Futures
+              </div>
+              <div className={`flex items-center gap-1.5 text-xs font-medium ${stats.controllers.options ? 'text-green-600' : 'text-red-500'}`}>
+                {stats.controllers.options ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />} Options
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* MARKET DEPTH CHART */}
+        <div className="lg:col-span-2">
+          <DepthChart />
+        </div>
+      </div>
+
+      {/* ADMIN CONTROLS */}
+      {isAdmin && (
+        <div className="bg-white rounded-xl shadow-sm border border-indigo-100 mb-20 relative z-10">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between rounded-t-xl">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <Settings className="w-4 h-4 text-indigo-600" /> Administrative Controls
+            </h3>
+            <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-mono">CORE: {CORE_ADDR.slice(0, 6)}...{CORE_ADDR.slice(-4)}</span>
+          </div>
+
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+
+            {/* PRICE MANAGER */}
+            <div className="pr-0 md:pr-4 relative z-20">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-blue-500" /> Oracle Manager</h4>
+                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-md font-medium">Force Update</span>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <div className="flex gap-2 mb-3 items-end">
+                  <div className="w-3/5 relative z-50">
+                    <TokenSelector tokens={TOKENS.filter(t => t.symbol !== "USDT")} selected={priceParams.token} onSelect={(t: any) => setPriceParams(p => ({ ...p, token: t }))} label="Asset" />
+                  </div>
+                  <div className="w-full">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">New Price ($)</label>
+                    <input type="number" placeholder="0.00" value={priceParams.price} onChange={(e) => setPriceParams(p => ({ ...p, price: e.target.value }))} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
+                  </div>
+                </div>
+                <button onClick={handleSetPrice} disabled={loadingAction} className="w-full text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-lg text-sm py-2.5 transition-all shadow-md shadow-blue-100 flex items-center justify-center gap-2">
+                  {loadingAction ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <><Activity className="w-4 h-4" /> Update Oracle Price</>}
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-6 md:pt-0 md:pl-8 relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Wallet className="w-4 h-4 text-green-500" /> Liquidity Manager</h4>
+                <div className="flex gap-2">
+                  <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded-md font-medium">Principal: {formatCurrency(lpParams.principal)}</span>
                 </div>
               </div>
-              <button
-                onClick={handleAddLiquidity}
-                disabled={loadingAction}
-                className="w-full mt-2 text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-bold rounded-xl text-sm px-5 py-3 shadow-lg shadow-green-200 transition-all disabled:opacity-50"
-              >
-                {loadingAction ? "Processing Transaction..." : "Add Liquidity"}
-              </button>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+
+                <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-green-100 mb-4 shadow-sm">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Available Earnings</span>
+                    <span className="text-xl font-bold text-green-600">{formatCurrency(lpParams.earnings)}</span>
+                  </div>
+                  <button
+                    onClick={handleWithdrawEarnings}
+                    disabled={loadingAction || lpParams.earnings <= 0}
+                    className="bg-green-100 hover:bg-green-200 text-green-700 text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <Download className="w-3 h-3" /> Claim
+                  </button>
+                </div>
+
+                {/* Deposit / Withdraw Principal */}
+                <div className="flex gap-2 mb-3 items-end">
+                  <div className="w-3/5 relative z-40">
+                    <TokenSelector tokens={TOKENS} selected={lpParams.token} onSelect={(t: any) => setLpParams(p => ({ ...p, token: t }))} label="Asset" />
+                  </div>
+                  <div className="w-full">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Amount</label>
+                    <input type="number" placeholder="0.00" value={lpParams.amount} onChange={(e) => setLpParams(p => ({ ...p, amount: e.target.value }))} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-mono font-bold focus:ring-2 focus:ring-green-500 outline-none" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={handleAddLiquidity} disabled={loadingAction} className="w-full text-white bg-slate-800 hover:bg-slate-900 font-bold rounded-lg text-sm py-2.5 transition-all shadow-md shadow-slate-200 flex items-center justify-center gap-2">
+                    {loadingAction ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <><PlusCircle className="w-4 h-4" /> Add LP</>}
+                  </button>
+                  <button onClick={handleRemovePrincipal} disabled={loadingAction} className="w-full text-red-600 bg-white border border-red-200 hover:bg-red-50 font-bold rounded-lg text-sm py-2.5 transition-all flex items-center justify-center gap-2">
+                    <ArrowUpRight className="w-4 h-4" /> Remove LP
+                  </button>
+                </div>
+              </div>
             </div>
 
           </div>

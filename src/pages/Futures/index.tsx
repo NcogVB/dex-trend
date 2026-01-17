@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import TradingDashboard from '../../components/TradingDashboard';
-import { ChevronDown, Loader2, ArrowUpRight, ArrowDownRight, X, Globe } from 'lucide-react';
+import { Loader2, ArrowUpRight, ArrowDownRight, X, Globe } from 'lucide-react';
 import { ethers } from 'ethers';
 import { useWallet } from '../../contexts/WalletContext';
 import { TOKENS } from '../../utils/SwapTokens';
 import { useToast } from '../../components/Toast';
 
+
 import CoreABI from '../../ABI/ExchangeCoreABI.json';
 import FuturesABI from '../../ABI/FuturesABI.json';
+import TokenSelector from '../../components/TokenSelector';
 
 const ERC20ABI = [
     "function balanceOf(address owner) view returns (uint256)",
@@ -16,14 +18,13 @@ const ERC20ABI = [
     "function allowance(address owner, address spender) view returns (uint256)"
 ];
 
-const CORE_ADDR = "0x2D2d50590B7900F1023B7A745EBc368c9C3D97A0";
-const FUTURES_ADDR = "0xF22eB9e193e8c681fE2D600C63e5F580b5f10399";
+const CORE_ADDR = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
+const FUTURES_ADDR = "0xF24b95Dd4e26Ad20af3E978DDA9FfcA674f72542";
 const USDT_ADDR = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
 
 const Futures = () => {
     const { account, provider, signer } = useWallet();
     const { showToast } = useToast();
-    const dropdownRef = useRef<HTMLDivElement>(null);
 
     const [state, setState] = useState({
         asset: TOKENS[1],
@@ -34,7 +35,7 @@ const Futures = () => {
         publicTrades: [] as any[]
     });
 
-    const [form, setForm] = useState({ margin: '', leverage: 10, isOpen: false });
+    const [form, setForm] = useState({ margin: '', leverage: 10 });
     const [ui, setUi] = useState({ loading: false, action: null as string | null });
 
     const fetchAll = useCallback(async () => {
@@ -46,7 +47,7 @@ const Futures = () => {
 
             // Fetch Price
             // Note: Ensure getPrice handles the specific pair correctly
-            const priceRaw = await core.getPrice(state.asset.address, TOKENS.find(t => t.symbol === "USDT")!.address);
+            const priceRaw = await core.getPrice(state.asset.address, USDT_ADDR);
 
             // Fetch Public Trades
             const globalPosRaw = await futures.getGlobalPositions(0, 20);
@@ -74,7 +75,7 @@ const Futures = () => {
                     if (t.symbol === "USDT") return null;
                     try {
                         const p = await futures.positions(account, t.address);
-                        
+
                         // Debugging: See what raw data looks like
                         // console.log(`Raw Position ${t.symbol}:`, p);
 
@@ -85,13 +86,13 @@ const Futures = () => {
                         const curr = parseFloat(ethers.formatUnits(await core.getPrice(t.address, USDT_ADDR), 18));
                         const entry = parseFloat(ethers.formatUnits(p.entryPrice, 18));
                         const size = parseFloat(ethers.formatUnits(p.sizeUSD, 18));
-                        
+
                         // Avoid division by zero
-                        if(entry === 0) return null;
+                        if (entry === 0) return null;
 
                         const diff = p.isLong ? (curr - entry) : (entry - curr);
                         const pnl = ((diff * size) / entry).toFixed(2);
-                        
+
                         // Margin might be 0 if fully leveraged or cross margin logic, handle safely
                         const marginVal = parseFloat(ethers.formatUnits(p.margin, 18));
                         const leverage = marginVal > 0 ? (size / marginVal).toFixed(1) : "MAX";
@@ -106,9 +107,9 @@ const Futures = () => {
                             isLong: p.isLong,
                             leverage: leverage
                         };
-                    } catch (err) { 
+                    } catch (err) {
                         console.warn(`Failed to fetch pos for ${t.symbol}`, err);
-                        return null; 
+                        return null;
                     }
                 });
 
@@ -254,7 +255,7 @@ const Futures = () => {
                             )}
                         </div>
                         <div className="py-2 bg-gray-50 border-t border-gray-100 flex justify-center gap-2">
-                            <span className={`text-sm font-bold ${priceNum > 0 ? 'text-green-600' : 'text-gray-800'}`}>{priceNum.toFixed(2)}</span>
+                            <span className={`text-sm font-bold ${priceNum > 0 ? 'text-green-600' : 'text-gray-800'}`}>{priceNum.toFixed(4)}</span>
                             <ArrowUpRight className="w-4 h-4 text-green-600" />
                         </div>
                     </div>
@@ -262,23 +263,16 @@ const Futures = () => {
                     <div className="modern-card p-4 flex flex-col gap-4 rounded-xl border border-gray-200 bg-white">
                         <div className="flex justify-between items-center">
                             <h2 className="text-lg font-bold text-gray-800">Trade Futures</h2>
-                            <div className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500 font-mono">${priceNum.toFixed(2)}</div>
+                            <div className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500 font-mono">${priceNum.toFixed(4)}</div>
                         </div>
 
-                        <div className="relative" ref={dropdownRef}>
-                            <button onClick={() => setForm(p => ({ ...p, isOpen: !p.isOpen }))} className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100">
-                                <div className="flex items-center gap-2"><img src={state.asset.img} className="w-5 h-5 rounded-full" /> <span className="font-semibold text-sm">{state.asset.symbol} / USDT</span></div>
-                                <ChevronDown className="w-4 h-4 text-gray-500" />
-                            </button>
-                            {form.isOpen && (
-                                <ul className="absolute top-full mt-1 w-full bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-48 overflow-y-auto">
-                                    {TOKENS.filter(t => t.symbol !== "USDT").map(t => (
-                                        <li key={t.symbol} onClick={() => { setState(p => ({ ...p, asset: t })); setForm(p => ({ ...p, isOpen: false })); }} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer gap-2">
-                                            <img src={t.img} className="w-5 h-5 rounded-full" /> <span className="text-sm font-medium">{t.symbol}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
+                        <div className="relative z-50">
+                            <TokenSelector
+                                tokens={TOKENS.filter(t => t.symbol !== "USDT")}
+                                selected={state.asset}
+                                onSelect={(t: any) => setState(p => ({ ...p, asset: t }))}
+                                label="Select Asset"
+                            />
                         </div>
 
                         <div className="flex flex-col gap-1">

@@ -3,7 +3,7 @@ import { ethers, MaxUint256 } from "ethers";
 import { useWallet } from "../contexts/WalletContext";
 import ExecutorABI from "../ABI/ExchangeCoreABI.json";
 
-const EXECUTOR_ADDRESS = "0x2D2d50590B7900F1023B7A745EBc368c9C3D97A0";
+const EXECUTOR_ADDRESS = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
 
 const ERC20_ABI = [
     "function approve(address spender, uint256 amount) external returns (bool)",
@@ -22,7 +22,7 @@ export const useOrder = () => {
             if (!signer?.provider) return "0";
             try {
                 const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, signer.provider);
-                const res = await executor.lastExecutedPrice(tokenIn, tokenOut);
+                const res = await executor.getPrice(tokenIn, tokenOut);
                 const raw = (res && res.toString()) || "0";
                 const fmt = ethers.formatUnits(raw, 18);
                 setCurrentRate(fmt);

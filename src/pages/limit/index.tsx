@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import TradingDashboard from '../../components/TradingDashboard';
-import { ChevronDown, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { ethers } from 'ethers';
 import { useWallet } from '../../contexts/WalletContext';
 import { TOKENS } from '../../utils/SwapTokens';
 import { useToast } from '../../components/Toast';
 import { useOrder } from '../../hooks/useOrder';
+import TokenSelector from '../../components/TokenSelector';
 
-const CORE_ADDR = "0x2D2d50590B7900F1023B7A745EBc368c9C3D97A0";
+const CORE_ADDR = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
 
-// Updated ABI: Added SpotTrade event for real-time updates
 const CORE_ABI = [
     "function orders(uint256) view returns (uint256 id, address maker, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, uint256 targetPrice, uint256 expiry, bool filled, bool cancelled, bool isBuy)",
     "function nextOrderId() view returns (uint256)",
@@ -36,8 +36,7 @@ const Limit = () => {
     });
 
     const [form, setForm] = useState({
-        amount: '', price: '', total: '', expiry: 1,
-        isDropdownOpen: false
+        amount: '', price: '', total: '', expiry: 1
     });
 
     const [ui, setUi] = useState({
@@ -50,7 +49,6 @@ const Limit = () => {
 
     const fetchReq = useRef(0);
     const scrollRef = useRef<HTMLDivElement>(null);
-    const dropdownRef = useRef<HTMLDivElement>(null);
 
     const fetchBalances = useCallback(async () => {
         if (!account || !provider) return;
@@ -113,7 +111,7 @@ const Limit = () => {
                         const isBuy = o.isBuy;
                         const rawAmountIn = parseFloat(ethers.formatUnits(o.amountIn, 18));
                         const rawAmountOutMin = parseFloat(ethers.formatUnits(o.amountOutMin, 18));
-                        
+
                         let priceVal = parseFloat(ethers.formatUnits(o.targetPrice || 0, 18));
                         if (priceVal <= 0 && rawAmountIn > 0 && rawAmountOutMin > 0) {
                             if (isBuy) priceVal = rawAmountIn / rawAmountOutMin;
@@ -127,7 +125,7 @@ const Limit = () => {
                         }
 
                         let originalSize = 0;
-                        if (isBuy) originalSize = rawAmountOutMin; 
+                        if (isBuy) originalSize = rawAmountOutMin;
                         else originalSize = rawAmountOutMin / priceVal;
 
                         GLOBAL_ORDERS_CACHE.set(id, {
@@ -135,15 +133,15 @@ const Limit = () => {
                             maker: o.maker,
                             tokenIn: tIn,
                             tokenOut: o.tokenOut.toLowerCase(),
-                            amountDisplay: displayAmount, 
-                            originalSize: originalSize, 
+                            amountDisplay: displayAmount,
+                            originalSize: originalSize,
                             targetPrice: priceVal,
                             expiry: Number(o.expiry),
                             filled: isFilled,
                             cancelled: isCancelled,
                             isBuy: isBuy,
                             orderType: isBuy ? 0 : 1,
-                            isFinal: isFilled || isCancelled 
+                            isFinal: isFilled || isCancelled
                         });
                     }
                 } catch { }
@@ -195,7 +193,7 @@ const Limit = () => {
 
         // EVENT LISTENER: Auto-update when ANY trade happens
         let contractRef: ethers.Contract | null = null;
-        if(provider) {
+        if (provider) {
             try {
                 contractRef = new ethers.Contract(CORE_ADDR, CORE_ABI, provider);
                 contractRef.on("SpotTrade", () => {
@@ -203,12 +201,12 @@ const Limit = () => {
                     fetchBalances();
                     fetchLastOrderPriceForPair({ tokenIn: market.from.address, tokenOut: market.to.address });
                 });
-            } catch(e) { console.error("Event error", e); }
+            } catch (e) { console.error("Event error", e); }
         }
 
         return () => {
             clearInterval(interval);
-            if(contractRef) contractRef.removeAllListeners("SpotTrade");
+            if (contractRef) contractRef.removeAllListeners("SpotTrade");
         };
     }, [market.from.address, market.to.address, account, provider]);
 
@@ -216,11 +214,6 @@ const Limit = () => {
         if (currentRate && !form.price) setForm(p => ({ ...p, price: Number(currentRate).toFixed(4) }));
     }, [currentRate]);
 
-    useEffect(() => {
-        const handler = (e: MouseEvent) => { if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setForm(p => ({ ...p, isDropdownOpen: false })); };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, []);
 
     const updateInput = (field: 'amount' | 'price', val: string) => {
         const newState = { ...form, [field]: val };
@@ -254,10 +247,10 @@ const Limit = () => {
 
             showToast(`${isBuy ? 'Buy' : 'Sell'} order created!`, "success");
             setForm(p => ({ ...p, amount: '', total: '' }));
-            
-            await fetchLastOrderPriceForPair({ 
-                tokenIn: market.from.address, 
-                tokenOut: market.to.address 
+
+            await fetchLastOrderPriceForPair({
+                tokenIn: market.from.address,
+                tokenOut: market.to.address
             });
 
             refreshOrders(fetchReq.current);
@@ -322,7 +315,7 @@ const Limit = () => {
                                     {orderList.user.length === 0 ? <div className="flex justify-center items-center h-full text-sm text-gray-500">No Open Orders</div> : orderList.user.map(o => {
                                         const isSell = o.orderType === 1;
                                         const p = o.targetPrice;
-                                        const a = o.amountDisplay; 
+                                        const a = o.amountDisplay;
                                         return (
                                             <div key={o.id} className="grid grid-cols-7 text-xs py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition">
                                                 <span className="text-left font-medium">#{o.id}</span>
@@ -375,8 +368,18 @@ const Limit = () => {
                                         <div className="flex flex-col text-xs font-medium h-full relative">
                                             <div ref={scrollRef} className="flex-1 overflow-y-scroll scrollbar-hide">
                                                 {orderList.general.filter(o => o.orderType === 1).sort((a, b) => b.targetPrice - a.targetPrice).map(o => (
-                                                    <div key={o.id} onClick={() => { updateInput('price', o.targetPrice.toString()); updateInput('amount', o.amountDisplay.toString()); }} className="px-3 py-1 flex justify-between text-red-600 hover:bg-red-50 cursor-pointer">
-                                                        <span className="flex-1 text-left">{o.targetPrice.toFixed(5)}</span>
+                                                    <div
+                                                        key={o.id}
+                                                        onClick={() => {
+                                                            setForm(prev => ({
+                                                                ...prev,
+                                                                price: o.targetPrice.toString(),
+                                                                amount: o.amountDisplay.toString(),
+                                                                total: (o.targetPrice * o.amountDisplay).toString()
+                                                            }));
+                                                        }}
+                                                        className="px-3 py-1 flex justify-between text-red-600 hover:bg-red-50 cursor-pointer"
+                                                    >                                                        <span className="flex-1 text-left">{o.targetPrice.toFixed(5)}</span>
                                                         <span className="flex-1 text-center">{o.amountDisplay.toFixed(4)}</span>
                                                         <span className="flex-1 text-right">{(o.targetPrice * o.amountDisplay).toFixed(2)}</span>
                                                     </div>
@@ -387,8 +390,18 @@ const Limit = () => {
                                             </div>
                                             <div className="flex-1 overflow-y-scroll scrollbar-hide">
                                                 {orderList.general.filter(o => o.orderType === 0).sort((a, b) => b.targetPrice - a.targetPrice).map(o => (
-                                                    <div key={o.id} onClick={() => { updateInput('price', o.targetPrice.toString()); updateInput('amount', o.amountDisplay.toString()); }} className="px-3 py-1 flex justify-between text-green-600 hover:bg-green-50 cursor-pointer">
-                                                        <span className="flex-1 text-left">{o.targetPrice.toFixed(5)}</span>
+                                                    <div
+                                                        key={o.id}
+                                                        onClick={() => {
+                                                            setForm(prev => ({
+                                                                ...prev,
+                                                                price: o.targetPrice.toString(),
+                                                                amount: o.amountDisplay.toString(),
+                                                                total: (o.targetPrice * o.amountDisplay).toString()
+                                                            }));
+                                                        }}
+                                                        className="px-3 py-1 flex justify-between text-green-600 hover:bg-green-50 cursor-pointer"
+                                                    >                                                        <span className="flex-1 text-left">{o.targetPrice.toFixed(5)}</span>
                                                         <span className="flex-1 text-center">{o.amountDisplay.toFixed(4)}</span>
                                                         <span className="flex-1 text-right">{(o.targetPrice * o.amountDisplay).toFixed(2)}</span>
                                                     </div>
@@ -408,59 +421,74 @@ const Limit = () => {
                             </div>
                         </div>
 
-                        {/* Order Input Box ... (Same as before) */}
                         <div className="modern-card p-3 flex flex-col gap-3 text-xs rounded-xl border border-gray-200 bg-white">
                             <h2 className="text-sm font-semibold text-gray-800">Create Order</h2>
-                            <div className="relative group">
-                                <div className="modern-input px-2 py-1.5 w-full flex items-center gap-2 border border-gray-200 rounded-md">
-                                    <input type="number" value={form.amount} onChange={(e) => updateInput('amount', e.target.value)} placeholder="0.0" className="flex-1 bg-transparent text-sm outline-none" />
-                                    <div className="relative" ref={dropdownRef}>
-                                        <button onClick={() => setForm(p => ({ ...p, isDropdownOpen: !p.isDropdownOpen }))} className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-gray-100">
-                                            <img src={market.from.img} alt="" className="w-4 h-4 rounded-full" /> <span>{market.from.symbol}</span> <ChevronDown className="w-3 h-3" />
-                                        </button>
-                                        {form.isDropdownOpen && (
-                                            <ul className="absolute right-0 mt-1 w-40 max-h-40 overflow-y-auto bg-white rounded-md shadow-lg z-50 border border-gray-200">
-                                                {TOKENS.filter(t => t.symbol !== market.to.symbol).map(t => (
-                                                    <li key={t.symbol} onClick={() => { setMarket(p => ({ ...p, from: { ...t, wallet: "0", protocol: "0" } })); setForm(p => ({ ...p, isDropdownOpen: false })); }} className="flex items-center px-2 py-1 hover:bg-gray-50 cursor-pointer">
-                                                        <img src={t.img} className="w-4 h-4 mr-2 rounded-full" alt="" /> {t.symbol}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        )}
+
+                            <div className="flex flex-col gap-2">
+
+                                <div className="relative z-50">
+                                    <TokenSelector
+                                        tokens={TOKENS.filter(t => t.symbol !== market.to.symbol)}
+                                        selected={market.from}
+                                        onSelect={(t: any) => setMarket(p => ({ ...p, from: { ...t, wallet: "0", protocol: "0" } }))}
+                                    />
+                                </div>
+
+                                <div className="relative group">
+                                    <div className="modern-input px-3 py-2 w-full flex items-center gap-2 border border-gray-200 rounded-xl bg-gray-50 focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500 transition-all">
+                                        <div className="flex-1">
+                                            <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Amount</label>
+                                            <input
+                                                type="number"
+                                                value={form.amount}
+                                                onChange={(e) => updateInput('amount', e.target.value)}
+                                                placeholder="0.0"
+                                                className="w-full bg-transparent text-sm font-bold text-gray-900 outline-none"
+                                            />
+                                        </div>
+                                        <span className="text-xs font-bold text-gray-500 bg-gray-200 px-2 py-1 rounded">{market.from.symbol}</span>
+                                    </div>
+
+                                    <div className="flex justify-between mt-1 text-[10px] text-gray-500 px-1">
+                                        <span className="cursor-pointer hover:text-blue-600 flex items-center gap-1" onClick={() => updateInput('amount', market.from.protocol)}>
+                                        </span>
+                                        <span className="cursor-pointer hover:text-blue-600 flex items-center gap-1" onClick={() => updateInput('amount', market.from.wallet)}>
+                                            <span>Wallet:</span> <span className="font-bold text-gray-700">{parseFloat(market.from.wallet).toFixed(3)}</span>
+                                        </span>
+                                    </div>
+
+                                    <div className="flex justify-between mt-2 gap-1">
+                                        {[25, 50, 75, 100].map(pct => (
+                                            <button key={pct} onClick={() => {
+                                                const bal = parseFloat(market.from.wallet) > 0 ? parseFloat(market.from.wallet) : parseFloat(market.from.protocol);
+                                                updateInput('amount', ((bal * pct) / 100).toFixed(6));
+                                            }} className="flex-1 py-1 rounded-md bg-gray-100 hover:bg-blue-600 hover:text-white transition font-medium">{pct}%</button>
+                                        ))}
                                     </div>
                                 </div>
-                                <div className="flex justify-between mt-1 text-[10px] text-gray-500">
-                                    <span className="cursor-pointer hover:text-blue-600" title="Deposited in Exchange Core" onClick={() => updateInput('amount', market.from.protocol)}>
-                                        Wallet: <span className="font-bold text-blue-600">{parseFloat(market.from.wallet).toFixed(3)}</span>
-                                    </span>
-                                </div>
-                                <div className="flex justify-between mt-2 gap-1">
-                                    {[25, 50, 75, 100].map(pct => (
-                                        <button key={pct} onClick={() => {
-                                            const bal = parseFloat(market.from.wallet) > 0 ? parseFloat(market.from.wallet) : parseFloat(market.from.wallet);
-                                            updateInput('amount', ((bal * pct) / 100).toFixed(6));
-                                        }} className="flex-1 py-1 rounded-md bg-gray-100 hover:bg-blue-600 hover:text-white transition">{pct}%</button>
-                                    ))}
-                                </div>
                             </div>
-                            <div className="text-[10px] text-gray-500 text-right">
-                                {market.to.symbol} wallet: <span className="font-bold text-blue-600">{parseFloat(market.to.wallet).toFixed(3)}</span>
+
+                            <div className="text-[10px] text-gray-500 text-right border-t border-dashed border-gray-200 pt-2">
+                                <span className="font-bold text-blue-600">{parseFloat(market.to.wallet).toFixed(3)} {market.to.symbol}</span>
                             </div>
+
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="flex flex-col">
-                                    <span className="text-gray-500">Target Price</span>
-                                    <input type="number" value={form.price} onChange={(e) => updateInput('price', e.target.value)} className="border rounded px-2 py-1 text-center font-medium text-xs" />
+                                    <span className="text-[10px] font-bold text-gray-500 uppercase mb-1">Target Price</span>
+                                    <input type="number" value={form.price} onChange={(e) => updateInput('price', e.target.value)} className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-2 text-center font-bold text-sm focus:outline-none focus:border-blue-500" />
                                 </div>
                                 <div className="flex flex-col">
-                                    <label className="text-[11px] text-gray-500">Expiry (Days)</label>
-                                    <input type="number" max="30" value={form.expiry} onChange={(e) => setForm(p => ({ ...p, expiry: Number(e.target.value) }))} className="border rounded px-2 py-1 text-center bg-gray-50" />
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-1">Expiry (Days)</label>
+                                    <input type="number" max="30" value={form.expiry} onChange={(e) => setForm(p => ({ ...p, expiry: Number(e.target.value) }))} className="border border-gray-200 bg-gray-50 rounded-lg px-2 py-2 text-center font-bold text-sm focus:outline-none focus:border-blue-500" />
                                 </div>
                             </div>
+
                             <div className="flex gap-2 mt-1">
-                                <button onClick={() => handleCreate(true)} disabled={ui.creating === 'buy' || !form.total} className={`flex-1 py-1.5 rounded text-white transition ${ui.creating === 'buy' ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'}`}>{ui.creating === 'buy' ? 'Processing' : `Buy ${market.from.symbol}`}</button>
-                                <button onClick={() => handleCreate(false)} disabled={ui.creating === 'sell' || !form.total} className={`flex-1 py-1.5 rounded text-white transition ${ui.creating === 'sell' ? 'bg-red-400' : 'bg-red-600 hover:bg-red-700'}`}>{ui.creating === 'sell' ? 'Processing' : `Sell ${market.from.symbol}`}</button>
+                                <button onClick={() => handleCreate(true)} disabled={ui.creating === 'buy' || !form.total} className={`flex-1 py-3 rounded-xl text-white font-bold transition shadow-lg shadow-green-100 ${ui.creating === 'buy' ? 'bg-green-300' : 'bg-green-500 hover:bg-green-600'}`}>{ui.creating === 'buy' ? 'Processing' : `Buy ${market.from.symbol}`}</button>
+                                <button onClick={() => handleCreate(false)} disabled={ui.creating === 'sell' || !form.total} className={`flex-1 py-3 rounded-xl text-white font-bold transition shadow-lg shadow-red-100 ${ui.creating === 'sell' ? 'bg-red-300' : 'bg-red-500 hover:bg-red-600'}`}>{ui.creating === 'sell' ? 'Processing' : `Sell ${market.from.symbol}`}</button>
                             </div>
                         </div>
+
                     </div>
                 </div>
             </div>

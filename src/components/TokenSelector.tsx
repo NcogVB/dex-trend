@@ -62,13 +62,11 @@ const TokenSelector: React.FC<TokenSelectorProps> = ({ tokens, selected, onSelec
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* DROPDOWN MENU - Increased Z-Index to 9999 */}
             {isOpen && (
                 <div
                     className="absolute left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden"
                     style={{ zIndex: 9999, minWidth: '200px' }} // <--- This style line is critical
                 >
-                    {/* Search Bar */}
                     <div className="p-2 border-b border-gray-50 bg-gray-50/50">
                         <div className="relative">
                             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
