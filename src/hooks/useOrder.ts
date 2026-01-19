@@ -3,7 +3,7 @@ import { ethers, MaxUint256 } from "ethers";
 import { useWallet } from "../contexts/WalletContext";
 import ExecutorABI from "../ABI/ExchangeCoreABI.json";
 
-const EXECUTOR_ADDRESS = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
+const EXECUTOR_ADDRESS = "0x8DD59298DF593432A6197CE9A0f5e7F57DF555B2";
 
 const ERC20_ABI = [
     "function approve(address spender, uint256 amount) external returns (bool)",

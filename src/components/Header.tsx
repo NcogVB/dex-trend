@@ -7,10 +7,8 @@ import {
     ExternalLink,
     LogOut,
     // ArrowRightLeft,
-    Layers,
     Globe,
     BarChart3,
-    BookOpen,
     Rocket,
     TrendingUp,
     Clock

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts';
 import { Loader2, RefreshCw, AlertCircle, Plus, Minus, ChevronDown, ChevronUp } from 'lucide-react';
@@ -25,6 +25,7 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
+    // Close dropdown on outside click
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -35,49 +36,68 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const fetchOrderBook = async () => {
+    const fetchOrderBook = useCallback(async () => {
         if (!provider || !baseToken) return;
-        setLoading(true);
+
+        // Only set loading on first load or token switch to prevent UI flickering on interval refresh
+        if (chartData.length === 0) setLoading(true);
 
         try {
             const core = new ethers.Contract(CORE_ADDR, CORE_ABI, provider);
+            const tokenContract = new ethers.Contract(baseToken.address, ERC20_ABI, provider);
 
-            let baseDecimals = 18;
-            try {
-                const tokenContract = new ethers.Contract(baseToken.address, ERC20_ABI, provider);
-                baseDecimals = await tokenContract.decimals();
-            } catch (err) { }
+            // 1. Parallel: Fetch Decimals & Prepare indices
+            const [baseDecimals] = await Promise.all([
+                tokenContract.decimals().catch(() => 18) // Default to 18 if fail
+            ]);
 
-            const askPoints = [];
-            for (let i = 0; i < 50; i++) {
-                try {
-                    const id = await core.orderBook(baseToken.address, USDT_ADDR, i);
-                    const o = await core.orders(id);
-                    if (!o.filled && !o.cancelled) {
-                        const price = parseFloat(ethers.formatUnits(o.targetPrice, 18));
-                        const amount = parseFloat(ethers.formatUnits(o.amountIn, baseDecimals));
-                        askPoints.push({ price, amount });
-                    }
-                } catch (e) { break; }
-            }
+            const depth = 50; // How deep to check the book
+            const indices = Array.from({ length: depth }, (_, i) => i);
 
-            const bidPoints = [];
-            for (let i = 0; i < 50; i++) {
-                try {
-                    const id = await core.orderBook(USDT_ADDR, baseToken.address, i);
-                    const o = await core.orders(id);
-                    if (!o.filled && !o.cancelled) {
-                        const price = parseFloat(ethers.formatUnits(o.targetPrice, 18));
-                        const usdtAmount = parseFloat(ethers.formatUnits(o.amountIn, 18));
-                        const size = price > 0 ? usdtAmount / price : 0;
-                        bidPoints.push({ price, amount: size });
-                    }
-                } catch (e) { break; }
-            }
+            // 2. Parallel: Fetch ALL Order IDs for both sides at once
+            // usage of allSettled prevents one failed call (end of book) from breaking the whole batch
+            const [askIdResults, bidIdResults] = await Promise.all([
+                Promise.allSettled(indices.map(i => core.orderBook(baseToken.address, USDT_ADDR, i))),
+                Promise.allSettled(indices.map(i => core.orderBook(USDT_ADDR, baseToken.address, i)))
+            ]);
 
-            bidPoints.sort((a, b) => b.price - a.price);
-            askPoints.sort((a, b) => a.price - b.price);
+            // Filter valid IDs
+            const extractIds = (results: PromiseSettledResult<any>[]) =>
+                results
+                    .filter(res => res.status === 'fulfilled' && Number(res.value) > 0)
+                    .map(res => (res as PromiseFulfilledResult<any>).value);
 
+            const askIds = extractIds(askIdResults);
+            const bidIds = extractIds(bidIdResults);
+
+            // 3. Parallel: Fetch ALL Order Details
+            const fetchOrders = async (ids: any[]) => {
+                if (ids.length === 0) return [];
+                const orderData = await Promise.all(ids.map(id => core.orders(id)));
+                return orderData.filter(o => !o.filled && !o.cancelled);
+            };
+
+            const [rawAsks, rawBids] = await Promise.all([
+                fetchOrders(askIds),
+                fetchOrders(bidIds)
+            ]);
+
+            // 4. Process Data (CPU bound, fast)
+            const askPoints = rawAsks.map(o => ({
+                price: parseFloat(ethers.formatUnits(o.targetPrice, 18)),
+                amount: parseFloat(ethers.formatUnits(o.amountIn, baseDecimals))
+            })).sort((a, b) => a.price - b.price);
+
+            const bidPoints = rawBids.map(o => {
+                const price = parseFloat(ethers.formatUnits(o.targetPrice, 18));
+                const usdtAmount = parseFloat(ethers.formatUnits(o.amountIn, 18));
+                return {
+                    price: price,
+                    amount: price > 0 ? usdtAmount / price : 0
+                };
+            }).sort((a, b) => b.price - a.price);
+
+            // Calculate Cumulative Volumes
             let cumBid = 0;
             const processedBids = bidPoints.map(o => {
                 cumBid += o.amount;
@@ -90,6 +110,7 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
                 return { price: o.price, bidVolume: null, askVolume: cumAsk };
             });
 
+            // Calculate Mid Price
             let calculatedMid = 0;
             if (bidPoints.length > 0 && askPoints.length > 0) {
                 calculatedMid = (bidPoints[0].price + askPoints[0].price) / 2;
@@ -102,15 +123,20 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
 
             setChartData([...processedBids, ...processedAsks]);
 
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
-    };
+        } catch (e) {
+            console.error("Depth Chart Error:", e);
+        } finally {
+            setLoading(false);
+        }
+    }, [baseToken, provider, chartData.length]); // Added dependency to prevent stale closures
 
+    // Trigger fetch when baseToken changes
     useEffect(() => {
+        setChartData([]); // Clear old data immediately for visual feedback
         fetchOrderBook();
         const i = setInterval(fetchOrderBook, 15000);
         return () => clearInterval(i);
-    }, [baseToken, provider]);
+    }, [baseToken]); // Simplified dependency array
 
     const getDomain = () => {
         if (chartData.length === 0) return ['auto', 'auto'];
@@ -119,22 +145,24 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
         let min = Math.min(...prices);
         let max = Math.max(...prices);
 
-        if (min === max) {
-            min = min * 0.95;
-            max = max * 1.05;
-        } else {
-            const spread = max - min;
-            const padding = spread * zoom;
-            min = Math.max(0, min - padding);
-            max = max + padding;
+        if (min === max || min === Infinity) {
+            // Fallback for empty or single point data
+            return midPrice > 0 ? [midPrice * 0.95, midPrice * 1.05] : ['auto', 'auto'];
         }
 
-        if (midPrice > 0 && (max - min) < midPrice * 0.02) {
-            min = midPrice * 0.98;
-            max = midPrice * 1.02;
+        const spread = max - min;
+        const padding = spread * zoom;
+
+        let dMin = Math.max(0, min - padding);
+        let dMax = max + padding;
+
+        // Smart Zoom: Keep it centered around Mid Price if data is sparse
+        if (midPrice > 0 && (dMax - dMin) > midPrice * 2) {
+            dMin = midPrice * 0.5;
+            dMax = midPrice * 1.5;
         }
 
-        return [min, max];
+        return [dMin, dMax];
     };
 
     const handleZoom = (direction: 'in' | 'out') => {
@@ -161,7 +189,7 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
                     </button>
 
                     {isDropdownOpen && (
-                        <div className="absolute top-full left-0 mt-2 w-48 bg-[#1E2329] border border-gray-700 rounded-lg shadow-2xl overflow-hidden py-1">
+                        <div className="absolute top-full left-0 mt-2 w-48 bg-[#1E2329] border border-gray-700 rounded-lg shadow-2xl overflow-hidden py-1 z-50">
                             {TOKENS.filter(t => t.symbol !== "USDT").map(t => (
                                 <div
                                     key={t.symbol}
@@ -181,7 +209,7 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
                         <button onClick={() => handleZoom('out')} className="p-1.5 hover:bg-[#2B2F36] rounded text-gray-400 transition"><Minus className="w-3 h-3" /></button>
                         <button onClick={() => handleZoom('in')} className="p-1.5 hover:bg-[#2B2F36] rounded text-gray-400 transition"><Plus className="w-3 h-3" /></button>
                     </div>
-                    <button onClick={fetchOrderBook} className="p-2 bg-[#1E2329] hover:bg-[#2B2F36] rounded-lg border border-gray-700 text-gray-400 transition"><RefreshCw className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => fetchOrderBook()} className="p-2 bg-[#1E2329] hover:bg-[#2B2F36] rounded-lg border border-gray-700 text-gray-400 transition"><RefreshCw className="w-3.5 h-3.5" /></button>
                 </div>
             </div>
 
@@ -238,8 +266,7 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
                                 fill="url(#fillBid)"
                                 strokeWidth={2}
                                 connectNulls
-                                isAnimationActive={true}
-                                animationDuration={500}
+                                isAnimationActive={false} // Disable animation for snappier feel on update
                             />
                             <Area
                                 type="stepBefore"
@@ -248,8 +275,7 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
                                 fill="url(#fillAsk)"
                                 strokeWidth={2}
                                 connectNulls
-                                isAnimationActive={true}
-                                animationDuration={500}
+                                isAnimationActive={false} // Disable animation for snappier feel on update
                             />
                             {midPrice > 0 && (
                                 <ReferenceLine x={midPrice} stroke="#5E6673" strokeDasharray="3 3" />

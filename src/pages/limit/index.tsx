@@ -8,7 +8,7 @@ import { useToast } from '../../components/Toast';
 import { useOrder } from '../../hooks/useOrder';
 import TokenSelector from '../../components/TokenSelector';
 
-const CORE_ADDR = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
+const CORE_ADDR = "0x8DD59298DF593432A6197CE9A0f5e7F57DF555B2";
 
 const CORE_ABI = [
     "function orders(uint256) view returns (uint256 id, address maker, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, uint256 targetPrice, uint256 expiry, bool filled, bool cancelled, bool isBuy)",

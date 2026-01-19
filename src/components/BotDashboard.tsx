@@ -10,15 +10,15 @@ import DepthChart from "./DepthChart";
 import { TOKENS } from "../utils/SwapTokens";
 import TokenSelector from "./TokenSelector";
 
-const CORE_ADDR = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
-const FUTURES_ADDR = "0xF24b95Dd4e26Ad20af3E978DDA9FfcA674f72542";
+const CORE_ADDR = "0x8DD59298DF593432A6197CE9A0f5e7F57DF555B2";
+const FUTURES_ADDR = "0x7A58D37Ae2Bd3baB277714a2c24eeA3B6DBF33Ce";
 const OPTIONS_ADDR = "0x88c5d9700df1ed86923c4b9241aB668F763b80B4";
 const USDT_ADDR = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
 
 const CORE_ABI = [
   "function owner() view returns (address)",
   "function isController(address) view returns (bool)",
-  "function setAssetPrice(address token, uint256 price) external",
+  "function setAssetPrice(address token,address quote, uint256 price) external",
   "function addLiquidity(address token, uint256 amount) external",
   "function removeLiquidity(address token, uint256 amount) external",
   "function withdrawEarnings(address token) external",
@@ -173,7 +173,7 @@ const AdminDashboard = () => {
     try {
       const core = new ethers.Contract(CORE_ADDR, CORE_ABI, signer);
       const priceWei = ethers.parseUnits(priceParams.price, 18);
-      const tx = await core.setAssetPrice(priceParams.token.address, priceWei);
+      const tx = await core.setAssetPrice(priceParams.token.address,USDT_ADDR, priceWei);
       await tx.wait();
       alert(`Price updated!`);
     } catch (e: any) { alert("Error: " + (e.reason || e.message)); }
@@ -395,7 +395,7 @@ const AdminDashboard = () => {
             {/* PRICE MANAGER */}
             <div className="pr-0 md:pr-4 relative z-20">
               <div className="flex items-center justify-between mb-4">
-                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-blue-500" /> Oracle Manager</h4>
+                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-blue-500" />  Manager</h4>
                 <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-md font-medium">Force Update</span>
               </div>
 
@@ -410,7 +410,7 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <button onClick={handleSetPrice} disabled={loadingAction} className="w-full text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-lg text-sm py-2.5 transition-all shadow-md shadow-blue-100 flex items-center justify-center gap-2">
-                  {loadingAction ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <><Activity className="w-4 h-4" /> Update Oracle Price</>}
+                  {loadingAction ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <><Activity className="w-4 h-4" /> Update  Price</>}
                 </button>
               </div>
             </div>

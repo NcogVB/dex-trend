@@ -16,8 +16,8 @@ const ERC20ABI = [
     "function allowance(address owner, address spender) view returns (uint256)"
 ];
 
-const CORE_ADDR = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
-const OPTIONS_ADDR = "0x88c5d9700df1ed86923c4b9241aB668F763b80B4";
+const CORE_ADDR = "0x8DD59298DF593432A6197CE9A0f5e7F57DF555B2";
+const OPTIONS_ADDR = "0xE0A678602ab0C4869b391A940411B065cfCc7346";
 const USDT_ADDR = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
 
 const EXPIRIES = [1, 7, 14, 30];
@@ -210,7 +210,7 @@ const Options = () => {
                         <div className="hidden md:flex flex-col border-l border-gray-200 pl-6">
                             <div className="flex items-baseline gap-2">
                                 <span className="text-2xl font-mono font-bold text-gray-900">${formatPrice(state.price)}</span>
-                                <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Oracle Price</span>
+                                <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider"> Price</span>
                             </div>
                         </div>
                     </div>
@@ -277,7 +277,7 @@ const Options = () => {
                                                 className={`w-full py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${isITM ? "bg-green-600 text-white hover:bg-green-700 shadow-lg shadow-green-200" : "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"}`}
                                             >
                                                 {ui.loading && ui.action === `exercise-${o.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : (
-                                                    <>{isITM ? <DollarSign className="w-3 h-3" /> : <XCircle className="w-3 h-3" />} {isITM ? "Exercise Now" : "Out of Money"}</>
+                                                    <>{isITM ? <DollarSign className="w-3 h-3" /> : <XCircle className="w-3 h-3" />} {isITM ? "Claim Now" : "Wait..."}</>
                                                 )}
                                             </button>
                                         </div>
