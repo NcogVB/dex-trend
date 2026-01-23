@@ -7,19 +7,14 @@ import { TOKENS } from '../../utils/SwapTokens';
 import { useToast } from '../../components/Toast';
 import { useOrder } from '../../hooks/useOrder';
 import TokenSelector from '../../components/TokenSelector';
-
-const CORE_ADDR = "0x8DD59298DF593432A6197CE9A0f5e7F57DF555B2";
+import { CORE_ADDR } from '../../utils/Constants';
+import { ERC20_ABI } from '../../contexts/ABI';
 
 const CORE_ABI = [
     "function orders(uint256) view returns (uint256 id, address maker, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, uint256 targetPrice, uint256 expiry, bool filled, bool cancelled, bool isBuy)",
     "function nextOrderId() view returns (uint256)",
     "function getUserBalance(address user, address token) view returns (uint256 collateral, uint256 locked)",
     "event SpotTrade(address indexed tokenIn, address indexed tokenOut, uint256 price, uint256 amount)"
-];
-
-const ERC20_ABI = [
-    "function balanceOf(address) view returns (uint256)",
-    "function decimals() view returns (uint8)"
 ];
 
 const GLOBAL_ORDERS_CACHE = new Map<number, any>();
@@ -79,7 +74,7 @@ const Limit = () => {
         } catch (e) { console.error(e); }
     }, [account, provider, market.from.address, market.to.address]);
 
-    const refreshOrders = useCallback(async (requestId: number) => {
+   const refreshOrders = useCallback(async (requestId: number) => {
         if (!provider || fetchReq.current !== requestId) return;
 
         try {
@@ -104,15 +99,34 @@ const Limit = () => {
                         if (o.maker === ethers.ZeroAddress) return;
 
                         const tIn = o.tokenIn.toLowerCase();
-                        if (!GLOBAL_DECIMALS_CACHE[tIn]) GLOBAL_DECIMALS_CACHE[tIn] = 18;
+                        const tOut = o.tokenOut.toLowerCase();
+
+                        // --- FIX: Fetch Correct Decimals for Both Tokens ---
+                        if (!GLOBAL_DECIMALS_CACHE[tIn] || !GLOBAL_DECIMALS_CACHE[tOut]) {
+                            const cIn = new ethers.Contract(tIn, ERC20_ABI, provider);
+                            const cOut = new ethers.Contract(tOut, ERC20_ABI, provider);
+                            const [dIn, dOut] = await Promise.all([cIn.decimals(), cOut.decimals()]);
+                            GLOBAL_DECIMALS_CACHE[tIn] = Number(dIn);
+                            GLOBAL_DECIMALS_CACHE[tOut] = Number(dOut);
+                        }
+                        
+                        const decIn = GLOBAL_DECIMALS_CACHE[tIn];
+                        const decOut = GLOBAL_DECIMALS_CACHE[tOut];
+                        // --------------------------------------------------
 
                         const isFilled = o.filled;
                         const isCancelled = o.cancelled;
                         const isBuy = o.isBuy;
-                        const rawAmountIn = parseFloat(ethers.formatUnits(o.amountIn, 18));
-                        const rawAmountOutMin = parseFloat(ethers.formatUnits(o.amountOutMin, 18));
 
+                        // Use Correct Decimals here
+                        const rawAmountIn = parseFloat(ethers.formatUnits(o.amountIn, decIn));
+                        const rawAmountOutMin = parseFloat(ethers.formatUnits(o.amountOutMin, decOut));
+
+                        // Price is usually 18 decimals in many protocols, but check your contract logic. 
+                        // Assuming targetPrice is always 18 per your Solidity logic.
                         let priceVal = parseFloat(ethers.formatUnits(o.targetPrice || 0, 18));
+
+                        // Fallback price calc if 0
                         if (priceVal <= 0 && rawAmountIn > 0 && rawAmountOutMin > 0) {
                             if (isBuy) priceVal = rawAmountIn / rawAmountOutMin;
                             else priceVal = rawAmountOutMin / rawAmountIn;
@@ -125,14 +139,17 @@ const Limit = () => {
                         }
 
                         let originalSize = 0;
+                        // Calculation Logic:
+                        // Buy: amountOutMin IS the token amount.
+                        // Sell: amountOutMin is USDT. Divide by Price to get Tokens.
                         if (isBuy) originalSize = rawAmountOutMin;
-                        else originalSize = rawAmountOutMin / priceVal;
+                        else originalSize = (priceVal > 0) ? (rawAmountOutMin / priceVal) : 0;
 
                         GLOBAL_ORDERS_CACHE.set(id, {
                             id: Number(o.id),
                             maker: o.maker,
                             tokenIn: tIn,
-                            tokenOut: o.tokenOut.toLowerCase(),
+                            tokenOut: tOut,
                             amountDisplay: displayAmount,
                             originalSize: originalSize,
                             targetPrice: priceVal,
@@ -144,7 +161,7 @@ const Limit = () => {
                             isFinal: isFilled || isCancelled
                         });
                     }
-                } catch { }
+                } catch (e) { console.error("Order Fetch Error", e) }
             }));
 
             const fAddr = market.from.address.toLowerCase();
@@ -177,7 +194,6 @@ const Limit = () => {
 
         } catch (e) { setUi(p => ({ ...p, loadingOrders: false })); }
     }, [provider, account, market.from.address, market.to.address]);
-
     // MAIN EFFECT: Fetch Data & Listen for Trades
     useEffect(() => {
         fetchReq.current += 1;

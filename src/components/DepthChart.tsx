@@ -4,9 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { Loader2, RefreshCw, AlertCircle, Plus, Minus, ChevronDown, ChevronUp } from 'lucide-react';
 import { useWallet } from '../contexts/WalletContext';
 import { TOKENS } from '../utils/SwapTokens';
-
-const CORE_ADDR = "0x9F705e385BE65835F0496cd2ac6D3Ea8169D2a2a";
-const USDT_ADDR = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
+import { CORE_ADDR, USDT_ADDR } from '../utils/Constants';
 
 const CORE_ABI = [
     "function orderBook(address, address, uint256) view returns (uint256)",

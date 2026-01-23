@@ -2,17 +2,9 @@ import { useState, useCallback, useEffect } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "../contexts/WalletContext"; 
 import SimpleLendingBorrowingABI from "../ABI/ABI.json"; 
+import { ERC20_ABI } from "../contexts/ABI";
 
 const CONTRACT_ADDRESS = "0x06E4C760C33f7fB0d3798BfD78eFeA2935545ccb"; // Updated address
-
-// Standard ERC20 ABI for balance/approval
-const ERC20_ABI = [
-    "function balanceOf(address owner) view returns (uint256)",
-    "function decimals() view returns (uint8)",
-    "function approve(address spender, uint256 value) returns (bool)",
-    "function allowance(address owner, address spender) view returns (uint256)"
-];
-
 export const useLendingBorrowing = () => {
     const { account, signer, provider } = useWallet();
     const [contract, setContract] = useState<ethers.Contract | null>(null);

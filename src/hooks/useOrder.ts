@@ -2,15 +2,8 @@ import { useState, useCallback } from "react";
 import { ethers, MaxUint256 } from "ethers";
 import { useWallet } from "../contexts/WalletContext";
 import ExecutorABI from "../ABI/ExchangeCoreABI.json";
-
-const EXECUTOR_ADDRESS = "0x8DD59298DF593432A6197CE9A0f5e7F57DF555B2";
-
-const ERC20_ABI = [
-    "function approve(address spender, uint256 amount) external returns (bool)",
-    "function allowance(address owner, address spender) view returns (uint256)",
-    "function decimals() view returns (uint8)",
-    "function balanceOf(address account) view returns (uint256)"
-];
+import { CORE_ADDR } from "../utils/Constants";
+import { ERC20_ABI } from "../contexts/ABI";
 
 export const useOrder = () => {
     const { account, signer } = useWallet();
@@ -21,7 +14,7 @@ export const useOrder = () => {
         async ({ tokenIn, tokenOut }: { tokenIn: string; tokenOut: string; }) => {
             if (!signer?.provider) return "0";
             try {
-                const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, signer.provider);
+                const executor = new ethers.Contract(CORE_ADDR, ExecutorABI, signer.provider);
                 const res = await executor.getPrice(tokenIn, tokenOut);
                 const raw = (res && res.toString()) || "0";
                 const fmt = ethers.formatUnits(raw, 18);
@@ -42,7 +35,7 @@ export const useOrder = () => {
             setError(null);
 
             try {
-                const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, signer);
+                const executor = new ethers.Contract(CORE_ADDR, ExecutorABI, signer);
                 const tokenInContract = new ethers.Contract(params.tokenIn, ERC20_ABI, signer);
                 const tokenOutContract = new ethers.Contract(params.tokenOut, ERC20_ABI, signer);
 
@@ -55,9 +48,9 @@ export const useOrder = () => {
                 const amtOutWei = ethers.parseUnits(params.amountOutMin, decOut);
                 const priceWei = ethers.parseUnits(params.targetPrice, 18);
 
-                const allowance = await tokenInContract.allowance(account, EXECUTOR_ADDRESS);
+                const allowance = await tokenInContract.allowance(account, CORE_ADDR);
                 if (allowance < amtInWei) {
-                    const txApp = await tokenInContract.approve(EXECUTOR_ADDRESS, MaxUint256);
+                    const txApp = await tokenInContract.approve(CORE_ADDR, MaxUint256);
                     await txApp.wait();
                 }
 
@@ -90,7 +83,7 @@ export const useOrder = () => {
         if (!signer) throw new Error("No signer");
         setLoading(true);
         try {
-            const executor = new ethers.Contract(EXECUTOR_ADDRESS, ExecutorABI, signer);
+            const executor = new ethers.Contract(CORE_ADDR, ExecutorABI, signer);
             const tx = await executor.cancelSpotOrder(orderId);
             await tx.wait();
             return tx.hash;

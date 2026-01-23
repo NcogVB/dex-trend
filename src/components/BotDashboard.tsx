@@ -4,16 +4,13 @@ import { useWallet } from "../contexts/WalletContext";
 import {
   Activity, BarChart3, TrendingUp, Zap, Settings, PlusCircle,
   Users, Wallet, Lock, ArrowUpRight, CheckCircle2, AlertCircle,
-  Hash, Download
+  Hash, Download, Skull, Percent
 } from "lucide-react";
 import DepthChart from "./DepthChart";
 import { TOKENS } from "../utils/SwapTokens";
 import TokenSelector from "./TokenSelector";
-
-const CORE_ADDR = "0x8DD59298DF593432A6197CE9A0f5e7F57DF555B2";
-const FUTURES_ADDR = "0x7A58D37Ae2Bd3baB277714a2c24eeA3B6DBF33Ce";
-const OPTIONS_ADDR = "0x88c5d9700df1ed86923c4b9241aB668F763b80B4";
-const USDT_ADDR = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
+import { CORE_ADDR, FUTURES_ADDR, USDT_ADDR, OPTIONS_ADDR } from '../utils/Constants';
+import { ERC20_ABI } from "../contexts/ABI";
 
 const CORE_ABI = [
   "function owner() view returns (address)",
@@ -23,43 +20,44 @@ const CORE_ABI = [
   "function removeLiquidity(address token, uint256 amount) external",
   "function withdrawEarnings(address token) external",
   "function liquidityPool(address) view returns (uint256)",
-  "function protocolPrincipal(address) view returns (uint256)", // New mapping
-  "event SpotTrade(address indexed tokenIn, address indexed tokenOut, uint256 price, uint256 amount)"
+  "function protocolPrincipal(address) view returns (uint256)",
+  "function lockedBalances(address, address) view returns (uint256)",
+  "event SpotTrade(address indexed tokenIn, address indexed tokenOut, uint256 price, uint256 amount, uint256 timestamp)"
 ];
 
 const FUTURES_ABI = [
-  "function getGlobalPositions(uint256, uint256) view returns (tuple(address user, address asset, uint256 sizeUSD, uint256 entryPrice, bool isLong)[])",
+  "function getGlobalPositions(uint256, uint256) view returns (tuple(address user, address asset, uint256 sizeUSD, uint256 margin, uint256 entryPrice, bool isLong, bool active)[])",
+  "function liquidatePosition(address user, address asset) external",
   "event PositionOpened(address indexed user, address indexed asset, bool isLong, uint256 size, uint256 price)",
 ];
 
 const OPTIONS_ABI = [
   "function getActiveOptions(uint256, uint256) view returns (tuple(uint256 id, address holder, uint256 amount, uint256 strikePrice, uint256 premium, bool active)[])",
+  "function currentPremiumBps() view returns (uint256)",
+  "function setPremiumConfig(uint256) external",
   "event OptionBought(address indexed user, uint256 indexed id, bool isCall, uint256 strike, uint256 amount, uint256 premium)"
-];
-
-const ERC20_ABI = [
-  "function balanceOf(address) view returns (uint256)",
-  "function approve(address spender, uint256 value) external returns (bool)",
-  "function decimals() view returns (uint8)"
 ];
 
 const AdminDashboard = () => {
   const { provider, account, signer } = useWallet();
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Admin Action States
-  const [priceParams, setPriceParams] = useState({ token: TOKENS[1], price: "" });
-
-  // Liquidity State
   const [lpParams, setLpParams] = useState({
     token: TOKENS[0],
     amount: "",
     principal: 0,
     poolBalance: 0,
-    earnings: 0
+    earnings: 0,
+    availableLiquidity: 0
   });
 
-  const [loadingAction, setLoadingAction] = useState(false);
+  const [optConfig, setOptConfig] = useState({
+    currentBps: 0,
+    newBps: ""
+  });
+
+  const [riskyPositions, setRiskyPositions] = useState<any[]>([]);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   const [stats, setStats] = useState({
     tvl: "0",
@@ -79,13 +77,11 @@ const AdminDashboard = () => {
       const core = new ethers.Contract(CORE_ADDR, CORE_ABI, provider);
       const futures = new ethers.Contract(FUTURES_ADDR, FUTURES_ABI, provider);
       const options = new ethers.Contract(OPTIONS_ADDR, OPTIONS_ABI, provider);
-      const usdt = new ethers.Contract(USDT_ADDR, ERC20_ABI, provider);
-
       const owner = await core.owner();
       if (account && owner.toLowerCase() === account.toLowerCase()) setIsAdmin(true);
 
-      const balanceRaw = await usdt.balanceOf(CORE_ADDR);
-      const tvl = ethers.formatUnits(balanceRaw, 18);
+      const liquidityPoolWei = await core.liquidityPool(USDT_ADDR);
+      const tvl = ethers.formatUnits(liquidityPoolWei, 18);
 
       const isFut = await core.isController(FUTURES_ADDR);
       const isOpt = await core.isController(OPTIONS_ADDR);
@@ -96,7 +92,17 @@ const AdminDashboard = () => {
       const spotFilter = core.filters.SpotTrade();
       const spotLogs = await core.queryFilter(spotFilter, fromBlock, currentBlock);
       let spotVol = 0;
-      spotLogs.forEach((log: any) => { spotVol += parseFloat(ethers.formatUnits(log.args[3], 18)); });
+      spotLogs.forEach((log: any) => {
+        const tokenIn = log.args[0];
+        const price = parseFloat(ethers.formatUnits(log.args[2], 18));
+        const amount = parseFloat(ethers.formatUnits(log.args[3], 18));
+
+        if (tokenIn.toLowerCase() === USDT_ADDR.toLowerCase()) {
+          spotVol += amount;
+        } else {
+          spotVol += amount * price;
+        }
+      });
 
       const openFilter = futures.filters.PositionOpened();
       const openLogs = await futures.queryFilter(openFilter, fromBlock, currentBlock);
@@ -126,16 +132,19 @@ const AdminDashboard = () => {
         controllers: { futures: isFut, options: isOpt }
       });
 
+      try {
+        const bps = await options.currentPremiumBps();
+        setOptConfig(p => ({ ...p, currentBps: Number(bps) }));
+      } catch { }
+
     } catch (e) { console.error(e); }
   }, [provider, account]);
 
-  // Fetch Liquidity Specific Data when token changes
   useEffect(() => {
     if (!provider || !lpParams.token) return;
     const fetchLpData = async () => {
       try {
         const core = new ethers.Contract(CORE_ADDR, CORE_ABI, provider);
-        // Assuming tokens are 18 decimals, or fetch dynamically
         const decimals = 18;
 
         const poolWei = await core.liquidityPool(lpParams.token.address);
@@ -144,19 +153,19 @@ const AdminDashboard = () => {
         const pool = parseFloat(ethers.formatUnits(poolWei, decimals));
         const principal = parseFloat(ethers.formatUnits(principalWei, decimals));
 
-        // Earnings = Pool - Principal (if Pool > Principal)
         const earnings = Math.max(0, pool - principal);
 
         setLpParams(p => ({
           ...p,
           poolBalance: pool,
           principal: principal,
-          earnings: earnings
+          earnings: earnings,
+          availableLiquidity: pool
         }));
       } catch (e) { console.error("LP Fetch Error", e); }
     };
     fetchLpData();
-    const i = setInterval(fetchLpData, 10000); // Refresh specifically for LP
+    const i = setInterval(fetchLpData, 10000);
     return () => clearInterval(i);
   }, [provider, lpParams.token]);
 
@@ -166,23 +175,74 @@ const AdminDashboard = () => {
     return () => clearInterval(i);
   }, [fetchData]);
 
-  // --- ACTIONS ---
-  const handleSetPrice = async () => {
-    if (!signer || !priceParams.price) return;
-    setLoadingAction(true);
+  const scanLiquidations = async () => {
+    if (!provider) return;
+    setLoadingAction('scan');
     try {
-      const core = new ethers.Contract(CORE_ADDR, CORE_ABI, signer);
-      const priceWei = ethers.parseUnits(priceParams.price, 18);
-      const tx = await core.setAssetPrice(priceParams.token.address,USDT_ADDR, priceWei);
-      await tx.wait();
-      alert(`Price updated!`);
-    } catch (e: any) { alert("Error: " + (e.reason || e.message)); }
-    finally { setLoadingAction(false); }
+      const futures = new ethers.Contract(FUTURES_ADDR, FUTURES_ABI, provider);
+      const core = new ethers.Contract(CORE_ADDR, CORE_ABI, provider);
+
+      const positions = await futures.getGlobalPositions(0, 50);
+      const risky = [];
+
+      for (const p of positions) {
+        if (!p.active) continue;
+
+        const currentPriceWei = await core.getPrice(p.asset, USDT_ADDR);
+        const currentPrice = parseFloat(ethers.formatUnits(currentPriceWei, 18));
+        const entryPrice = parseFloat(ethers.formatUnits(p.entryPrice, 18));
+        const size = parseFloat(ethers.formatUnits(p.sizeUSD, 18));
+        const margin = parseFloat(ethers.formatUnits(p.margin, 18));
+
+        let pnl = 0;
+        if (p.isLong) pnl = ((currentPrice - entryPrice) * size) / entryPrice;
+        else pnl = ((entryPrice - currentPrice) * size) / entryPrice;
+
+        if (pnl < 0 && Math.abs(pnl) >= margin * 0.9) {
+          risky.push({
+            user: p.user,
+            asset: p.asset,
+            margin,
+            pnl,
+            canLiquidate: Math.abs(pnl) >= margin
+          });
+        }
+      }
+      setRiskyPositions(risky);
+      if (risky.length === 0) alert("No liquidatable positions found.");
+    } catch (e) { console.error(e); }
+    finally { setLoadingAction(null); }
   };
+
+  const executeLiquidation = async (user: string, asset: string) => {
+    if (!signer) return;
+    setLoadingAction(`liq-${user}`);
+    try {
+      const futures = new ethers.Contract(FUTURES_ADDR, FUTURES_ABI, signer);
+      const tx = await futures.liquidatePosition(user, asset);
+      await tx.wait();
+      alert("Position Liquidated!");
+      scanLiquidations();
+    } catch (e: any) { alert("Failed: " + e.reason); }
+    finally { setLoadingAction(null); }
+  }
+
+  const handleUpdateOptions = async () => {
+    if (!signer || !optConfig.newBps) return;
+    setLoadingAction('optUpdate');
+    try {
+      const options = new ethers.Contract(OPTIONS_ADDR, OPTIONS_ABI, signer);
+      const tx = await options.setPremiumConfig(optConfig.newBps);
+      await tx.wait();
+      alert("Options Premium Updated!");
+      setOptConfig(p => ({ ...p, currentBps: Number(p.newBps), newBps: "" }));
+    } catch (e: any) { alert(e.reason || e.message); }
+    finally { setLoadingAction(null); }
+  }
 
   const handleAddLiquidity = async () => {
     if (!signer || !lpParams.amount) return;
-    setLoadingAction(true);
+    setLoadingAction('addLP');
     try {
       const core = new ethers.Contract(CORE_ADDR, CORE_ABI, signer);
       const token = new ethers.Contract(lpParams.token.address, ERC20_ABI, signer);
@@ -195,27 +255,26 @@ const AdminDashboard = () => {
       await txDeposit.wait();
 
       alert(`Liquidity Added!`);
-      // Update local state immediately for UX
       setLpParams(p => ({ ...p, amount: '' }));
     } catch (e: any) { alert("Error: " + e.message); }
-    finally { setLoadingAction(false); }
+    finally { setLoadingAction(null); }
   };
 
   const handleWithdrawEarnings = async () => {
     if (!signer) return;
-    setLoadingAction(true);
+    setLoadingAction('withdraw');
     try {
       const core = new ethers.Contract(CORE_ADDR, CORE_ABI, signer);
       const tx = await core.withdrawEarnings(lpParams.token.address);
       await tx.wait();
       alert("Earnings Withdrawn Successfully!");
     } catch (e: any) { alert("Error: " + (e.reason || e.message)); }
-    finally { setLoadingAction(false); }
+    finally { setLoadingAction(null); }
   };
 
   const handleRemovePrincipal = async () => {
     if (!signer || !lpParams.amount) return;
-    setLoadingAction(true);
+    setLoadingAction('removeLP');
     try {
       const core = new ethers.Contract(CORE_ADDR, CORE_ABI, signer);
       const token = new ethers.Contract(lpParams.token.address, ERC20_ABI, provider);
@@ -227,7 +286,7 @@ const AdminDashboard = () => {
       alert("Principal Removed Successfully!");
       setLpParams(p => ({ ...p, amount: '' }));
     } catch (e: any) { alert("Error: " + (e.reason || e.message)); }
-    finally { setLoadingAction(false); }
+    finally { setLoadingAction(null); }
   };
 
   const formatCurrency = (val: number | string) => {
@@ -239,7 +298,6 @@ const AdminDashboard = () => {
   return (
     <div className="p-6 max-w-7xl mx-auto bg-gray-50/50 min-h-screen font-sans text-slate-800">
 
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -255,14 +313,12 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* TOP METRICS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
 
-        {/* TVL CARD */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Value Locked</p>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Available Liquidity</p>
               <h2 className="text-3xl font-black text-slate-800 mt-1">{formatCurrency(stats.tvl)}</h2>
             </div>
             <div className="p-2 bg-indigo-50 rounded-lg"><Lock className="w-5 h-5 text-indigo-600" /></div>
@@ -270,10 +326,9 @@ const AdminDashboard = () => {
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
             <div className="bg-indigo-500 h-full w-[75%]"></div>
           </div>
-          <p className="text-[10px] text-slate-400 mt-2">Protocol Solvency: High</p>
+          <p className="text-[10px] text-slate-400 mt-2">Excludes funds locked in orders</p>
         </div>
 
-        {/* VOLUME CARD */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -288,7 +343,6 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* TRANSACTIONS CARD */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -302,7 +356,6 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* USERS CARD */}
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-start mb-4">
             <div>
@@ -318,17 +371,14 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* MIDDLE SECTION: BREAKDOWN & DEPTH */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
 
-        {/* VOLUME COMPOSITION */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-6">
               <Zap className="w-4 h-4 text-orange-500" /> Volume Composition
             </h3>
 
-            {/* Progress Bar Visual */}
             <div className="flex h-4 w-full rounded-full overflow-hidden mb-4 bg-slate-100">
               <div style={{ width: `${(stats.spotVolume / stats.totalVolume * 100) || 0}%` }} className="bg-blue-500 h-full" title="Spot"></div>
               <div style={{ width: `${(stats.futuresVolume / stats.totalVolume * 100) || 0}%` }} className="bg-purple-500 h-full" title="Futures"></div>
@@ -360,7 +410,6 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* System Health Check */}
           <div className="mt-6 pt-6 border-t border-slate-100">
             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Network Status</h4>
             <div className="flex gap-4">
@@ -374,13 +423,11 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* MARKET DEPTH CHART */}
         <div className="lg:col-span-2">
           <DepthChart />
         </div>
       </div>
 
-      {/* ADMIN CONTROLS */}
       {isAdmin && (
         <div className="bg-white rounded-xl shadow-sm border border-indigo-100 mb-20 relative z-10">
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between rounded-t-xl">
@@ -390,32 +437,9 @@ const AdminDashboard = () => {
             <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-mono">CORE: {CORE_ADDR.slice(0, 6)}...{CORE_ADDR.slice(-4)}</span>
           </div>
 
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+          <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
 
-            {/* PRICE MANAGER */}
-            <div className="pr-0 md:pr-4 relative z-20">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Activity className="w-4 h-4 text-blue-500" />  Manager</h4>
-                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-md font-medium">Force Update</span>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex gap-2 mb-3 items-end">
-                  <div className="w-3/5 relative z-50">
-                    <TokenSelector tokens={TOKENS.filter(t => t.symbol !== "USDT")} selected={priceParams.token} onSelect={(t: any) => setPriceParams(p => ({ ...p, token: t }))} label="Asset" />
-                  </div>
-                  <div className="w-full">
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">New Price ($)</label>
-                    <input type="number" placeholder="0.00" value={priceParams.price} onChange={(e) => setPriceParams(p => ({ ...p, price: e.target.value }))} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-mono font-bold focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                </div>
-                <button onClick={handleSetPrice} disabled={loadingAction} className="w-full text-white bg-blue-600 hover:bg-blue-700 font-bold rounded-lg text-sm py-2.5 transition-all shadow-md shadow-blue-100 flex items-center justify-center gap-2">
-                  {loadingAction ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <><Activity className="w-4 h-4" /> Update  Price</>}
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-6 md:pt-0 md:pl-8 relative z-10">
+            <div className="relative z-10">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Wallet className="w-4 h-4 text-green-500" /> Liquidity Manager</h4>
                 <div className="flex gap-2">
@@ -424,22 +448,16 @@ const AdminDashboard = () => {
               </div>
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-
                 <div className="flex justify-between items-center bg-white p-3 rounded-lg border border-green-100 mb-4 shadow-sm">
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Available Earnings</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Earnings</span>
                     <span className="text-xl font-bold text-green-600">{formatCurrency(lpParams.earnings)}</span>
                   </div>
-                  <button
-                    onClick={handleWithdrawEarnings}
-                    disabled={loadingAction || lpParams.earnings <= 0}
-                    className="bg-green-100 hover:bg-green-200 text-green-700 text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
-                  >
-                    <Download className="w-3 h-3" /> Claim
+                  <button onClick={handleWithdrawEarnings} disabled={loadingAction === 'withdraw' || lpParams.earnings <= 0} className="bg-green-100 hover:bg-green-200 text-green-700 text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50">
+                    {loadingAction === 'withdraw' ? <div className="animate-spin rounded-full h-3 w-3 border-2 border-green-700 border-t-transparent"></div> : <Download className="w-3 h-3" />} Claim
                   </button>
                 </div>
 
-                {/* Deposit / Withdraw Principal */}
                 <div className="flex gap-2 mb-3 items-end">
                   <div className="w-3/5 relative z-40">
                     <TokenSelector tokens={TOKENS} selected={lpParams.token} onSelect={(t: any) => setLpParams(p => ({ ...p, token: t }))} label="Asset" />
@@ -451,13 +469,75 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <button onClick={handleAddLiquidity} disabled={loadingAction} className="w-full text-white bg-slate-800 hover:bg-slate-900 font-bold rounded-lg text-sm py-2.5 transition-all shadow-md shadow-slate-200 flex items-center justify-center gap-2">
-                    {loadingAction ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <><PlusCircle className="w-4 h-4" /> Add LP</>}
+                  <button onClick={handleAddLiquidity} disabled={loadingAction === 'addLP'} className="w-full text-white bg-slate-800 hover:bg-slate-900 font-bold rounded-lg text-sm py-2.5 transition-all shadow-md shadow-slate-200 flex items-center justify-center gap-2">
+                    {loadingAction === 'addLP' ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div> : <><PlusCircle className="w-4 h-4" /> Add LP</>}
                   </button>
-                  <button onClick={handleRemovePrincipal} disabled={loadingAction} className="w-full text-red-600 bg-white border border-red-200 hover:bg-red-50 font-bold rounded-lg text-sm py-2.5 transition-all flex items-center justify-center gap-2">
-                    <ArrowUpRight className="w-4 h-4" /> Remove LP
+                  <button onClick={handleRemovePrincipal} disabled={loadingAction === 'removeLP'} className="w-full text-red-600 bg-white border border-red-200 hover:bg-red-50 font-bold rounded-lg text-sm py-2.5 transition-all flex items-center justify-center gap-2">
+                    {loadingAction === 'removeLP' ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-600 border-t-transparent"></div> : <><ArrowUpRight className="w-4 h-4" /> Remove LP</>}
                   </button>
                 </div>
+              </div>
+            </div>
+
+            <div className="lg:pl-8 relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Percent className="w-4 h-4 text-blue-500" /> Options Config</h4>
+                <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-1 rounded-md font-medium">Current: {optConfig.currentBps / 100}%</span>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                <p className="text-[10px] text-slate-500 mb-3">Set base premium rate in Basis Points (100 = 1%). Min 1%, Max 50%.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={optConfig.newBps}
+                    onChange={(e) => setOptConfig(p => ({ ...p, newBps: e.target.value }))}
+                    placeholder="e.g. 2000"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-mono font-bold"
+                  />
+                  <button onClick={handleUpdateOptions} disabled={loadingAction === 'optUpdate'} className="bg-blue-600 text-white px-4 rounded-lg font-bold text-xs hover:bg-blue-700 flex items-center gap-1">
+                    {loadingAction === 'optUpdate' ? <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div> : "Update"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:pl-8 relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Skull className="w-4 h-4 text-red-500" /> Liquidation Scanner</h4>
+                <button onClick={scanLiquidations} disabled={loadingAction === 'scan'} className="text-[10px] text-white bg-red-500 hover:bg-red-600 px-3 py-1 rounded-md font-bold transition flex items-center gap-1">
+                  {loadingAction === 'scan' ? <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div> : "Scan Now"}
+                </button>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 min-h-[150px] max-h-[250px] overflow-y-auto">
+                {riskyPositions.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-400 text-xs">
+                    <CheckCircle2 className="w-6 h-6 mb-1 text-green-400" />
+                    <span>System Healthy. No insolvencies.</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {riskyPositions.map((p, i) => (
+                      <div key={i} className="bg-white p-2 rounded border border-red-100 flex justify-between items-center shadow-sm">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-mono text-slate-600">{p.user.slice(0, 6)}...</span>
+                          <span className="text-[10px] font-bold text-red-600">PnL: {p.pnl.toFixed(2)}</span>
+                        </div>
+                        {p.canLiquidate ? (
+                          <button
+                            onClick={() => executeLiquidation(p.user, p.asset)}
+                            disabled={loadingAction === `liq-${p.user}`}
+                            className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded hover:bg-red-700 flex items-center gap-1"
+                          >
+                            {loadingAction === `liq-${p.user}` ? <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div> : "LIQUIDATE"}
+                          </button>
+                        ) : (
+                          <span className="text-[9px] bg-orange-100 text-orange-600 px-2 py-1 rounded font-bold">At Risk</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

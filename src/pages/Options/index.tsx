@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, DollarSign, Activity, Info } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, DollarSign, Activity, Info, Lock } from 'lucide-react';
 import { ethers } from 'ethers';
 import { useWallet } from '../../contexts/WalletContext';
 import { TOKENS } from '../../utils/SwapTokens';
@@ -8,17 +8,8 @@ import { useToast } from '../../components/Toast';
 import CoreABI from '../../ABI/ExchangeCoreABI.json';
 import OptionsABI from '../../ABI/OptionsABI.json';
 import TokenSelector from '../../components/TokenSelector';
-
-const ERC20ABI = [
-    "function balanceOf(address owner) view returns (uint256)",
-    "function decimals() view returns (uint8)",
-    "function approve(address spender, uint256 value) returns (bool)",
-    "function allowance(address owner, address spender) view returns (uint256)"
-];
-
-const CORE_ADDR = "0x8DD59298DF593432A6197CE9A0f5e7F57DF555B2";
-const OPTIONS_ADDR = "0xE0A678602ab0C4869b391A940411B065cfCc7346";
-const USDT_ADDR = "0x0F7782ef1Bd024E75a47d344496022563F0C1A38";
+import { ERC20ABI } from '../../contexts/ABI';
+import { CORE_ADDR, USDT_ADDR, OPTIONS_ADDR } from '../../utils/Constants';
 
 const EXPIRIES = [1, 7, 14, 30];
 
@@ -40,21 +31,25 @@ const Options = () => {
         action: null as string | null
     });
 
+    // Generate Strike Prices dynamically around current price
     const strikes = useCallback(() => {
         const p = parseFloat(state.price);
         if (p === 0) return [];
 
         const isStable = p < 2;
-        const step = p * (isStable ? 0.005 : 0.025);
+        // Generate wider range of strikes
+        const step = p * (isStable ? 0.005 : 0.01);
 
         const result = [];
         const decimals = p < 2 ? 5 : (p < 10 ? 4 : (p < 100 ? 2 : 0));
 
-        for (let i = -5; i <= 5; i++) {
+        // Generate 16 strikes (8 up, 8 down)
+        for (let i = -8; i <= 8; i++) {
+            if (i === 0) continue; // Skip exact price to avoid confusion
             const val = p + (i * step);
             result.push(val.toFixed(decimals));
         }
-        return result.reverse();
+        return result.reverse(); // Highest on top
     }, [state.price]);
 
     const fetchAll = useCallback(async () => {
@@ -125,6 +120,7 @@ const Options = () => {
             const options = new ethers.Contract(OPTIONS_ADDR, OptionsABI, signer);
             const usdt = new ethers.Contract(USDT_ADDR, ERC20ABI, signer);
 
+            // Conservative approval
             const minRequired = ethers.parseUnits("1000", 18);
             const allowance = await usdt.allowance(account, OPTIONS_ADDR);
 
@@ -152,6 +148,9 @@ const Options = () => {
             console.error(e);
             let msg = e.reason || "Transaction Failed";
             if (e.message?.includes("user rejected")) msg = "User rejected transaction";
+            // Check for our specific OTM errors
+            if (e.message?.includes("Call Strike must be >")) msg = "Cannot buy ITM Call";
+            if (e.message?.includes("Put Strike must be <")) msg = "Cannot buy ITM Put";
             showToast(msg, "error");
         } finally {
             setUi(p => ({ ...p, loading: false, action: null }));
@@ -195,7 +194,7 @@ const Options = () => {
                         </div>
 
                         <div className="flex items-center gap-3 bg-gray-50 px-4 py-2.5 rounded-xl border border-gray-200 shadow-inner">
-                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Contract Size</span>
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Size</span>
                             <div className="h-4 w-px bg-gray-300 mx-1"></div>
                             <input
                                 type="number"
@@ -210,7 +209,7 @@ const Options = () => {
                         <div className="hidden md:flex flex-col border-l border-gray-200 pl-6">
                             <div className="flex items-baseline gap-2">
                                 <span className="text-2xl font-mono font-bold text-gray-900">${formatPrice(state.price)}</span>
-                                <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider"> Price</span>
+                                <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Oracle Price</span>
                             </div>
                         </div>
                     </div>
@@ -246,6 +245,7 @@ const Options = () => {
                                 state.myOptions.map((o) => {
                                     const currentP = parseFloat(state.price);
                                     const strikeP = parseFloat(o.strike);
+                                    // ITM Logic: Call wins if Current > Strike. Put wins if Current < Strike.
                                     const isITM = o.isCall ? currentP > strikeP : currentP < strikeP;
                                     const pnl = isITM ? Math.abs(currentP - strikeP) * parseFloat(o.amount) : 0;
                                     const expiryDate = new Date(o.expiry * 1000);
@@ -277,7 +277,7 @@ const Options = () => {
                                                 className={`w-full py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${isITM ? "bg-green-600 text-white hover:bg-green-700 shadow-lg shadow-green-200" : "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"}`}
                                             >
                                                 {ui.loading && ui.action === `exercise-${o.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : (
-                                                    <>{isITM ? <DollarSign className="w-3 h-3" /> : <XCircle className="w-3 h-3" />} {isITM ? "Claim Now" : "Wait..."}</>
+                                                    <>{isITM ? <DollarSign className="w-3 h-3" /> : <XCircle className="w-3 h-3" />} {isITM ? "Claim Profit" : "Wait for Target"}</>
                                                 )}
                                             </button>
                                         </div>
@@ -293,71 +293,82 @@ const Options = () => {
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col h-[650px]">
                         {/* Chain Header */}
                         <div className="grid grid-cols-11 bg-gray-50 text-[10px] font-bold text-gray-500 py-3 border-b border-gray-200 text-center uppercase tracking-widest sticky top-0 z-10 shadow-sm">
-                            <span className="col-span-4 text-left pl-6 text-green-600 flex items-center gap-1.5"><TrendingUp className="w-3 h-3" /> Calls</span>
+                            <span className="col-span-4 text-left pl-6 text-green-600 flex items-center gap-1.5"><TrendingUp className="w-3 h-3" /> Calls (Bet Up)</span>
                             <span className="col-span-3 text-gray-800 text-xs flex items-center justify-center gap-1">Strike Price <Info className="w-3 h-3 text-gray-300" /></span>
-                            <span className="col-span-4 text-right pr-6 text-red-600 flex items-center justify-end gap-1.5">Puts <TrendingDown className="w-3 h-3" /></span>
+                            <span className="col-span-4 text-right pr-6 text-red-600 flex items-center justify-end gap-1.5">Puts (Bet Down) <TrendingDown className="w-3 h-3" /></span>
                         </div>
 
                         <div className="divide-y divide-gray-50 overflow-y-auto custom-scrollbar flex-1 bg-white">
                             {strikes().map((strike, i) => {
                                 const sVal = parseFloat(strike);
                                 const current = parseFloat(state.price);
-                                const diff = ((sVal - current) / current) * 100;
-                                const isAtm = Math.abs(diff) < (current < 2 ? 0.5 : 2.5);
                                 const amountNum = parseFloat(state.amount) || 1;
 
                                 const notional = sVal * amountNum;
+                                // Simple premium estimation: 2% base + time decay factor
                                 const premiumEst = (notional * 0.02 * (ui.selectedExpiry / 30));
 
-                                const breakEvenCall = sVal + (premiumEst / amountNum);
-                                const breakEvenPut = sVal - (premiumEst / amountNum);
+                                // --- SAFETY LOGIC: PREVENT BUYING ITM ---
+                                // You can only buy a CALL if strike > current (OTM)
+                                // You can only buy a PUT if strike < current (OTM)
+                                const canBuyCall = sVal > current;
+                                const canBuyPut = sVal < current;
 
                                 return (
-                                    <div key={i} className={`grid grid-cols-11 text-xs transition-colors items-center py-1 hover:bg-gray-50 group ${isAtm ? "bg-blue-50/40" : ""}`}>
+                                    <div key={i} className="grid grid-cols-11 text-xs transition-colors items-center py-1.5 hover:bg-gray-50 group">
 
                                         {/* CALL SIDE */}
                                         <div className="col-span-4 flex items-center justify-between pl-4 pr-2 border-r border-gray-50 h-full">
-                                            <div className="flex flex-col items-start gap-0.5">
-                                                <span className="text-[10px] text-gray-400 font-mono">BE: ${breakEvenCall.toFixed(2)}</span>
-                                                <div className="w-16 h-1 bg-green-100 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-green-400" style={{ width: `${Math.max(0, 100 - (diff * 5))}%` }}></div>
-                                                </div>
+                                            <div className="flex flex-col items-start gap-0.5 opacity-60">
+                                                {/* Hidden BreakEven Info (Cleaner Look) */}
                                             </div>
                                             <button
                                                 onClick={() => handleBuy(true, strike)}
-                                                disabled={ui.loading}
-                                                className="group/btn flex items-center gap-2 px-3 py-1.5 bg-white border border-green-100 hover:border-green-500 hover:bg-green-50 rounded-lg transition-all shadow-sm w-28 justify-between"
+                                                disabled={ui.loading || !canBuyCall}
+                                                className={`group/btn flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all shadow-sm w-28 justify-between border ${canBuyCall
+                                                        ? "bg-white border-green-100 hover:border-green-500 hover:bg-green-50 cursor-pointer"
+                                                        : "bg-gray-50 border-transparent cursor-not-allowed opacity-50"
+                                                    }`}
                                             >
-                                                <span className="font-mono font-bold text-gray-700 group-hover/btn:text-green-700">${premiumEst.toFixed(2)}</span>
-                                                {ui.loading && ui.action === `buy-call-${strike}` ? <Loader2 className="w-3 h-3 animate-spin text-green-600" /> : <TrendingUp className="w-3 h-3 text-green-400 group-hover/btn:text-green-600" />}
+                                                {canBuyCall ? (
+                                                    <>
+                                                        <span className="font-mono font-bold text-gray-700 group-hover/btn:text-green-700">${premiumEst.toFixed(5)}</span>
+                                                        {ui.loading && ui.action === `buy-call-${strike}` ? <Loader2 className="w-3 h-3 animate-spin text-green-600" /> : <TrendingUp className="w-3 h-3 text-green-400 group-hover/btn:text-green-600" />}
+                                                    </>
+                                                ) : (
+                                                    <span className="w-full text-center text-gray-300 font-bold flex items-center justify-center gap-1"><Lock className="w-3 h-3" /> ITM</span>
+                                                )}
                                             </button>
                                         </div>
 
                                         {/* STRIKE CENTER */}
-                                        <div className={`col-span-3 flex flex-col justify-center items-center h-full py-3 ${isAtm ? "bg-blue-100/50" : ""}`}>
-                                            <span className={`font-mono text-sm font-bold ${isAtm ? "text-blue-700" : "text-gray-700"}`}>
+                                        <div className="col-span-3 flex flex-col justify-center items-center h-full py-2 relative">
+                                            {/* Visual line indicating Current Price relation */}
+                                            <span className={`font-mono text-sm font-bold z-10 ${sVal === current ? "text-blue-600" : "text-gray-700"}`}>
                                                 ${sVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
                                             </span>
-                                            {isAtm && <span className="text-[9px] font-bold text-blue-500 uppercase tracking-wide mt-0.5">ATM</span>}
                                         </div>
 
                                         {/* PUT SIDE */}
                                         <div className="col-span-4 flex items-center justify-between pl-2 pr-4 border-l border-gray-50 h-full">
                                             <button
                                                 onClick={() => handleBuy(false, strike)}
-                                                disabled={ui.loading}
-                                                className="group/btn flex items-center gap-2 px-3 py-1.5 bg-white border border-red-100 hover:border-red-500 hover:bg-red-50 rounded-lg transition-all shadow-sm w-28 justify-between"
+                                                disabled={ui.loading || !canBuyPut}
+                                                className={`group/btn flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all shadow-sm w-28 justify-between border ${canBuyPut
+                                                        ? "bg-white border-red-100 hover:border-red-500 hover:bg-red-50 cursor-pointer"
+                                                        : "bg-gray-50 border-transparent cursor-not-allowed opacity-50"
+                                                    }`}
                                             >
-                                                <TrendingDown className="w-3 h-3 text-red-400 group-hover/btn:text-red-600" />
-                                                <span className="font-mono font-bold text-gray-700 group-hover/btn:text-red-700">${premiumEst.toFixed(2)}</span>
-                                                {ui.loading && ui.action === `buy-put-${strike}` && <Loader2 className="w-3 h-3 animate-spin text-red-600 absolute right-2" />}
+                                                {canBuyPut ? (
+                                                    <>
+                                                        <TrendingDown className="w-3 h-3 text-red-400 group-hover/btn:text-red-600" />
+                                                        <span className="font-mono font-bold text-gray-700 group-hover/btn:text-red-700">${premiumEst.toFixed(5)}</span>
+                                                        {ui.loading && ui.action === `buy-put-${strike}` && <Loader2 className="w-3 h-3 animate-spin text-red-600 absolute right-2" />}
+                                                    </>
+                                                ) : (
+                                                    <span className="w-full text-center text-gray-300 font-bold flex items-center justify-center gap-1">ITM <Lock className="w-3 h-3" /></span>
+                                                )}
                                             </button>
-                                            <div className="flex flex-col items-end gap-0.5">
-                                                <span className="text-[10px] text-gray-400 font-mono">BE: ${breakEvenPut.toFixed(2)}</span>
-                                                <div className="w-16 h-1 bg-red-100 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-red-400" style={{ width: `${Math.max(0, 100 + (diff * 5))}%` }}></div>
-                                                </div>
-                                            </div>
                                         </div>
 
                                     </div>
