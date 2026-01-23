@@ -236,7 +236,7 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
                                 type="number"
                                 domain={getDomain()}
                                 tick={{ fontSize: 10, fill: '#848E9C' }}
-                                tickFormatter={(val) => val.toFixed(4)}
+                                tickFormatter={(val:any) => val.toFixed(4)}
                                 axisLine={false}
                                 tickLine={false}
                                 allowDataOverflow={true}
@@ -255,7 +255,7 @@ const DepthChart = ({ initialToken }: { initialToken?: any }) => {
                                     <span key="val" style={{ color: name === 'bidVolume' ? '#0ECB81' : '#F6465D' }}>{val.toFixed(4)}</span>,
                                     name === 'bidVolume' ? 'Buy Vol' : 'Sell Vol'
                                 ]}
-                                labelFormatter={(label) => `Price: ${parseFloat(label).toFixed(4)}`}
+                                labelFormatter={(label:any) => `Price: ${parseFloat(label).toFixed(4)}`}
                             />
                             <Area
                                 type="stepAfter"
