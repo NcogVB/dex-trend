@@ -43,7 +43,9 @@ const Limit = () => {
     const [orderList, setOrderList] = useState({ user: [] as any[], general: [] as any[], history: [] as any[] });
 
     const fetchReq = useRef(0);
-    const scrollRef = useRef<HTMLDivElement>(null);
+    // Separate refs for buy/sell lists to maintain independent scroll positions
+    const sellListRef = useRef<HTMLDivElement>(null);
+    const buyListRef = useRef<HTMLDivElement>(null);
 
     const fetchBalances = useCallback(async () => {
         if (!account || !provider) return;
@@ -86,59 +88,60 @@ const Limit = () => {
                 return;
             }
 
-            const idsToFetch = [];
-            const startId = Math.max(1, nextId - 100);
-            for (let i = nextId - 1; i >= startId; i--) {
-                idsToFetch.push(i);
+            const idsToFetch = new Set<number>();
+
+            // FULL SCAN: Fetch 1 to End (No Limit)
+            for (let i = 1; i < nextId; i++) {
+                // Skip if we already know it's final
+                if (GLOBAL_ORDERS_CACHE.has(i) && GLOBAL_ORDERS_CACHE.get(i).isFinal) continue;
+                idsToFetch.add(i);
             }
 
-            await Promise.all(idsToFetch.map(async (id) => {
+            await Promise.all(Array.from(idsToFetch).map(async (id) => {
                 try {
-                    if (!GLOBAL_ORDERS_CACHE.has(id) || !GLOBAL_ORDERS_CACHE.get(id).isFinal) {
-                        const o = await core.orders(id);
-                        if (o.maker === ethers.ZeroAddress) return;
+                    const o = await core.orders(id);
+                    if (o.maker === ethers.ZeroAddress) return;
 
-                        const tIn = o.tokenIn.toLowerCase();
-                        if (!GLOBAL_DECIMALS_CACHE[tIn]) GLOBAL_DECIMALS_CACHE[tIn] = 18;
+                    const tIn = o.tokenIn.toLowerCase();
+                    if (!GLOBAL_DECIMALS_CACHE[tIn]) GLOBAL_DECIMALS_CACHE[tIn] = 18;
 
-                        const isFilled = o.filled;
-                        const isCancelled = o.cancelled;
-                        const isBuy = o.isBuy;
-                        const rawAmountIn = parseFloat(ethers.formatUnits(o.amountIn, 18));
-                        const rawAmountOutMin = parseFloat(ethers.formatUnits(o.amountOutMin, 18));
+                    const isFilled = o.filled;
+                    const isCancelled = o.cancelled;
+                    const isBuy = o.isBuy;
+                    const rawAmountIn = parseFloat(ethers.formatUnits(o.amountIn, 18));
+                    const rawAmountOutMin = parseFloat(ethers.formatUnits(o.amountOutMin, 18));
 
-                        let priceVal = parseFloat(ethers.formatUnits(o.targetPrice || 0, 18));
-                        if (priceVal <= 0 && rawAmountIn > 0 && rawAmountOutMin > 0) {
-                            if (isBuy) priceVal = rawAmountIn / rawAmountOutMin;
-                            else priceVal = rawAmountOutMin / rawAmountIn;
-                        }
-
-                        let displayAmount = 0;
-                        if (!isFilled && !isCancelled) {
-                            if (isBuy) displayAmount = rawAmountIn / priceVal;
-                            else displayAmount = rawAmountIn;
-                        }
-
-                        let originalSize = 0;
-                        if (isBuy) originalSize = rawAmountOutMin;
-                        else originalSize = rawAmountOutMin / priceVal;
-
-                        GLOBAL_ORDERS_CACHE.set(id, {
-                            id: Number(o.id),
-                            maker: o.maker,
-                            tokenIn: tIn,
-                            tokenOut: o.tokenOut.toLowerCase(),
-                            amountDisplay: displayAmount,
-                            originalSize: originalSize,
-                            targetPrice: priceVal,
-                            expiry: Number(o.expiry),
-                            filled: isFilled,
-                            cancelled: isCancelled,
-                            isBuy: isBuy,
-                            orderType: isBuy ? 0 : 1,
-                            isFinal: isFilled || isCancelled
-                        });
+                    let priceVal = parseFloat(ethers.formatUnits(o.targetPrice || 0, 18));
+                    if (priceVal <= 0 && rawAmountIn > 0 && rawAmountOutMin > 0) {
+                        if (isBuy) priceVal = rawAmountIn / rawAmountOutMin;
+                        else priceVal = rawAmountOutMin / rawAmountIn;
                     }
+
+                    let displayAmount = 0;
+                    if (!isFilled && !isCancelled) {
+                        if (isBuy) displayAmount = rawAmountIn / priceVal;
+                        else displayAmount = rawAmountIn;
+                    }
+
+                    let originalSize = 0;
+                    if (isBuy) originalSize = rawAmountOutMin;
+                    else originalSize = rawAmountOutMin / priceVal;
+
+                    GLOBAL_ORDERS_CACHE.set(id, {
+                        id: Number(o.id),
+                        maker: o.maker,
+                        tokenIn: tIn,
+                        tokenOut: o.tokenOut.toLowerCase(),
+                        amountDisplay: displayAmount,
+                        originalSize: originalSize,
+                        targetPrice: priceVal,
+                        expiry: Number(o.expiry),
+                        filled: isFilled,
+                        cancelled: isCancelled,
+                        isBuy: isBuy,
+                        orderType: isBuy ? 0 : 1,
+                        isFinal: isFilled || isCancelled
+                    });
                 } catch { }
             }));
 
@@ -148,13 +151,13 @@ const Limit = () => {
 
             GLOBAL_ORDERS_CACHE.forEach(o => {
                 const isPair = (o.tokenIn === fAddr && o.tokenOut === tAddr) || (o.tokenIn === tAddr && o.tokenOut === fAddr);
-                
                 if (!isPair) return;
 
                 const isActive = !o.filled && !o.cancelled;
 
                 if (isActive) {
-                    if (o.amountDisplay > 0.000001) {
+                    // Filter dust
+                    if (o.amountDisplay > 0.00000001) {
                         generalOrders.push(o);
                         if (account && o.maker.toLowerCase() === account.toLowerCase()) userOrders.push(o);
                     }
@@ -166,7 +169,7 @@ const Limit = () => {
             const sorter = (a: any, b: any) => b.id - a.id;
             setOrderList({
                 user: userOrders.sort(sorter),
-                general: generalOrders, 
+                general: generalOrders,
                 history: historyOrders.sort(sorter)
             });
             setUi(p => ({ ...p, loadingOrders: false }));
@@ -178,7 +181,7 @@ const Limit = () => {
         fetchReq.current += 1;
         const reqId = fetchReq.current;
         setUi(p => ({ ...p, loadingOrders: true }));
-        
+
         fetchLastOrderPriceForPair({ tokenIn: market.from.address, tokenOut: market.to.address });
         refreshOrders(reqId);
         fetchBalances();
@@ -284,7 +287,6 @@ const Limit = () => {
                 <span className="flex-1 text-center">{p.toFixed(5)}</span>
                 <span className="flex-1 text-center">{a.toFixed(4)}</span>
                 <span className="flex-1 text-right font-medium">{total.toFixed(2)}</span>
-                <span className="w-16 text-right font-bold">{o.filled ? "Filled" : "Cancelled"}</span>
             </div>
         );
     };
@@ -309,11 +311,29 @@ const Limit = () => {
                                         const isSell = o.orderType === 1;
                                         const p = o.targetPrice;
                                         const a = o.amountDisplay;
+                                        const total = o.originalSize || a;
+
+                                        const filledAmt = total - a;
+                                        const pct = total > 0 ? (filledAmt / total) * 100 : 0;
+                                        const isPartial = pct > 0.1 && pct < 99.9;
+
                                         return (
-                                            <div key={o.id} className="grid grid-cols-7 text-xs py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition">
+                                            <div key={o.id} className="grid grid-cols-7 text-xs py-2 px-3 border-b border-gray-100 hover:bg-gray-50 transition items-center">
                                                 <span className="text-left font-medium">#{o.id}</span>
                                                 <span className="text-center cursor-pointer" onClick={() => updateInput('price', p.toString())}>{p.toFixed(6)}</span>
-                                                <span className="text-center cursor-pointer" onClick={() => updateInput('amount', a.toString())}>{a.toFixed(4)}</span>
+
+                                                <div className="flex flex-col items-center justify-center cursor-pointer" onClick={() => updateInput('amount', a.toString())}>
+                                                    <span className="font-bold">{a.toFixed(4)}</span>
+                                                    {isPartial && (
+                                                        <>
+                                                            <span className="text-[9px] text-gray-400 leading-none">of {total.toFixed(4)}</span>
+                                                            <div className="w-10 h-1 bg-gray-200 mt-0.5 rounded-full overflow-hidden">
+                                                                <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${pct}%` }}></div>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+
                                                 <span className="text-center">{(p * a).toFixed(2)}</span>
                                                 <span className="text-center">{o.expiry ? new Date(o.expiry * 1000).toLocaleDateString(undefined, { month: "short", day: "2-digit" }) : "-"}</span>
                                                 <span className={`text-center font-semibold ${isSell ? "text-red-600" : "text-green-600"}`}>{isSell ? "SELL" : "BUY"}</span>
@@ -351,7 +371,6 @@ const Limit = () => {
                                                 <span className="flex-1 text-center">Price</span>
                                                 <span className="flex-1 text-center">Size</span>
                                                 <span className="flex-1 text-right">Total</span>
-                                                <span className="w-16 text-right">State</span>
                                             </>
                                         )}
                                     </div>
@@ -360,57 +379,60 @@ const Limit = () => {
 
                                     {ui.tab === 'open' ? (
                                         <div className="flex flex-col text-xs font-medium h-full relative">
-                                            {/* SELLS (Asks) - Lowest Price First (ASC) */}
-                                            <div ref={scrollRef} className="flex-1 overflow-y-scroll scrollbar-hide flex flex-col-reverse justify-end">
+
+                                            {/* SELLS: FIXED SCROLLING */}
+                                            {/* removed justify-end to prevent clipping, kept flex-col-reverse for correct stack order */}
+                                            <div ref={sellListRef} className="flex-1 overflow-y-auto scrollbar-hide flex flex-col-reverse">
                                                 {orderList.general
-                                                    .filter(o => o.orderType === 1) // Sell Orders
-                                                    .sort((a, b) => a.targetPrice - b.targetPrice) // ASCENDING PRICE (Lowest Sell Price First)
+                                                    .filter(o => o.orderType === 1)
+                                                    .sort((a, b) => a.targetPrice - b.targetPrice) // ASC: 1.1, 1.2, 1.3
                                                     .map(o => (
-                                                    <div
-                                                        key={o.id}
-                                                        onClick={() => {
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                price: o.targetPrice.toString(),
-                                                                amount: o.amountDisplay.toString(),
-                                                                total: (o.targetPrice * o.amountDisplay).toString()
-                                                            }));
-                                                        }}
-                                                        className="px-3 py-1 flex justify-between text-red-600 hover:bg-red-50 cursor-pointer"
-                                                    >                                                        <span className="flex-1 text-left">{o.targetPrice.toFixed(5)}</span>
-                                                        <span className="flex-1 text-center">{o.amountDisplay.toFixed(4)}</span>
-                                                        <span className="flex-1 text-right">{(o.targetPrice * o.amountDisplay).toFixed(2)}</span>
-                                                    </div>
-                                                ))}
+                                                        <div
+                                                            key={o.id}
+                                                            onClick={() => {
+                                                                setForm(prev => ({
+                                                                    ...prev,
+                                                                    price: o.targetPrice.toString(),
+                                                                    amount: o.amountDisplay.toString(),
+                                                                    total: (o.targetPrice * o.amountDisplay).toString()
+                                                                }));
+                                                            }}
+                                                            className="px-3 py-1 flex justify-between text-red-600 hover:bg-red-50 cursor-pointer min-h-[24px] items-center"
+                                                        >
+                                                            <span className="flex-1 text-left">{o.targetPrice.toFixed(5)}</span>
+                                                            <span className="flex-1 text-center">{o.amountDisplay.toFixed(4)}</span>
+                                                            <span className="flex-1 text-right">{(o.targetPrice * o.amountDisplay).toFixed(2)}</span>
+                                                        </div>
+                                                    ))}
                                             </div>
-                                            
-                                            {/* Current Price Middle Bar */}
-                                            <div onClick={() => currentRate && updateInput('price', parseFloat(currentRate).toFixed(6))} className="px-3 py-2 flex justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white cursor-pointer sticky z-10 shadow-sm">
+
+                                            <div onClick={() => currentRate && updateInput('price', parseFloat(currentRate).toFixed(6))} className="px-3 py-2 flex justify-center border-y border-gray-300 text-sm font-semibold text-blue-600 bg-white cursor-pointer sticky z-10 shadow-sm shrink-0">
                                                 {currentRate ? <>{parseFloat(currentRate).toFixed(6)} <span className="text-gray-400 text-xs ml-1">{market.to.symbol}</span></> : <Loader2 className="w-3 h-3 animate-spin" />}
                                             </div>
-                                            
-                                            {/* BUYS (Bids) - Highest Price First (DESC) */}
-                                            <div className="flex-1 overflow-y-scroll scrollbar-hide">
+
+                                            {/* BUYS */}
+                                            <div ref={buyListRef} className="flex-1 overflow-y-auto scrollbar-hide">
                                                 {orderList.general
-                                                    .filter(o => o.orderType === 0) // Buy Orders
-                                                    .sort((a, b) => b.targetPrice - a.targetPrice) // DESCENDING PRICE (Highest Bid First)
+                                                    .filter(o => o.orderType === 0)
+                                                    .sort((a, b) => b.targetPrice - a.targetPrice)
                                                     .map(o => (
-                                                    <div
-                                                        key={o.id}
-                                                        onClick={() => {
-                                                            setForm(prev => ({
-                                                                ...prev,
-                                                                price: o.targetPrice.toString(),
-                                                                amount: o.amountDisplay.toString(),
-                                                                total: (o.targetPrice * o.amountDisplay).toString()
-                                                            }));
-                                                        }}
-                                                        className="px-3 py-1 flex justify-between text-green-600 hover:bg-green-50 cursor-pointer"
-                                                    >                                                        <span className="flex-1 text-left">{o.targetPrice.toFixed(5)}</span>
-                                                        <span className="flex-1 text-center">{o.amountDisplay.toFixed(4)}</span>
-                                                        <span className="flex-1 text-right">{(o.targetPrice * o.amountDisplay).toFixed(2)}</span>
-                                                    </div>
-                                                ))}
+                                                        <div
+                                                            key={o.id}
+                                                            onClick={() => {
+                                                                setForm(prev => ({
+                                                                    ...prev,
+                                                                    price: o.targetPrice.toString(),
+                                                                    amount: o.amountDisplay.toString(),
+                                                                    total: (o.targetPrice * o.amountDisplay).toString()
+                                                                }));
+                                                            }}
+                                                            className="px-3 py-1 flex justify-between text-green-600 hover:bg-green-50 cursor-pointer min-h-[24px] items-center"
+                                                        >
+                                                            <span className="flex-1 text-left">{o.targetPrice.toFixed(5)}</span>
+                                                            <span className="flex-1 text-center">{o.amountDisplay.toFixed(4)}</span>
+                                                            <span className="flex-1 text-right">{(o.targetPrice * o.amountDisplay).toFixed(2)}</span>
+                                                        </div>
+                                                    ))}
                                             </div>
                                         </div>
                                     ) : (
@@ -455,20 +477,20 @@ const Limit = () => {
                                     </div>
 
                                     <div className="flex justify-between mt-1 text-[10px] text-gray-500 px-1">
-                                            <span className="cursor-pointer hover:text-blue-600 flex items-center gap-1" onClick={() => updateInput('amount', market.from.protocol)}>
-                                            </span>
-                                            <span className="cursor-pointer hover:text-blue-600 flex items-center gap-1" onClick={() => updateInput('amount', market.from.wallet)}>
-                                                <span>Wallet:</span> <span className="font-bold text-gray-700">{parseFloat(market.from.wallet).toFixed(3)}</span>
-                                            </span>
+                                        <span className="cursor-pointer hover:text-blue-600 flex items-center gap-1" onClick={() => updateInput('amount', market.from.protocol)}>
+                                        </span>
+                                        <span className="cursor-pointer hover:text-blue-600 flex items-center gap-1" onClick={() => updateInput('amount', market.from.wallet)}>
+                                            <span>Wallet:</span> <span className="font-bold text-gray-700">{parseFloat(market.from.wallet).toFixed(3)}</span>
+                                        </span>
                                     </div>
 
                                     <div className="flex justify-between mt-2 gap-1">
-                                            {[25, 50, 75, 100].map(pct => (
-                                                <button key={pct} onClick={() => {
-                                                    const bal = parseFloat(market.from.wallet) > 0 ? parseFloat(market.from.wallet) : parseFloat(market.from.protocol);
-                                                    updateInput('amount', ((bal * pct) / 100).toFixed(6));
-                                                }} className="flex-1 py-1 rounded-md bg-gray-100 hover:bg-blue-600 hover:text-white transition font-medium">{pct}%</button>
-                                            ))}
+                                        {[25, 50, 75, 100].map(pct => (
+                                            <button key={pct} onClick={() => {
+                                                const bal = parseFloat(market.from.wallet) > 0 ? parseFloat(market.from.wallet) : parseFloat(market.from.protocol);
+                                                updateInput('amount', ((bal * pct) / 100).toFixed(6));
+                                            }} className="flex-1 py-1 rounded-md bg-gray-100 hover:bg-blue-600 hover:text-white transition font-medium">{pct}%</button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
